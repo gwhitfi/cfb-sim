@@ -1,0 +1,38 @@
+{
+  // Rule-based blocking: each slot (or "OL" for all five linemen) has an ordered
+  // list of rules; the first rule whose condition matches at the snap wins.
+  "format_version": 1,
+  "run_schemes": {
+    "inside_zone": {
+      "OL": [
+        {"if": "covered_playside", "do": "reach",       "target": "man_on"},
+        {"if": "uncovered",        "do": "combo_climb", "target": "playside_gap", "climb_to": "first_lb_playside"},
+        {"do": "drive", "target": "man_on"}
+      ],
+      "Y":  [{"do": "reach", "target": "emol_playside"}]
+    },
+    "outside_zone": {
+      "OL": [
+        {"if": "covered_playside", "do": "reach",       "target": "man_on"},
+        {"if": "uncovered",        "do": "combo_climb", "target": "playside_gap", "climb_to": "first_lb_playside"},
+        {"do": "reach", "target": "man_on"}
+      ],
+      "Y":  [{"do": "reach", "target": "emol_playside"}]
+    },
+    "power": {
+      "OL": [
+        {"if": "has_inside_threat", "do": "down",  "target": "backside_gap"},
+        {"if": "covered",           "do": "drive", "target": "man_on"},
+        {"do": "combo_climb", "target": "playside_gap", "climb_to": "first_lb_playside"}
+      ],
+      "Y":  [{"do": "down", "target": "backside_gap"}]
+    }
+  },
+  "protections": {
+    "slide": {
+      "slide_side": {"do": "pass_set", "target": "playside_gap"},
+      "man_side":   {"do": "pass_set", "target": "man_on_or_inside"},
+      "backs":      {"do": "check_release", "target": "first_free_rusher"}
+    }
+  }
+}

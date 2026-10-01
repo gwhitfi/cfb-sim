@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "id": "43_base",
+  "name": "4-3 Base",
+  "side": "defense",
+  "scheme": "4-3_over",
+  "strength_call": ["te", "passing_strength", "field"],
+  "formations": ["43_over", "nickel_over"],
+  "plays": [
+    {
+      "id": "43_over_cover3",
+      "name": "Over Cover 3",
+      "side": "defense",
+      "formation": "43_over",
+      "coverage": "cover_3",
+      "assignments": {
+        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
+        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
+        "NT":   {"run": {"gap": "A", "side": "weak"},   "pass": {"rush": {"lane": "A"}}},
+        "WDE":  {"run": {"gap": "C", "side": "weak"},   "pass": {"rush": {"lane": "contain"}}},
+        "SAM":  {"run": {"gap": "D", "side": "strong"}, "pass": {"zone": "curl_flat_strong"}},
+        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
+        "WILL": {"run": {"gap": "B", "side": "weak"},   "pass": {"zone": "curl_flat_weak"}},
+        "SCB":  {"run": {"support": "deep_third"},      "pass": {"zone": "deep_third_strong"}},
+        "WCB":  {"run": {"support": "deep_third"},      "pass": {"zone": "deep_third_weak"}},
+        "SS":   {"run": {"support": "alley_strong"},    "pass": {"zone": "hook_curl_strong"}},
+        "FS":   {"run": {"support": "deep_fill"},       "pass": {"zone": "deep_middle"}}
+      },
+      "tags": ["base", "zone", "vs_run", "1st_down"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "id": "nickel_over",
+  "name": "Nickel Over (4-2-5)",
+  "side": "defense",
+  "package": "nickel",
+  "slots": {
+    "SDE":  {"pos": "DE",  "x": {"tech": "5", "side": "strong"}, "y": 1, "stance": "three_point"},
+    "DT":   {"pos": "DT",  "x": {"tech": "3", "side": "strong"}, "y": 1, "stance": "three_point"},
+    "NT":   {"pos": "DT",  "x": {"tech": "1", "side": "weak"},   "y": 1, "stance": "three_point"},
+    "WDE":  {"pos": "DE",  "x": {"tech": "5", "side": "weak"},   "y": 1, "stance": "three_point"},
+    "MIKE": {"pos": "MLB", "x": {"tech": "2", "side": "strong"}, "y": 5},
+    "WILL": {"pos": "OLB", "x": {"tech": "2", "side": "weak"},   "y": 5},
+    "NB":   {"pos": "CB",  "x": {"over": "#2", "side": "strong", "offset": -1}, "y": 5},
+    "SCB":  {"pos": "CB",  "x": {"over": "#1", "side": "strong", "offset": 1},  "y": 7},
+    "WCB":  {"pos": "CB",  "x": {"over": "#1", "side": "weak",   "offset": 1},  "y": 7},
+    "SS":   {"pos": "SS",  "x": {"from": "hash", "side": "strong", "offset": 0}, "y": 10},
+    "FS":   {"pos": "FS",  "x": {"from": "ball", "offset": 0},   "y": 13}
+  }
+}

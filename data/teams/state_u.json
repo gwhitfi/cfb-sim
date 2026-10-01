@@ -1,0 +1,172 @@
+{
+  "format_version": 1,
+  "id": "state_u",
+  "name": "State University",
+  "nickname": "Wildcats",
+  "abbr": "STU",
+  "colors": {
+    "primary": "#7a0019",
+    "secondary": "#ffcc33"
+  },
+  "roster": "rosters/state_u.json",
+  "playbooks": {
+    "offense": "spread_base",
+    "defense": "43_base"
+  },
+  "depth_chart": {
+    "positions": {
+      "QB": [
+        "stu_004",
+        "stu_001",
+        "stu_002",
+        "stu_003"
+      ],
+      "RB": [
+        "stu_008",
+        "stu_006",
+        "stu_007",
+        "stu_005"
+      ],
+      "FB": [
+        "stu_009"
+      ],
+      "WR": [
+        "stu_016",
+        "stu_011",
+        "stu_014",
+        "stu_015",
+        "stu_017",
+        "stu_012",
+        "stu_013",
+        "stu_010"
+      ],
+      "TE": [
+        "stu_019",
+        "stu_020",
+        "stu_018",
+        "stu_021"
+      ],
+      "OT": [
+        "stu_023",
+        "stu_024",
+        "stu_025",
+        "stu_026",
+        "stu_022"
+      ],
+      "OG": [
+        "stu_030",
+        "stu_029",
+        "stu_031",
+        "stu_028",
+        "stu_027"
+      ],
+      "C": [
+        "stu_034",
+        "stu_032",
+        "stu_033"
+      ],
+      "DE": [
+        "stu_039",
+        "stu_035",
+        "stu_038",
+        "stu_037",
+        "stu_040",
+        "stu_036"
+      ],
+      "DT": [
+        "stu_044",
+        "stu_045",
+        "stu_041",
+        "stu_043",
+        "stu_042"
+      ],
+      "OLB": [
+        "stu_046",
+        "stu_049",
+        "stu_048",
+        "stu_050",
+        "stu_047"
+      ],
+      "MLB": [
+        "stu_053",
+        "stu_051",
+        "stu_052"
+      ],
+      "CB": [
+        "stu_059",
+        "stu_055",
+        "stu_057",
+        "stu_060",
+        "stu_056",
+        "stu_054",
+        "stu_058"
+      ],
+      "FS": [
+        "stu_062",
+        "stu_063",
+        "stu_061"
+      ],
+      "SS": [
+        "stu_066",
+        "stu_064",
+        "stu_065"
+      ],
+      "K": [
+        "stu_067",
+        "stu_068"
+      ],
+      "P": [
+        "stu_070",
+        "stu_069"
+      ],
+      "LS": [
+        "stu_071",
+        "stu_072"
+      ]
+    },
+    "offense_personnel": {
+      "11": {
+        "C": "C1",
+        "H": "WR3",
+        "LG": "OG1",
+        "LT": "OT1",
+        "QB": "QB1",
+        "RB": "RB1",
+        "RG": "OG2",
+        "RT": "OT2",
+        "X": "WR1",
+        "Y": "TE1",
+        "Z": "WR2"
+      }
+    },
+    "defense_packages": {
+      "base": {
+        "DT": "DT1",
+        "FS": "FS1",
+        "MIKE": "MLB1",
+        "NT": "DT2",
+        "SAM": "OLB1",
+        "SCB": "CB1",
+        "SDE": "DE1",
+        "SS": "SS1",
+        "WCB": "CB2",
+        "WDE": "DE2",
+        "WILL": "OLB2"
+      },
+      "nickel": {
+        "DT": "DT1",
+        "FS": "FS1",
+        "MIKE": "MLB1",
+        "NB": "CB3",
+        "NT": "DT2",
+        "SCB": "CB1",
+        "SDE": "DE1",
+        "SS": "SS1",
+        "WCB": "CB2",
+        "WDE": "DE2",
+        "WILL": "OLB1"
+      }
+    }
+  },
+  "tactics": {}
+}

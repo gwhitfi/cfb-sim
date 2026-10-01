@@ -1,0 +1,70 @@
+{
+  "format_version": 1,
+  "id": "spread_base",
+  "name": "Spread Base",
+  "side": "offense",
+  "scheme": "spread",
+  "formations": ["gun_2x2", "gun_trips_rt", "singleback_2x2"],
+  "plays": [
+    {
+      "id": "trips_stick",
+      "name": "Trips Stick",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_trips_rt",
+      "flip": true,
+      "pass": {
+        "drop": "gun_3",
+        "progression": ["Y", "H", "X", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "Z":  {"route": "go"},
+        "H":  {"route": "stick", "option": {"vs_man": {"route": "out", "depth": 6}}},
+        "Y":  {"route": "flat"},
+        "X":  {"route": "slant"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "flat", "side": "left"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["quick_game", "short", "3rd_short", "3rd_medium", "vs_zone"]
+    },
+    {
+      "id": "sb_inside_zone",
+      "name": "Inside Zone",
+      "side": "offense",
+      "type": "run",
+      "formation": "singleback_2x2",
+      "flip": true,
+      "run": {
+        "scheme": "inside_zone",
+        "direction": "right",
+        "carrier": "RB",
+        "qb_action": {"do": "handoff", "then": "boot_fake_left"},
+        "path": [
+          {"x": 1.0, "y": -4.0, "type": "mesh"},
+          {"x": {"from": "gap_B", "side": "right"}, "y": -1, "type": "aim"}
+        ],
+        "free_after": "aim",
+        "reads": ["bang", "bend", "bounce"]
+      },
+      "assignments": {
+        "LT": {"block": {"do": "scheme"}},
+        "LG": {"block": {"do": "scheme"}},
+        "C":  {"block": {"do": "scheme"}},
+        "RG": {"block": {"do": "scheme"}},
+        "RT": {"block": {"do": "scheme"}},
+        "Y":  {"block": {"do": "scheme"}},
+        "X":  {"block": {"do": "stalk", "target": "man_over"}},
+        "H":  {"block": {"do": "stalk", "target": "man_over"}},
+        "Z":  {"block": {"do": "stalk", "target": "man_over"}}
+      },
+      "tags": ["base", "inside", "short_yardage"]
+    }
+  ]
+}

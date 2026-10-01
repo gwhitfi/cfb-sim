@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "home": "state_u",
+  "away": "tech",
+  "seed": 12345,
+  "venue": {"neutral": false, "surface": "grass", "altitude_ft": 600, "crowd": 0.8},
+  "weather": {"temp_f": 55, "wind_mph": 10, "wind_dir_deg": 90, "precip": "none"},
+  "context": {"rivalry": true, "ranked_matchup": false, "postseason": false},
+  "control": {"home": "user", "away": "ai"}
+}

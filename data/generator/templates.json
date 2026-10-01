@@ -1,0 +1,247 @@
+{
+  // Position templates for `cfbsim generate-team`.
+  //   attrs:    mean rating for an average FBS player at talent 50 (listed attributes
+  //             also get the team talent shift and the player's quality roll)
+  //   base:     mean for technical attributes not listed (mental ones default to 50)
+  //   key:      attributes that define quality at the position (depth chart order, CA)
+  //   familiar: position familiarity at other positions
+  "format_version": 1,
+  "positions": {
+    "QB": {
+      "count": 4, "height": [74.5, 1.5], "weight": [215, 10], "arm": 32, "hand": 9.75, "base": 25,
+      "attrs": {
+        "speed": 68, "acceleration": 70, "agility": 68, "strength": 55, "balance": 62, "jumping": 50,
+        "stamina": 70, "natural_fitness": 65, "anticipation": 62, "decisions": 62, "vision": 62,
+        "composure": 60, "concentration": 60, "throw_power": 72, "short_accuracy": 70,
+        "medium_accuracy": 66, "deep_accuracy": 60, "throw_on_the_run": 58, "delivery": 64, "touch": 62,
+        "pocket_presence": 60, "coverage_reading": 58, "ball_security": 60, "elusiveness": 45,
+        "break_tackle": 35, "catching": 30
+      },
+      "key": ["throw_power", "short_accuracy", "medium_accuracy", "deep_accuracy", "decisions", "vision",
+              "coverage_reading", "pocket_presence", "anticipation", "delivery"],
+      "familiar": {},
+      "jerseys": [[1, 19]]
+    },
+    "RB": {
+      "count": 4, "height": [70, 1.5], "weight": [205, 10], "arm": 31, "hand": 9.25, "base": 25,
+      "attrs": {
+        "speed": 85, "acceleration": 86, "agility": 82, "strength": 60, "balance": 72, "jumping": 62,
+        "stamina": 72, "natural_fitness": 68, "vision": 62, "decisions": 55, "ball_security": 66,
+        "elusiveness": 68, "break_tackle": 64, "catching": 55, "route_running": 45, "pass_blocking": 42,
+        "run_blocking": 35
+      },
+      "key": ["speed", "acceleration", "agility", "vision", "elusiveness", "break_tackle", "ball_security", "balance"],
+      "familiar": {"FB": 40, "WR": 30},
+      "jerseys": [[1, 49]]
+    },
+    "FB": {
+      "count": 1, "height": [72, 1], "weight": [240, 8], "arm": 32, "hand": 9.75, "base": 25,
+      "attrs": {
+        "speed": 70, "acceleration": 72, "agility": 62, "strength": 72, "balance": 68, "jumping": 50,
+        "stamina": 70, "natural_fitness": 65, "run_blocking": 62, "pass_blocking": 55,
+        "blocking_in_space": 60, "hand_technique": 50, "footwork": 50, "ball_security": 60,
+        "break_tackle": 58, "catching": 52, "route_running": 38, "tackling": 40
+      },
+      "key": ["run_blocking", "blocking_in_space", "strength", "ball_security", "pass_blocking"],
+      "familiar": {"RB": 50, "TE": 45},
+      "jerseys": [[30, 49]]
+    },
+    "WR": {
+      "count": 8, "height": [73, 2], "weight": [195, 12], "arm": 32.5, "hand": 9.5, "base": 22,
+      "attrs": {
+        "speed": 88, "acceleration": 87, "agility": 84, "strength": 50, "balance": 64, "jumping": 72,
+        "stamina": 72, "natural_fitness": 68, "vision": 52, "catching": 68, "route_running": 64,
+        "release": 62, "catch_in_traffic": 60, "contested_catch": 58, "elusiveness": 58,
+        "break_tackle": 42, "ball_security": 58, "blocking_in_space": 40, "run_blocking": 30
+      },
+      "key": ["speed", "catching", "route_running", "release", "catch_in_traffic", "contested_catch",
+              "acceleration", "agility"],
+      "familiar": {"RB": 25, "CB": 15},
+      "jerseys": [[1, 19], [80, 89]]
+    },
+    "TE": {
+      "count": 4, "height": [76, 1.2], "weight": [245, 10], "arm": 33.5, "hand": 10, "base": 24,
+      "attrs": {
+        "speed": 75, "acceleration": 75, "agility": 68, "strength": 68, "balance": 66, "jumping": 64,
+        "stamina": 70, "natural_fitness": 66, "catching": 62, "route_running": 55, "release": 52,
+        "catch_in_traffic": 60, "contested_catch": 58, "run_blocking": 58, "pass_blocking": 54,
+        "blocking_in_space": 52, "hand_technique": 52, "footwork": 48, "ball_security": 56,
+        "break_tackle": 52
+      },
+      "key": ["catching", "route_running", "catch_in_traffic", "run_blocking", "pass_blocking", "strength"],
+      "familiar": {"FB": 50, "WR": 30, "OT": 15},
+      "jerseys": [[80, 89], [40, 49]]
+    },
+    "OT": {
+      "count": 5, "height": [77.5, 1], "weight": [310, 12], "arm": 34.5, "hand": 10.25, "base": 15,
+      "attrs": {
+        "speed": 52, "acceleration": 58, "agility": 55, "strength": 76, "balance": 70, "jumping": 40,
+        "stamina": 66, "natural_fitness": 62, "anticipation": 55, "run_blocking": 64, "pass_blocking": 66,
+        "blocking_in_space": 48, "hand_technique": 60, "footwork": 62, "snapping": 25
+      },
+      "key": ["pass_blocking", "run_blocking", "footwork", "hand_technique", "strength", "balance"],
+      "familiar": {"OG": 70},
+      "jerseys": [[50, 79]]
+    },
+    "OG": {
+      "count": 5, "height": [76, 1], "weight": [315, 12], "arm": 33.5, "hand": 10.25, "base": 15,
+      "attrs": {
+        "speed": 50, "acceleration": 56, "agility": 52, "strength": 80, "balance": 70, "jumping": 38,
+        "stamina": 66, "natural_fitness": 62, "anticipation": 55, "run_blocking": 66, "pass_blocking": 62,
+        "blocking_in_space": 50, "hand_technique": 60, "footwork": 58, "snapping": 35
+      },
+      "key": ["run_blocking", "pass_blocking", "strength", "hand_technique", "footwork", "balance"],
+      "familiar": {"OT": 60, "C": 55},
+      "jerseys": [[50, 79]]
+    },
+    "C": {
+      "count": 3, "height": [75, 1], "weight": [305, 10], "arm": 33, "hand": 10, "base": 15,
+      "attrs": {
+        "speed": 50, "acceleration": 56, "agility": 54, "strength": 76, "balance": 70, "jumping": 38,
+        "stamina": 66, "natural_fitness": 62, "anticipation": 58, "decisions": 58, "run_blocking": 62,
+        "pass_blocking": 62, "blocking_in_space": 50, "hand_technique": 60, "footwork": 58, "snapping": 70
+      },
+      "key": ["snapping", "run_blocking", "pass_blocking", "strength", "hand_technique", "footwork"],
+      "familiar": {"OG": 70},
+      "jerseys": [[50, 79]]
+    },
+    "DE": {
+      "count": 6, "height": [76, 1.2], "weight": [262, 14], "arm": 34, "hand": 10, "base": 18,
+      "attrs": {
+        "speed": 78, "acceleration": 80, "agility": 70, "strength": 72, "balance": 66, "jumping": 62,
+        "stamina": 66, "natural_fitness": 62, "block_shedding": 60, "power_moves": 58,
+        "finesse_moves": 60, "hand_technique": 58, "tackling": 60, "hit_power": 58, "pursuit": 62,
+        "zone_coverage": 30, "man_coverage": 22
+      },
+      "key": ["finesse_moves", "power_moves", "block_shedding", "acceleration", "hand_technique",
+              "tackling", "strength", "pursuit"],
+      "familiar": {"DT": 50, "OLB": 40},
+      "jerseys": [[40, 59], [90, 99]]
+    },
+    "DT": {
+      "count": 5, "height": [75, 1], "weight": [300, 15], "arm": 33.5, "hand": 10.25, "base": 15,
+      "attrs": {
+        "speed": 62, "acceleration": 68, "agility": 58, "strength": 80, "balance": 72, "jumping": 48,
+        "stamina": 62, "natural_fitness": 60, "block_shedding": 62, "power_moves": 64,
+        "finesse_moves": 50, "hand_technique": 58, "tackling": 58, "hit_power": 58, "pursuit": 52
+      },
+      "key": ["block_shedding", "power_moves", "strength", "hand_technique", "balance", "tackling"],
+      "familiar": {"DE": 45},
+      "jerseys": [[50, 79], [90, 99]]
+    },
+    "OLB": {
+      "count": 5, "height": [74, 1], "weight": [232, 10], "arm": 32.5, "hand": 9.75, "base": 20,
+      "attrs": {
+        "speed": 80, "acceleration": 80, "agility": 74, "strength": 66, "balance": 64, "jumping": 64,
+        "stamina": 70, "natural_fitness": 66, "anticipation": 58, "discipline": 58, "tackling": 64,
+        "hit_power": 62, "pursuit": 66, "block_shedding": 54, "zone_coverage": 54, "man_coverage": 46,
+        "ball_skills": 44, "power_moves": 42, "finesse_moves": 46, "press": 35
+      },
+      "key": ["tackling", "pursuit", "zone_coverage", "block_shedding", "speed", "anticipation"],
+      "familiar": {"MLB": 65, "DE": 30, "SS": 25},
+      "jerseys": [[1, 59]]
+    },
+    "MLB": {
+      "count": 3, "height": [73.5, 1], "weight": [235, 9], "arm": 32.5, "hand": 9.75, "base": 20,
+      "attrs": {
+        "speed": 77, "acceleration": 78, "agility": 70, "strength": 70, "balance": 66, "jumping": 60,
+        "stamina": 70, "natural_fitness": 66, "anticipation": 62, "decisions": 60, "discipline": 60,
+        "tackling": 68, "hit_power": 64, "pursuit": 66, "block_shedding": 58, "zone_coverage": 54,
+        "man_coverage": 42, "ball_skills": 42
+      },
+      "key": ["tackling", "pursuit", "anticipation", "block_shedding", "zone_coverage", "decisions"],
+      "familiar": {"OLB": 65},
+      "jerseys": [[1, 59]]
+    },
+    "CB": {
+      "count": 7, "height": [71.5, 1.5], "weight": [188, 9], "arm": 31.5, "hand": 9.25, "base": 20,
+      "attrs": {
+        "speed": 88, "acceleration": 88, "agility": 86, "strength": 50, "balance": 62, "jumping": 70,
+        "stamina": 72, "natural_fitness": 68, "anticipation": 56, "man_coverage": 64, "zone_coverage": 60,
+        "press": 58, "ball_skills": 58, "tackling": 50, "hit_power": 44, "pursuit": 60, "catching": 40
+      },
+      "key": ["man_coverage", "zone_coverage", "speed", "press", "ball_skills", "agility", "acceleration"],
+      "familiar": {"FS": 40, "SS": 30, "WR": 15},
+      "jerseys": [[1, 39]]
+    },
+    "FS": {
+      "count": 3, "height": [72.5, 1.2], "weight": [200, 8], "arm": 32, "hand": 9.5, "base": 20,
+      "attrs": {
+        "speed": 86, "acceleration": 85, "agility": 80, "strength": 56, "balance": 62, "jumping": 68,
+        "stamina": 72, "natural_fitness": 68, "anticipation": 60, "decisions": 58, "zone_coverage": 64,
+        "man_coverage": 56, "press": 44, "ball_skills": 58, "tackling": 58, "hit_power": 54,
+        "pursuit": 64, "catching": 44
+      },
+      "key": ["zone_coverage", "ball_skills", "anticipation", "speed", "pursuit", "tackling"],
+      "familiar": {"SS": 70, "CB": 40},
+      "jerseys": [[1, 49]]
+    },
+    "SS": {
+      "count": 3, "height": [72.5, 1.2], "weight": [208, 8], "arm": 32, "hand": 9.5, "base": 20,
+      "attrs": {
+        "speed": 84, "acceleration": 84, "agility": 78, "strength": 60, "balance": 64, "jumping": 66,
+        "stamina": 72, "natural_fitness": 68, "anticipation": 58, "decisions": 56, "zone_coverage": 60,
+        "man_coverage": 54, "press": 46, "ball_skills": 54, "tackling": 62, "hit_power": 60,
+        "pursuit": 64, "catching": 42
+      },
+      "key": ["zone_coverage", "tackling", "pursuit", "anticipation", "speed", "man_coverage"],
+      "familiar": {"FS": 70, "OLB": 30},
+      "jerseys": [[1, 49]]
+    },
+    "K": {
+      "count": 2, "height": [72, 2], "weight": [195, 10], "arm": 31.5, "hand": 9.25, "base": 15,
+      "attrs": {
+        "speed": 55, "acceleration": 55, "agility": 55, "strength": 50, "balance": 55, "jumping": 45,
+        "stamina": 60, "natural_fitness": 60, "composure": 60, "kick_power": 70, "kick_accuracy": 68,
+        "punt_power": 40, "punt_accuracy": 35
+      },
+      "key": ["kick_power", "kick_accuracy", "composure"],
+      "familiar": {"P": 40},
+      "jerseys": [[1, 49], [90, 99]]
+    },
+    "P": {
+      "count": 2, "height": [74, 2], "weight": [205, 10], "arm": 32, "hand": 9.5, "base": 15,
+      "attrs": {
+        "speed": 55, "acceleration": 55, "agility": 55, "strength": 52, "balance": 55, "jumping": 45,
+        "stamina": 60, "natural_fitness": 60, "composure": 60, "kick_power": 45, "kick_accuracy": 40,
+        "punt_power": 68, "punt_accuracy": 64
+      },
+      "key": ["punt_power", "punt_accuracy", "composure"],
+      "familiar": {"K": 40},
+      "jerseys": [[1, 49], [90, 99]]
+    },
+    "LS": {
+      "count": 2, "height": [74, 1], "weight": [235, 10], "arm": 32.5, "hand": 9.75, "base": 15,
+      "attrs": {
+        "speed": 58, "acceleration": 60, "agility": 55, "strength": 62, "balance": 60, "jumping": 45,
+        "stamina": 62, "natural_fitness": 60, "composure": 58, "snapping": 68, "pass_blocking": 40,
+        "tackling": 40
+      },
+      "key": ["snapping", "composure"],
+      "familiar": {"C": 30},
+      "jerseys": [[40, 99]]
+    }
+  },
+  "names": {
+    "first": ["Marcus", "Jalen", "Tyler", "Caleb", "Devin", "Isaiah", "Jordan", "Ethan", "Malik", "Cole",
+              "Darius", "Brandon", "Cameron", "Trey", "Mason", "Xavier", "Austin", "Jaylen", "Hunter", "Andre",
+              "Bryce", "Elijah", "Garrett", "Jamal", "Kendall", "Logan", "Micah", "Nolan", "Owen", "Quinton",
+              "Reggie", "Shane", "Terrell", "Wyatt", "Zion", "DeShawn", "Colby", "Dante", "Grant", "Tavion"],
+    "last":  ["Hill", "Johnson", "Williams", "Brown", "Davis", "Miller", "Wilson", "Moore", "Taylor", "Anderson",
+              "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Robinson", "Clark", "Lewis", "Walker",
+              "Hall", "Allen", "Young", "King", "Wright", "Scott", "Green", "Baker", "Adams", "Nelson",
+              "Carter", "Mitchell", "Turner", "Parker", "Collins", "Edwards", "Stewart", "Morris", "Reed", "Brooks"]
+  },
+  "depth_chart": {
+    "offense_personnel": {
+      "11": {"QB": "QB1", "RB": "RB1", "X": "WR1", "Z": "WR2", "H": "WR3", "Y": "TE1",
+             "LT": "OT1", "LG": "OG1", "C": "C1", "RG": "OG2", "RT": "OT2"}
+    },
+    "defense_packages": {
+      "base":   {"SDE": "DE1", "WDE": "DE2", "DT": "DT1", "NT": "DT2", "SAM": "OLB1", "MIKE": "MLB1",
+                 "WILL": "OLB2", "SCB": "CB1", "WCB": "CB2", "SS": "SS1", "FS": "FS1"},
+      "nickel": {"SDE": "DE1", "WDE": "DE2", "DT": "DT1", "NT": "DT2", "MIKE": "MLB1", "WILL": "OLB1",
+                 "NB": "CB3", "SCB": "CB1", "WCB": "CB2", "SS": "SS1", "FS": "FS1"}
+    }
+  }
+}
