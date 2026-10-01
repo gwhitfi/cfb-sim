@@ -14,6 +14,7 @@
 #include "cfbsim/data/play.h"
 #include "cfbsim/data/player.h"
 #include "cfbsim/data/team.h"
+#include "cfbsim/data/tuning.h"
 
 namespace cfbsim {
 
@@ -49,6 +50,7 @@ Playbook parse_playbook(const Json& json, const std::string& source);
 Roster parse_roster(const Json& json, const std::string& source);
 Team parse_team(const Json& json, const std::string& source);
 GameSetup parse_game_setup(const Json& json, const std::string& source);
+MovementTuning parse_movement_tuning(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------
 // Everything in a data directory.
@@ -64,6 +66,7 @@ struct DataSet {
     ById<Playbook> playbooks;
     ById<Team> teams;
     ById<Roster> rosters;  // keyed by team id
+    Tuning tuning;
 };
 
 struct LoadReport {
@@ -72,8 +75,8 @@ struct LoadReport {
     bool ok() const { return errors.empty(); }
 };
 
-// Load every file under `root` (library/, formations/, playbooks/, teams/,
-// rosters/) and check cross-references. Keeps going after errors so that one
+// Load every file under `root` (library/, tuning/, formations/, playbooks/,
+// teams/, rosters/) and check cross-references. Keeps going after errors so that one
 // run reports every problem.
 LoadReport load_data_dir(const std::filesystem::path& root);
 

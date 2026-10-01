@@ -2,14 +2,18 @@
 // Subcommands are added as the build plan phases need them.
 
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "cfbsim/data/load.h"
+#include "cfbsim/drills/drills.h"
 #include "cfbsim/gen/roster_gen.h"
 #include "cfbsim/version.h"
 
@@ -18,20 +22,29 @@ namespace fs = std::filesystem;
 namespace {
 
 void print_usage() {
-    std::cout << "usage: cfbsim <command> [options]\n"
-                 "\n"
-                 "commands:\n"
-                 "  version                 print the sim version\n"
-                 "  validate                load every data file and check references\n"
-                 "      --data DIR            data directory (default: data)\n"
-                 "  generate-team           generate a roster and team file from templates\n"
-                 "      --id ID --name NAME --abbr ABBR   (required)\n"
-                 "      --nickname NAME       --talent 1-100 (default 50)   --seed N (default 1)\n"
-                 "      --primary #RRGGBB     --secondary #RRGGBB\n"
-                 "      --offense PLAYBOOK    (default spread_base)   --defense PLAYBOOK (default "
-                 "43_base)\n"
-                 "      --data DIR            (default data)          --force  overwrite existing "
-                 "files\n";
+    std::cout
+        << "usage: cfbsim <command> [options]\n"
+           "\n"
+           "commands:\n"
+           "  version                 print the sim version\n"
+           "  validate                load every data file and check references\n"
+           "      --data DIR            data directory (default: data)\n"
+           "  generate-team           generate a roster and team file from templates\n"
+           "      --id ID --name NAME --abbr ABBR   (required)\n"
+           "      --nickname NAME       --talent 1-100 (default 50)   --seed N (default 1)\n"
+           "      --primary #RRGGBB     --secondary #RRGGBB\n"
+           "      --offense PLAYBOOK    (default spread_base)   --defense PLAYBOOK (default "
+           "43_base)\n"
+           "      --data DIR            (default data)          --force  overwrite existing "
+           "files\n"
+           "  run-drill forty         40-yard dash times\n"
+           "      --speed N --accel N [--agility N --weight LB]   one runner (default 95/95)\n"
+           "      --runners 95/95,70/70,50/50                    several runners, speed/accel\n"
+           "      --team ID             every player on a team's roster, averaged by "
+           "position\n"
+           "  run-drill scramble      players chasing random waypoints (determinism check)\n"
+           "      --seed N --players N --seconds S\n"
+           "  (run-drill options)     --out FILE.jsonl  write a tracking file   --data DIR\n";
 }
 
 // "--key value" pairs and bare "--flag"s. Small on purpose; we'll swap in a
@@ -166,6 +179,130 @@ int cmd_generate_team(const Options& opt) {
     return 0;
 }
 
+// Parses a number option, or prints an error and returns nullopt.
+std::optional<double> number_option(const Options& opt, std::string_view key, double fallback) {
+    if (!opt.has(key)) return fallback;
+    try {
+        return std::stod(opt.get(key));
+    } catch (const std::exception&) {
+        std::cerr << "cfbsim: --" << key << " must be a number\n";
+        return std::nullopt;
+    }
+}
+
+void print_forty_table(const std::vector<cfbsim::FortyResult>& results) {
+    std::printf("%-14s %6s %6s %6s %9s\n", "runner", "10yd", "20yd", "40yd", "top mph");
+    for (const auto& r : results) {
+        // 1 yd/s = 3600 / 1760 mph
+        std::printf("%-14s %6.2f %6.2f %6.2f %9.1f\n", r.id.c_str(), r.t10, r.t20, r.t40,
+                    r.top_speed * 3600.0 / 1760.0);
+    }
+}
+
+int cmd_run_drill(const std::string_view drill, const Options& opt) {
+    const fs::path root = opt.get("data", "data");
+    cfbsim::LoadReport report = cfbsim::load_data_dir(root);
+    if (!report.ok()) {
+        std::cerr << "cfbsim run-drill: data errors (run `cfbsim validate`):\n";
+        for (const std::string& e : report.errors) std::cerr << "  " << e << "\n";
+        return 1;
+    }
+    const cfbsim::MovementTuning& tuning = report.data.tuning.movement;
+
+    // The tracking file is optional. std::unique_ptr owns the writer and
+    // deletes it automatically when this function returns.
+    std::ofstream file;
+    std::unique_ptr<cfbsim::TrackingWriter> tracking;
+    if (opt.has("out")) {
+        file.open(opt.get("out"));
+        if (!file) {
+            std::cerr << "cfbsim run-drill: can't write " << opt.get("out") << "\n";
+            return 1;
+        }
+        tracking = std::make_unique<cfbsim::TrackingWriter>(file);
+    }
+
+    if (drill == "forty") {
+        std::vector<cfbsim::Player> runners;
+        if (opt.has("team")) {
+            const auto it = report.data.rosters.find(opt.get("team"));
+            if (it == report.data.rosters.end()) {
+                std::cerr << "cfbsim run-drill: no roster for team '" << opt.get("team") << "'\n";
+                return 1;
+            }
+            runners = it->second.players;
+        } else if (opt.has("runners")) {
+            std::string list = opt.get("runners");
+            std::size_t start = 0;
+            while (start <= list.size()) {
+                const std::size_t end = std::min(list.find(',', start), list.size());
+                const std::string item = list.substr(start, end - start);
+                const std::size_t slash = item.find('/');
+                try {
+                    if (slash == std::string::npos) throw std::invalid_argument(item);
+                    runners.push_back(cfbsim::drill_player(item, std::stod(item.substr(0, slash)),
+                                                           std::stod(item.substr(slash + 1))));
+                } catch (const std::exception&) {
+                    std::cerr << "cfbsim run-drill: bad runner '" << item
+                              << "' (expected speed/accel, like 95/95)\n";
+                    return 1;
+                }
+                start = end + 1;
+            }
+        } else {
+            const auto speed = number_option(opt, "speed", 95.0);
+            const auto accel = number_option(opt, "accel", 95.0);
+            const auto agility = number_option(opt, "agility", 70.0);
+            const auto weight = number_option(opt, "weight", 200.0);
+            if (!speed || !accel || !agility || !weight) return 1;
+            runners.push_back(cfbsim::drill_player(std::to_string(static_cast<int>(*speed)) + "/" +
+                                                       std::to_string(static_cast<int>(*accel)),
+                                                   *speed, *accel, *agility, *weight));
+        }
+
+        const auto results = cfbsim::run_forty(tuning, runners, tracking.get());
+        if (!opt.has("team")) {
+            print_forty_table(results);
+        } else {
+            // Average by position, in roster position order.
+            std::map<cfbsim::Position, std::vector<double>> by_pos;
+            for (std::size_t i = 0; i < runners.size(); ++i) {
+                by_pos[runners[i].position].push_back(results[i].t40);
+            }
+            std::printf("%-4s %3s %6s %6s %6s\n", "pos", "n", "best", "avg", "worst");
+            for (const auto& [pos, times] : by_pos) {
+                double sum = 0.0;
+                for (double t : times) sum += t;
+                std::printf("%-4s %3zu %6.2f %6.2f %6.2f\n",
+                            std::string(cfbsim::to_string(pos)).c_str(), times.size(),
+                            *std::min_element(times.begin(), times.end()),
+                            sum / static_cast<double>(times.size()),
+                            *std::max_element(times.begin(), times.end()));
+            }
+        }
+    } else if (drill == "scramble") {
+        cfbsim::ScrambleOptions o;
+        const auto players = number_option(opt, "players", 22);
+        const auto seconds = number_option(opt, "seconds", 15.0);
+        const auto seed = number_option(opt, "seed", 1);
+        if (!players || !seconds || !seed) return 1;
+        o.players = static_cast<int>(*players);
+        o.seconds = *seconds;
+        o.seed = static_cast<std::uint64_t>(*seed);
+        const auto r = cfbsim::run_scramble(tuning, o, tracking.get());
+        std::printf(
+            "scramble: %d players, %.1f s, seed %llu: %d waypoints reached, min gap %.2f yd\n",
+            o.players, o.seconds, static_cast<unsigned long long>(o.seed), r.waypoints_reached,
+            r.min_gap);
+    } else {
+        std::cerr << "cfbsim run-drill: unknown drill '" << drill << "' (forty, scramble)\n";
+        return 1;
+    }
+
+    if (tracking) std::cout << "wrote " << opt.get("out") << "\n";
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -183,11 +320,24 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    // run-drill takes the drill name before its options.
+    std::string_view drill;
+    auto first_option = args.begin() + 1;
+    if (command == "run-drill") {
+        if (args.size() < 2 || args[1].starts_with("--")) {
+            std::cerr << "cfbsim run-drill: which drill? (forty, scramble)\n";
+            return 1;
+        }
+        drill = args[1];
+        ++first_option;
+    }
+
     Options opt;
-    if (!parse_options({args.begin() + 1, args.end()}, opt)) return 1;
+    if (!parse_options({first_option, args.end()}, opt)) return 1;
 
     if (command == "validate") return cmd_validate(opt);
     if (command == "generate-team") return cmd_generate_team(opt);
+    if (command == "run-drill") return cmd_run_drill(drill, opt);
 
     std::cerr << "cfbsim: unknown command '" << command << "'\n\n";
     print_usage();

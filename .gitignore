@@ -17,3 +17,6 @@ out/
 .idea/
 *.swp
 .DS_Store
+
+# Tracking files and logs written by CLI runs at the repo root
+/*.jsonl

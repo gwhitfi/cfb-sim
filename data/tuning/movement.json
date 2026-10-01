@@ -1,0 +1,30 @@
+{
+  // Movement physics constants (docs/design/movement-and-interaction.md#movement-physics).
+  // Calibrated so 40-yard dash times land in the target table; see tests/movement_test.cpp.
+  "format_version": 1,
+
+  // Speed rating -> top speed in yd/s (95 -> 10.8 yd/s, about 22 mph).
+  "top_speed": {"curve": "linear", "points": [[0, 7.2], [100, 11.0]]},
+  // Acceleration rating -> seconds to reach 90% of top speed.
+  "t90": {"curve": "linear", "points": [[0, 2.2], [100, 1.35]]},
+  // Agility rating -> max braking, yd/s^2.
+  "decel": {"curve": "linear", "points": [[0, 6.0], [100, 11.0]]},
+  // Agility rating -> max sideways acceleration while running, yd/s^2. Turning radius = v^2 / this.
+  "lateral_accel": {"curve": "linear", "points": [[0, 4.0], [100, 10.0]]},
+
+  // Top speed multipliers.
+  "factors": {"shuffle": 0.75, "backpedal": 0.65, "carrying": 0.97},
+
+  // Planted cuts: speed kept = 1 - (angle / 180) * (1 - agility_keep * Agility / 100).
+  "cut": {"min_angle_deg": 35, "agility_keep": 0.6},
+
+  "facing_turn_rate_deg": 720,
+  "standing_speed": 0.5,
+
+  "body": {
+    "radius_by_weight": {"curve": "linear", "points": [[170, 0.35], [330, 0.5]]},
+    "reach_arm_factor": 0.9
+  },
+
+  "collision": {"stiffness": 0.8}
+}

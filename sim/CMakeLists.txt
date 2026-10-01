@@ -1,5 +1,6 @@
 # The engine-independent sim core, built as a static library.
 add_library(cfbsim_core STATIC
+    src/core/curve.cpp
     src/core/rng.cpp
     src/core/version.cpp
     src/data/json_reader.cpp
@@ -10,8 +11,14 @@ add_library(cfbsim_core STATIC
     src/data/parse_library.cpp
     src/data/parse_play.cpp
     src/data/parse_team.cpp
+    src/data/parse_tuning.cpp
     src/data/save.cpp
-    src/gen/roster_gen.cpp)
+    src/drills/drills.cpp
+    src/gen/roster_gen.cpp
+    src/log/tracking.cpp
+    src/physics/movement.cpp
+    src/world/agent.cpp
+    src/world/world.cpp)
 
 # PUBLIC: anything that links cfbsim_core (the CLI, tests) also gets this
 # include path, so it can write #include "cfbsim/version.h".

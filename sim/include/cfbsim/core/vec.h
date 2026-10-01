@@ -28,6 +28,8 @@ struct Vec2 {
     constexpr bool operator==(const Vec2&) const = default;
 
     constexpr double dot(Vec2 o) const { return x * o.x + y * o.y; }
+    // z of the 3D cross product: > 0 when `o` is counterclockwise from this.
+    constexpr double cross(Vec2 o) const { return x * o.y - y * o.x; }
     constexpr double length_squared() const { return dot(*this); }
     // std::sqrt is exactly rounded by IEEE 754, so it is safe for determinism.
     double length() const { return std::sqrt(length_squared()); }
@@ -35,7 +37,17 @@ struct Vec2 {
         const double len = length();
         return len > 0.0 ? *this / len : Vec2{};
     }
+    // Rotated counterclockwise by `radians`.
+    Vec2 rotated(double radians) const {
+        const double c = std::cos(radians);
+        const double s = std::sin(radians);
+        return {x * c - y * s, x * s + y * c};
+    }
 };
+
+// Signed angle (radians, -pi..pi) to turn direction `from` onto direction `to`.
+// Positive = counterclockwise.
+inline double signed_angle(Vec2 from, Vec2 to) { return std::atan2(from.cross(to), from.dot(to)); }
 
 struct Vec3 {
     double x = 0.0;

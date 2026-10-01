@@ -69,6 +69,13 @@ LoadReport load_data_dir(const fs::path& root) {
         }
     }
 
+    const fs::path movement = root / "tuning" / "movement.json";
+    if (!fs::exists(movement)) {
+        report.errors.emplace_back("tuning/movement.json: file not found");
+    } else if (auto m = load(movement, parse_movement_tuning)) {
+        data.tuning.movement = std::move(*m);
+    }
+
     for (const fs::path& file : json_files(root / "formations", /*recursive=*/true)) {
         if (auto f = load(file, parse_formation)) {
             const std::string id = f->id;
