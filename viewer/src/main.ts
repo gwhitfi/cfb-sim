@@ -4,7 +4,7 @@
 import { Camera } from "./camera";
 import { Playback, SPEEDS } from "./playback";
 import { drawScene, layerColor, playerAtPoint, type ViewOptions } from "./render";
-import { describeEvent } from "./events";
+import { describeEvent, text as valueText } from "./events";
 import { parseTracking, TrackingError, X, Y, STRIDE, type Recording } from "./tracking";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -153,7 +153,7 @@ function buildInfo(rec: Recording): void {
     ["Players", `${h.players.length}`],
     ["Length", `${((rec.ticks[rec.frameCount - 1]! - rec.ticks[0]!) / h.tickRate).toFixed(2)} s · ${rec.frameCount} frames`],
   ];
-  for (const [k, v] of Object.entries(h.details)) rows.push([k, JSON.stringify(v)]);
+  for (const [k, v] of Object.entries(h.details)) rows.push([k, valueText(v)]);
   $("info").replaceChildren(
     ...rows.flatMap(([k, v]) => {
       const dt = document.createElement("dt");

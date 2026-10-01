@@ -1,0 +1,25 @@
+{
+  // QB footwork in the play frame: origin = the ball at the snap, +x = the
+  // offense's right, +y = downfield. Mirrored with the play (x negated).
+  // Under center the QB starts at y = -1.5; in the gun at y = -5.
+  //   drops: the path he takes after getting the snap, then he sets for
+  //          `set_seconds` before he can throw.
+  //   fakes: what he does after a handoff (run plays' qb_action "then").
+  "format_version": 1,
+  "drops": {
+    "quick_1":       {"points": [{"x": 0, "y": -2.5}], "set_seconds": 0.05},
+    "3_step":        {"points": [{"x": 0, "y": -4.5}],   "set_seconds": 0.1},
+    "5_step":        {"points": [{"x": 0, "y": -6.5}],   "set_seconds": 0.15},
+    "7_step":        {"points": [{"x": 0, "y": -8.5}],   "set_seconds": 0.2},
+    "gun_1":         {"points": [{"x": 0, "y": -5.5}], "set_seconds": 0.05},
+    "gun_3":         {"points": [{"x": 0, "y": -6.3}],   "set_seconds": 0.1},
+    "gun_5":         {"points": [{"x": 0, "y": -7.8}], "set_seconds": 0.15},
+    "rollout_right": {"points": [{"x": 2, "y": -7}, {"x": 7, "y": -7.5}], "set_seconds": 0.0},
+    "rollout_left":  {"points": [{"x": -2, "y": -7}, {"x": -7, "y": -7.5}], "set_seconds": 0.0}
+  },
+  "fakes": {
+    "boot_fake_left":  {"points": [{"x": -2, "y": -5}, {"x": -9, "y": -6.5}]},
+    "boot_fake_right": {"points": [{"x": 2, "y": -5}, {"x": 9, "y": -6.5}]},
+    "drop_fake":       {"points": [{"x": 0, "y": -6}]}
+  }
+}

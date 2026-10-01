@@ -19,6 +19,7 @@ Body make_body(const Measurables& m, const MovementTuning& tuning) {
     b.radius = tuning.radius_by_weight(m.weight_lb);
     b.reach = b.radius + tuning.reach_arm_factor * (m.arm_in / 36.0);  // inches -> yards
     b.mass = m.weight_lb;
+    b.height = m.height_in / 36.0;
     return b;
 }
 

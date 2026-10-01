@@ -9,11 +9,35 @@ export function describeEvent(ev: TrackingEvent): string {
   switch (ev.event) {
     case "split":
       return `${f.player}: ${f.yards} yd in ${Number(f.time).toFixed(2)} s`;
+    case "throw":
+      return `throw ${f.from} → ${f.to}, ${yd(f.air_yards)} downfield`;
+    case "catch":
+      return `catch by ${f.player} at ${yd(f.air_yards)}`;
+    case "drop":
+      return `${f.diving ? "diving " : ""}drop by ${f.player}`;
+    case "handoff":
+      return `handoff ${f.from} → ${f.to}`;
+    case "bust":
+      return `BUST ${f.player}: ${f.detail}`;
+    case "touchdown":
+      return `touchdown (${yd(f.yards)})`;
+    case "out_of_bounds":
+    case "whistle":
+      return `${ev.event.replaceAll("_", " ")}, gain of ${yd(f.yards)}`;
     default: {
-      const rest = Object.entries(f).map(([k, v]) => `${k}=${typeof v === "number" ? round(v) : JSON.stringify(v)}`);
+      const rest = Object.entries(f).map(([k, v]) => `${k}=${typeof v === "number" ? round(v) : text(v)}`);
       return [ev.event, ...rest].join(" ");
     }
   }
+}
+
+function yd(v: unknown): string {
+  return `${Number(v).toFixed(1)} yd`;
+}
+
+// Strings as they are; anything else as JSON.
+export function text(v: unknown): string {
+  return typeof v === "string" ? v : JSON.stringify(v);
 }
 
 function round(v: number): string {

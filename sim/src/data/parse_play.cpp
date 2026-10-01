@@ -192,8 +192,6 @@ PassSpec parse_pass_spec(const Reader& r) {
     r.allow_only({"drop", "progression", "read_type", "hot", "protection"});
     PassSpec p;
     p.drop = r.string("drop");
-    if (!detail::contains(detail::kDrops, p.drop))
-        r.at("drop").fail("unknown drop '" + p.drop + "'");
     p.progression = r.at("progression").as_strings();
     if (p.progression.empty()) r.at("progression").fail("progression can't be empty");
     p.read_type = r.string_or("read_type", "progression");

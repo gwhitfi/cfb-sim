@@ -15,6 +15,7 @@
 #include "cfbsim/data/load.h"
 #include "cfbsim/drills/drills.h"
 #include "cfbsim/gen/roster_gen.h"
+#include "cfbsim/play/play_sim.h"
 #include "cfbsim/version.h"
 
 namespace fs = std::filesystem;
@@ -44,7 +45,16 @@ void print_usage() {
            "position\n"
            "  run-drill scramble      players chasing random waypoints (determinism check)\n"
            "      --seed N --players N --seconds S\n"
-           "  (run-drill options)     --out FILE.jsonl  write a tracking file   --data DIR\n";
+           "  (run-drill options)     --out FILE.jsonl  write a tracking file   --data DIR\n"
+           "  run-play                run one offensive play against an empty field\n"
+           "      --team ID --play ID   (required)\n"
+           "      --flip                run the mirrored version\n"
+           "      --hash left|middle|right (default middle)   --yard-line N (own N, default 25)\n"
+           "      --direction right|left  which way the offense goes (default right)\n"
+           "      --seed N              --target SLOT  make the QB throw to SLOT\n"
+           "      --no-huddle           start set and snap at once\n"
+           "      --runs N              run N seeds (seed, seed+1, ...) and summarize\n"
+           "      --out FILE.jsonl      write a tracking file (first run)   --data DIR\n";
 }
 
 // "--key value" pairs and bare "--flag"s. Small on purpose; we'll swap in a
@@ -303,6 +313,85 @@ int cmd_run_drill(const std::string_view drill, const Options& opt) {
     return 0;
 }
 
+int cmd_run_play(const Options& opt) {
+    for (const char* required : {"team", "play"}) {
+        if (!opt.has(required)) {
+            std::cerr << "cfbsim run-play: --" << required << " is required\n";
+            return 1;
+        }
+    }
+    const fs::path root = opt.get("data", "data");
+    const cfbsim::LoadReport report = cfbsim::load_data_dir(root);
+    if (!report.ok()) {
+        std::cerr << "cfbsim run-play: data errors (run `cfbsim validate`):\n";
+        for (const std::string& e : report.errors) std::cerr << "  " << e << "\n";
+        return 1;
+    }
+
+    cfbsim::PlayOptions o;
+    o.team = opt.get("team");
+    o.play = opt.get("play");
+    o.flip = opt.has("flip");
+    o.huddle = !opt.has("no-huddle");
+    o.target = opt.get("target");
+    const auto hash = cfbsim::from_name(cfbsim::kHashNames, opt.get("hash", "middle"));
+    if (!hash) {
+        std::cerr << "cfbsim run-play: --hash must be left, middle, or right\n";
+        return 1;
+    }
+    o.hash = *hash;
+    const std::string direction = opt.get("direction", "right");
+    if (direction != "right" && direction != "left") {
+        std::cerr << "cfbsim run-play: --direction must be right or left\n";
+        return 1;
+    }
+    o.offense_right = direction == "right";
+    const auto yard_line = number_option(opt, "yard-line", 25.0);
+    const auto seed = number_option(opt, "seed", 1);
+    const auto runs = number_option(opt, "runs", 1);
+    if (!yard_line || !seed || !runs) return 1;
+    o.yard_line = *yard_line;
+
+    std::ofstream file;
+    std::unique_ptr<cfbsim::TrackingWriter> tracking;
+    if (opt.has("out")) {
+        file.open(opt.get("out"));
+        if (!file) {
+            std::cerr << "cfbsim run-play: can't write " << opt.get("out") << "\n";
+            return 1;
+        }
+        tracking = std::make_unique<cfbsim::TrackingWriter>(file);
+    }
+
+    const int count = std::max(1, static_cast<int>(*runs));
+    int complete = 0, touchdowns = 0, busts = 0;
+    double yards = 0.0;
+    try {
+        for (int k = 0; k < count; ++k) {
+            o.seed = static_cast<std::uint64_t>(*seed) + static_cast<std::uint64_t>(k);
+            const cfbsim::PlayResult r =
+                cfbsim::run_play(report.data, o, k == 0 ? tracking.get() : nullptr);
+            if (count <= 10) {
+                std::cout << "seed " << o.seed << ": " << r.summary << "\n";
+                for (const std::string& b : r.busts) std::cout << "  bust: " << b << "\n";
+            }
+            complete += r.complete ? 1 : 0;
+            touchdowns += r.outcome == "touchdown" ? 1 : 0;
+            busts += static_cast<int>(r.busts.size());
+            yards += r.yards;
+        }
+    } catch (const cfbsim::PlayError& e) {
+        std::cerr << "cfbsim run-play: " << e.what() << "\n";
+        return 1;
+    }
+    if (count > 1) {
+        std::printf("%d runs: %d complete, %d touchdowns, %d busts, %.1f yd per play\n", count,
+                    complete, touchdowns, busts, yards / count);
+    }
+    if (tracking) std::cout << "wrote " << opt.get("out") << "\n";
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -338,6 +427,7 @@ int main(int argc, char* argv[]) {
     if (command == "validate") return cmd_validate(opt);
     if (command == "generate-team") return cmd_generate_team(opt);
     if (command == "run-drill") return cmd_run_drill(drill, opt);
+    if (command == "run-play") return cmd_run_play(opt);
 
     std::cerr << "cfbsim: unknown command '" << command << "'\n\n";
     print_usage();

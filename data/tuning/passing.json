@@ -1,0 +1,52 @@
+{
+  // The QB, throws, ball flight, and catches
+  // (docs/design/movement-and-interaction.md#passing-game).
+  "format_version": 1,
+
+  "ball": {
+    "gravity": 10.73  // yd/s^2
+  },
+
+  "qb": {
+    // Seconds spent on one read: Decisions + Coverage Reading.
+    "look_skill": {"decisions": 0.5, "coverage_reading": 0.5},
+    "look_seconds": {"curve": "linear", "points": [[0, 0.8], [100, 0.3]]},
+    "min_look_seconds": 0.15,  // looking at a read at least this long before throwing it
+    "throw_threshold": 0.6     // perceived openness needed to throw
+  },
+
+  "throw": {
+    // Throw Power -> top ball speed, yd/s (about 27 yd/s is a 55 mph throw).
+    "speed": {"curve": "linear", "points": [[1, 14], [100, 27]]},
+    // Air distance (yd) -> share of top speed used: short throws are softer.
+    "effort": {"curve": "linear", "points": [[0, 0.6], [25, 1.0]]},
+    // Delivery -> seconds from deciding to throw until the ball is out.
+    "delivery_seconds": {"curve": "linear", "points": [[0, 0.5], [100, 0.2]]},
+    // Accuracy (short, medium, or deep by air distance) -> placement error sd, yd.
+    "accuracy_sd": {"curve": "linear", "points": [[0, 2.5], [50, 1.0], [100, 0.3]]},
+    "short_max": 10,   // yd of air distance
+    "medium_max": 20,
+    // Air distance -> multiplier on the error sd: longer throws miss by more.
+    "distance_scale": {"curve": "linear", "points": [[0, 0.6], [10, 1.0], [40, 1.8]]},
+    "height_sd_factor": 0.5,  // height error sd = this x placement sd
+    // Throwing while moving faster than this (yd/s) scales the error by
+    // Throw on the Run -> multiplier.
+    "on_the_run_speed": 1.5,
+    "on_the_run_factor": {"curve": "linear", "points": [[0, 2.0], [100, 1.15]]},
+    "release_height_factor": 1.05,  // release height = QB height x this
+    "target_height": 1.3            // yd: aim at the chest
+  },
+
+  "catch": {
+    "arms_up_factor": 1.2,  // highest catch point = height x this + jump
+    "jump": {"curve": "linear", "points": [[0, 0.1], [100, 0.5]]},  // Jumping -> yd
+    "low": 0.15,            // yd: lowest catchable height
+    "dive_extra": 0.8,      // yd beyond reach he can get to with a dive
+    "dive_factor": 0.45,    // catch chance multiplier for a diving catch
+    // Catching -> chance of catching a ball thrown right at him, uncontested.
+    "base": {"curve": "linear", "points": [[0, 0.55], [50, 0.9], [100, 0.985]]},
+    "reach_penalty": 0.12,  // at full reach the chance drops by this share
+    "fast_ball_speed": 22,  // yd/s: faster balls are harder to catch...
+    "fast_ball_penalty": 0.01  // ...by this share per yd/s over
+  }
+}

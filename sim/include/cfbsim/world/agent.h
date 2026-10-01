@@ -39,6 +39,7 @@ struct Body {
     double radius = 0.4;  // yd, for collisions and spacing
     double reach = 1.2;   // yd, contact range for blocks, tackles, and catches
     double mass = 200.0;  // lb
+    double height = 2.0;  // yd (6 ft), for release points and catch windows
 };
 
 Body make_body(const Measurables& m, const MovementTuning& tuning);

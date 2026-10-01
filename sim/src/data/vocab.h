@@ -1,5 +1,5 @@
-// Fixed vocabularies that data files are checked against. Adding a new tag,
-// drop, or blocking rule word means adding it here (and, for the sim, teaching
+// Fixed vocabularies that data files are checked against. Adding a new tag
+// or blocking rule word means adding it here (and, for the sim, teaching
 // the code what it means).
 #pragma once
 
@@ -28,10 +28,6 @@ inline constexpr std::array<std::string_view, 16> kDefenseTags{
     "goal_line", "red_zone", "two_minute", "prevent",
 };
 
-inline constexpr std::array<std::string_view, 12> kDrops{
-    "quick_1", "3_step",        "5_step",       "7_step",     "gun_1",     "gun_3",
-    "gun_5",   "rollout_right", "rollout_left", "boot_right", "boot_left", "play_action_5",
-};
 inline constexpr std::array<std::string_view, 3> kReadTypes{"progression", "half_field", "key"};
 inline constexpr std::array<std::string_view, 3> kRunReads{"bang", "bend", "bounce"};
 inline constexpr std::array<std::string_view, 5> kStrengthCalls{"te", "passing_strength", "field",

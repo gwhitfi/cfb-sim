@@ -52,7 +52,8 @@ LoadReport load_data_dir(const fs::path& root) {
     };
 
     const fs::path library = root / "library";
-    for (const char* name : {"routes.json", "zones.json", "blocking_schemes.json"}) {
+    for (const char* name :
+         {"routes.json", "zones.json", "blocking_schemes.json", "qb_actions.json"}) {
         if (!fs::exists(library / name)) {
             report.errors.push_back("library/" + std::string(name) + ": file not found");
         }
@@ -69,12 +70,23 @@ LoadReport load_data_dir(const fs::path& root) {
         }
     }
 
-    const fs::path movement = root / "tuning" / "movement.json";
-    if (!fs::exists(movement)) {
-        report.errors.emplace_back("tuning/movement.json: file not found");
-    } else if (auto m = load(movement, parse_movement_tuning)) {
-        data.tuning.movement = std::move(*m);
+    if (fs::exists(library / "qb_actions.json")) {
+        if (auto q = load(library / "qb_actions.json", parse_qb_actions)) data.qb = std::move(*q);
     }
+
+    // Each tuning file is required. `parse` is a function pointer to the
+    // parser and `into` a pointer to the DataSet member it fills.
+    const auto load_tuning = [&](const char* name, auto parse, auto& into) {
+        const fs::path file = root / "tuning" / name;
+        if (!fs::exists(file)) {
+            report.errors.push_back("tuning/" + std::string(name) + ": file not found");
+        } else if (auto t = load(file, parse)) {
+            into = std::move(*t);
+        }
+    };
+    load_tuning("movement.json", parse_movement_tuning, data.tuning.movement);
+    load_tuning("play.json", parse_play_tuning, data.tuning.play);
+    load_tuning("passing.json", parse_passing_tuning, data.tuning.passing);
 
     for (const fs::path& file : json_files(root / "formations", /*recursive=*/true)) {
         if (auto f = load(file, parse_formation)) {
@@ -196,6 +208,9 @@ class Validator {
             if (!p.hot.empty() && !runs_route(play, p.hot)) {
                 error(where, "hot slot '" + p.hot + "' doesn't run a route");
             }
+            if (!data_.qb.drops.contains(p.drop)) {
+                error(where, "unknown drop '" + p.drop + "' (see library/qb_actions.json)");
+            }
             if (!data_.blocking.protections.contains(p.protection)) {
                 error(where, "unknown protection '" + p.protection + "'");
             }
@@ -207,6 +222,9 @@ class Validator {
             }
             if (f.slot(r.carrier) == nullptr)
                 error(where, "unknown carrier slot '" + r.carrier + "'");
+            if (!r.qb_then.empty() && !data_.qb.fakes.contains(r.qb_then)) {
+                error(where, "unknown QB fake '" + r.qb_then + "' (see library/qb_actions.json)");
+            }
             for (const PathPoint& p : r.path) {
                 check_anchor(where + ": run path", p.x, f);
                 check_anchor(where + ": run path", p.y, f);

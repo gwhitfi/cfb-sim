@@ -77,6 +77,21 @@ struct BlockingLibrary {
     std::map<std::string, Protection, std::less<>> protections;
 };
 
+// ---------------------------------------------------------------------------
+// QB footwork (library/qb_actions.json): drops on pass plays and fakes after a
+// handoff. Points are in the play frame (origin = the ball).
+// ---------------------------------------------------------------------------
+struct QbPath {
+    std::string id;
+    std::vector<Vec2> points;
+    double set_seconds = 0.0;  // drops: settling time at the end before he can throw
+};
+
+struct QbLibrary {
+    std::map<std::string, QbPath, std::less<>> drops;
+    std::map<std::string, QbPath, std::less<>> fakes;
+};
+
 using RouteLibrary = std::map<std::string, Route, std::less<>>;
 using ZoneLibrary = std::map<std::string, Zone, std::less<>>;
 

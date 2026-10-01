@@ -21,7 +21,8 @@ inline constexpr int kTicksPerSecond = 20;
 inline constexpr double kTickSeconds = 1.0 / kTicksPerSecond;
 
 struct Ball {
-    enum class State : std::uint8_t { Dead, Held, InFlight, Loose };
+    // Spotted: on the ground at the line of scrimmage, waiting for the snap.
+    enum class State : std::uint8_t { Dead, Spotted, Held, InFlight, Loose };
 
     State state = State::Dead;
     Vec3 pos;

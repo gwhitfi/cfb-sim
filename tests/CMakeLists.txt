@@ -2,13 +2,17 @@
 # executable, and gtest_discover_tests registers each TEST() with CTest.
 add_executable(cfbsim_tests
     attributes_test.cpp
+    ball_flight_test.cpp
     curve_test.cpp
     data_dir_test.cpp
     determinism_test.cpp
     generator_test.cpp
+    geometry_test.cpp
     movement_test.cpp
     parse_test.cpp
+    play_test.cpp
     rng_test.cpp
+    route_test.cpp
     version_test.cpp)
 
 target_link_libraries(cfbsim_tests PRIVATE

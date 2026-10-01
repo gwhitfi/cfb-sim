@@ -50,7 +50,10 @@ Playbook parse_playbook(const Json& json, const std::string& source);
 Roster parse_roster(const Json& json, const std::string& source);
 Team parse_team(const Json& json, const std::string& source);
 GameSetup parse_game_setup(const Json& json, const std::string& source);
+QbLibrary parse_qb_actions(const Json& json, const std::string& source);
 MovementTuning parse_movement_tuning(const Json& json, const std::string& source);
+PlayTuning parse_play_tuning(const Json& json, const std::string& source);
+PassingTuning parse_passing_tuning(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------
 // Everything in a data directory.
@@ -62,6 +65,7 @@ struct DataSet {
     RouteLibrary routes;
     ZoneLibrary zones;
     BlockingLibrary blocking;
+    QbLibrary qb;
     ById<Formation> formations;
     ById<Playbook> playbooks;
     ById<Team> teams;

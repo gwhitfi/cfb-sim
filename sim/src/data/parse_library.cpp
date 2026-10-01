@@ -129,4 +129,40 @@ BlockingLibrary parse_blocking(const Json& json, const std::string& source) {
     return lib;
 }
 
+QbLibrary parse_qb_actions(const Json& json, const std::string& source) {
+    const Reader root(json, source);
+    root.allow_only({"format_version", "drops", "fakes"});
+    detail::require_format_version(root);
+
+    // Both sections hold the same kind of path; only drops have a set time.
+    const auto parse_paths = [](const Reader& section, bool is_drop) {
+        std::map<std::string, QbPath, std::less<>> paths;
+        section.for_each_member([&](const std::string& id, const Reader& r) {
+            if (is_drop) {
+                r.allow_only({"points", "set_seconds"});
+            } else {
+                r.allow_only({"points"});
+            }
+            QbPath path;
+            path.id = id;
+            r.at("points").for_each([&](const Reader& p) {
+                p.allow_only({"x", "y"});
+                path.points.push_back({p.number("x"), p.number("y")});
+            });
+            if (path.points.empty()) r.at("points").fail("needs at least one point");
+            if (is_drop) {
+                path.set_seconds = r.number("set_seconds");
+                if (path.set_seconds < 0.0) r.at("set_seconds").fail("can't be negative");
+            }
+            paths.emplace(id, std::move(path));
+        });
+        return paths;
+    };
+
+    QbLibrary lib;
+    lib.drops = parse_paths(root.at("drops"), true);
+    lib.fakes = parse_paths(root.at("fakes"), false);
+    return lib;
+}
+
 }  // namespace cfbsim
