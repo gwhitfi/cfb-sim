@@ -1,0 +1,19 @@
+# CMake build output (one folder per preset: build/debug, build/release)
+build/
+# Per-user CMake preset overrides
+CMakeUserPresets.json
+
+# Viewer
+node_modules/
+viewer/dist/
+
+# Sim output
+*.tracking.jsonl
+*.gamelog.jsonl
+out/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
