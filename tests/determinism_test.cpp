@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <sstream>
 #include <string>
 
@@ -94,4 +95,27 @@ TEST(TrackingFile, FortyWritesSplitEvents) {
         if (j["type"] == "event" && j["event"] == "split") ++splits;
     }
     EXPECT_EQ(splits, 6);  // 10, 20, and 40 for each runner
+}
+
+TEST(TrackingFile, OverlaysAreWrittenAndRounded) {
+    std::ostringstream out;
+    TrackingWriter writer(out);
+    const std::vector<Player> runners{drill_player("fast", 95, 95)};
+    run_forty(tuning(), runners, &writer);
+    std::istringstream in(out.str());
+    std::string line;
+    ASSERT_TRUE(std::getline(in, line));
+    const Json header = Json::parse(line);
+    ASSERT_EQ(header["overlays"].size(), 8u);  // a line and a label at start, 10, 20, 40
+    EXPECT_EQ(header["overlays"][0]["kind"], "line");
+    EXPECT_EQ(header["overlays"][0]["layer"], "marks");
+
+    // The scramble draws each runner's waypoint every tick, rounded to 0.01.
+    std::istringstream scramble(scramble_tracking(5));
+    std::getline(scramble, line);  // header
+    std::getline(scramble, line);
+    const Json tick = Json::parse(line);
+    ASSERT_EQ(tick["dbg"].size(), 22u);
+    const double x = tick["dbg"][0]["pts"][1][0];
+    EXPECT_NEAR(x * 100.0, std::round(x * 100.0), 1e-6);
 }

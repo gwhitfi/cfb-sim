@@ -51,6 +51,21 @@ std::vector<FortyResult> run_forty(const MovementTuning& tuning, std::span<const
     if (out) {
         TrackingInfo info;
         info.name = "forty";
+        // Chalk lines across the lanes at the start and each split.
+        const double half = (static_cast<double>(n) / 2.0 + 1.0) * kLaneWidth;
+        for (const double yards : {0.0, 10.0, 20.0, 40.0}) {
+            const double x = kStartX + yards;
+            info.overlays.push_back({{"kind", "line"},
+                                     {"layer", "marks"},
+                                     {"pts", {{x, kFieldMidY - half}, {x, kFieldMidY + half}}},
+                                     {"color", "#ffd400"}});
+            info.overlays.push_back(
+                {{"kind", "text"},
+                 {"layer", "marks"},
+                 {"at", {x, kFieldMidY + half + 1.0}},
+                 {"text", yards == 0.0 ? "start" : std::to_string(static_cast<int>(yards))},
+                 {"color", "#ffd400"}});
+        }
         out->header(info, world);
         out->frame(world);
     }
@@ -140,8 +155,21 @@ ScrambleResult run_scramble(const MovementTuning& tuning, const ScrambleOptions&
         info.seed = options.seed;
         info.details = {{"players", count}, {"seconds", options.seconds}};
         out->header(info, world);
-        out->frame(world);
     }
+    // Writes a frame with each runner's current waypoint on the "targets" layer.
+    const auto write_frame = [&] {
+        if (!out) return;
+        Json debug = Json::array();
+        for (std::size_t i = 0; i < waypoints.size(); ++i) {
+            const Vec2 p = world.agents()[i].pos;
+            debug.push_back({{"kind", "line"},
+                             {"layer", "targets"},
+                             {"pts", {{p.x, p.y}, {waypoints[i].x, waypoints[i].y}}},
+                             {"dash", true}});
+        }
+        out->frame(world, std::move(debug));
+    };
+    write_frame();
 
     ScrambleResult result;
     result.min_gap = std::numeric_limits<double>::infinity();
@@ -170,7 +198,7 @@ ScrambleResult run_scramble(const MovementTuning& tuning, const ScrambleOptions&
                 result.min_gap = std::min(result.min_gap, gap);
             }
         }
-        if (out) out->frame(world);
+        write_frame();
     }
     return result;
 }

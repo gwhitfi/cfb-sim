@@ -2,10 +2,21 @@
 // Lines, for the viewer to play back (rules-and-flow.md#game-log--replay).
 //
 //   {"type":"header", "format_version":1, "tick_rate":20, "players":[...], ...}
-//   {"type":"tick", "tick":0, "p":[[x, y, vx, vy, facing_deg], ...], "ball":[x, y, z] or null}
+//   {"type":"tick", "tick":0, "p":[[x, y, vx, vy, facing_deg], ...], "ball":[x, y, z] or null,
+//    "dbg":[shape, ...]}
 //   {"type":"event", "tick":87, "event":"split", ...}
 //
 // Players in "p" are in the same order as the header's "players" list.
+//
+// Debug overlays are "shapes" the viewer draws on named, toggleable layers:
+// the header's "overlays" are shown the whole time, a tick's "dbg" only on
+// that tick. Both are optional. Shape kinds (movement-and-interaction.md#debug-overlays):
+//   {"kind":"line", "layer":"routes", "pts":[[x, y], ...], "color":"#RRGGBB", "dash":true}
+//   {"kind":"link", "layer":"engagements", "a":0, "b":12}   (player indices)
+//   {"kind":"ring", "layer":"read", "player":0}
+//   {"kind":"tag",  "layer":"openness", "player":3, "text":"0.82"}
+//   {"kind":"text", "layer":"marks", "at":[x, y], "text":"40"}
+// "color" and "dash" are optional on every kind.
 #pragma once
 
 #include <cstdint>
@@ -31,6 +42,7 @@ struct TrackingInfo {
     TrackingTeam home{"Home", "HOME", "#C8102E"};
     TrackingTeam away{"Away", "AWAY", "#1D4F91"};
     Json details = Json::object();  // anything else worth showing (drill options, ...)
+    Json overlays = Json::array();  // debug shapes shown for the whole file
 };
 
 class TrackingWriter {
@@ -40,7 +52,8 @@ class TrackingWriter {
     explicit TrackingWriter(std::ostream& out) : out_(out) {}
 
     void header(const TrackingInfo& info, const World& world);
-    void frame(const World& world);
+    // `debug`: this tick's overlay shapes (an array), if any.
+    void frame(const World& world, Json debug = Json::array());
     void event(const World& world, std::string_view name, Json fields = Json::object());
 
   private:

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CFB Sim Viewer</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <strong class="brand">CFB Sim</strong>
+      <label class="button">
+        Open file…
+        <input id="file-input" type="file" accept=".jsonl,.json" hidden />
+      </label>
+      <select id="repo-files" title="Tracking files in the repo (dev server only)" hidden></select>
+      <button id="reload" title="Reload this file from disk (R)" disabled>Reload</button>
+      <span id="title" class="title">Drop a tracking file anywhere</span>
+    </header>
+
+    <main class="main">
+      <div id="stage" class="stage">
+        <canvas id="canvas"></canvas>
+        <div id="empty" class="empty">
+          <p><strong>Drop a tracking file here</strong> (<code>*.jsonl</code>)</p>
+          <p>Make one with <code>./build/debug/cli/cfbsim run-drill forty --out forty.jsonl</code></p>
+        </div>
+        <div id="error" class="error" hidden></div>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+
+      <aside class="side">
+        <section>
+          <h2>Recording</h2>
+          <dl id="info" class="info"></dl>
+        </section>
+        <section>
+          <h2>Overlays</h2>
+          <label><input type="checkbox" id="opt-velocity" /> Velocity <kbd>V</kbd></label>
+          <label><input type="checkbox" id="opt-trails" /> Trails <kbd>T</kbd></label>
+          <label>Labels
+            <select id="opt-labels">
+              <option value="label">Slot / label</option>
+              <option value="jersey">Jersey</option>
+              <option value="position">Position</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+          <div id="layers"></div>
+        </section>
+        <section>
+          <h2>Player</h2>
+          <div id="player" class="muted">Click a player</div>
+        </section>
+        <section class="grow">
+          <h2>Events</h2>
+          <ol id="events" class="events"></ol>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="transport">
+      <button id="back" title="Back one tick (←, Shift+← for 1 s)"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 2h2v12H3zM14 2v12L6 8z" fill="currentColor"/></svg></button>
+      <button id="play" title="Play / pause (Space)"></button>
+      <button id="fwd" title="Forward one tick (→, Shift+→ for 1 s)"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M11 2h2v12h-2zM2 2v12l8-6z" fill="currentColor"/></svg></button>
+      <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+      <span id="clock" class="clock">0.00 s · tick 0</span>
+      <select id="speed" title="Playback speed ([ and ])"></select>
+      <button id="fit" title="Fit the field (F); fit the players (Shift+F)">Fit</button>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
