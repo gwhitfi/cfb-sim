@@ -1,5 +1,5 @@
-// Running one offensive play from the huddle to the whistle. Phase 4: the
-// offense alone, against an empty field.
+// Running one play from the huddle to the whistle: an offense against a
+// defense (phase 5), or against an empty field.
 #pragma once
 
 #include <cstdint>
@@ -23,11 +23,16 @@ struct PlayOptions {
     std::uint64_t seed = 1;
     bool huddle = true;  // start in the huddle and walk up; false: start set, snap at once
     std::string target;  // pass plays: make the QB throw to this slot
+    // The defense: a team id and a play from its defensive playbook. An
+    // empty team means an empty field.
+    std::string defense;
+    std::string defense_play;
 };
 
 struct PlayResult {
-    // How the play ended: "touchdown", "out_of_bounds", "incomplete", or
-    // "whistle" (the time limit, since there's no one to make a tackle).
+    // How the play ended: "touchdown", "out_of_bounds", "incomplete",
+    // "tackled" (contact is down until phase 7), "sack", or "whistle" (the
+    // time limit).
     std::string outcome;
     std::string summary;  // one readable line
     bool complete = false;
@@ -37,8 +42,15 @@ struct PlayResult {
     double yards = 0.0;              // from the line of scrimmage to where the play ended
     double air_yards = 0.0;          // downfield distance of the catch point
     double time_to_throw = 0.0;      // s from the snap to the release
+    double openness = 1.0;           // the target's true openness when the QB let it go
     double seconds = 0.0;            // s from the snap to the whistle
     std::vector<std::string> busts;  // "X: ran curl instead of slant"
+    bool interception = false;
+    std::string intercepted_by;  // defensive slot
+    bool defense_touchdown = false;
+    bool thrown_away = false;
+    int breakups = 0;
+    int tips = 0;
 };
 
 // Thrown for a play that can't be run (unknown team or play, a slot the

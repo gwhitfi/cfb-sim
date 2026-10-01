@@ -1,6 +1,7 @@
 # The engine-independent sim core, built as a static library.
 add_library(cfbsim_core STATIC
     src/agents/ball_carrier.cpp
+    src/agents/defense.cpp
     src/agents/blocker.cpp
     src/agents/quarterback.cpp
     src/agents/route_runner.cpp
@@ -24,6 +25,7 @@ add_library(cfbsim_core STATIC
     src/log/tracking.cpp
     src/physics/ball_flight.cpp
     src/physics/movement.cpp
+    src/play/openness.cpp
     src/play/play_sim.cpp
     src/play/routes.cpp
     src/world/agent.cpp

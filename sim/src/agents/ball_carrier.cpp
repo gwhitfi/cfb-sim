@@ -9,7 +9,8 @@
 
 namespace cfbsim {
 
-Vec2 run_downfield(const PlayState& play, const Agent& me) {
+Vec2 run_downfield(const PlayState& play, int self) {
+    const Agent& me = play.agent(self);
     const PlayFrame& frame = play.frame;
     const Vec2 x_dir = frame.dir_to_field({1.0, 0.0});  // the offense's right, field frame
     const double x = frame.to_play(me.pos).x;
@@ -20,14 +21,25 @@ Vec2 run_downfield(const PlayState& play, const Agent& me) {
     double lean = 0.0;  // play-frame x
     if (x < frame.sideline_x(Side::Left) + room) lean = 0.4;
     if (x > frame.sideline_x(Side::Right) - room) lean = -0.4;
-    return (play.downfield() + x_dir * lean).normalized() * me.move.top_speed;
+    return (play.downfield_for(self) + x_dir * lean).normalized() * me.move.top_speed;
+}
+
+Intent Pursuer::decide(const PlayState& play, int self, Actions& /*actions*/) {
+    Intent in;
+    const int carrier = play.carrier();
+    if (carrier < 0) return in;
+    const Agent& me = play.agent(self);
+    const Agent& c = play.agent(carrier);
+    const Vec2 aim = c.pos + c.vel * play.tuning().defense.pursue_lead;
+    in.velocity = steer::seek(me, aim, me.move.top_speed);
+    return in;
 }
 
 Intent BallCarrier::decide(const PlayState& play, int self, Actions& /*actions*/) {
     const Agent& me = play.agent(self);
     Intent in;
     if (!play.started(self)) {
-        in.face = play.downfield();
+        in.face = play.downfield_for(self);
         return in;
     }
 
@@ -42,7 +54,7 @@ Intent BallCarrier::decide(const PlayState& play, int self, Actions& /*actions*/
     }
 
     if (is_free()) {
-        in.velocity = run_downfield(play, me);
+        in.velocity = run_downfield(play, self);
         return in;
     }
     in.velocity = steer::seek(me, path_[next_].pos, me.move.top_speed);
@@ -61,7 +73,7 @@ std::optional<Vec2> BallCarrier::predict(const PlayState& play, int self, double
         t -= len / speed;
         pos = path_[k].pos;
     }
-    return pos + play.downfield() * (speed * t);
+    return pos + play.downfield_for(self) * (speed * t);
 }
 
 void BallCarrier::draw(const PlayState& /*play*/, int /*self*/, Json& shapes) const {

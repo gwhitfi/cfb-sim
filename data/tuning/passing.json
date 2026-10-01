@@ -16,24 +16,25 @@
     "perceive_skill": {"vision": 0.5, "coverage_reading": 0.5},
     "perceive_sd": {"curve": "linear", "points": [[0, 0.25], [100, 0.04]]},
     // Decisions -> perceived openness needed to throw.
-    "throw_threshold": {"curve": "linear", "points": [[0, 0.5], [100, 0.65]]},
+    "throw_threshold": {"curve": "linear", "points": [[0, 0.55], [100, 0.75]]},
     "decay_after": 1.5,       // s after he's set, the threshold starts dropping...
     "decay_rate": 0.15,       // ...this much per second...
     "threshold_floor": 0.3,   // ...down to this
     "covered": 0.2,           // a read that looks this covered is dropped after the minimum look
     // Vision -> per-second chance of noticing a wide-open receiver he isn't reading.
-    "peripheral_rate": {"curve": "linear", "points": [[0, 0.4], [100, 2.0]]},
+    "peripheral_rate": {"curve": "linear", "points": [[0, 0.2], [100, 1.0]]},
     "wide_open": 0.85,
+    "peripheral_min_depth": 5.0,  // yd downfield: a checkdown behind the line doesn't catch his eye
     "give_up_seconds": 4.5,   // s after the snap: throw the best he's seen, or throw it away
     "throw_away_past": 5.0    // yd past the receiver nearest the sideline, out of bounds
   },
 
   // How open a receiver is: the chance a good throw now is completed.
   "openness": {
-    "contest_scale": 0.15,    // s: defender arrival margin -> contest (a logistic)
-    "contest_bias": 0.5,
-    "contest_weight": 0.9,    // a fully contested ball is still caught 10% of the time
-    "lane_factor": 0.5,       // per defender under the throwing lane
+    "contest_scale": 0.2,     // s: defender arrival margin -> contest (a logistic)
+    "contest_bias": 0.0,
+    "contest_weight": 0.6,    // a defender there in time takes away this share (he loses some contests)
+    "lane_factor": 0.7,       // weight of a defender undercutting the throw on its way
     "projection_rounds": 4    // iterations for the projected catch point
   },
 
@@ -82,8 +83,8 @@
     "closer_bonus": 10,       // skill points for being closer to the ball
     "skill_scale": 15,
     "catch_factor": 0.75,     // a receiver who wins the contest still has to hold on
-    "int_contested": {"curve": "linear", "points": [[0, 0.2], [100, 0.6]]},  // Ball Skills
-    "int_alone": {"curve": "linear", "points": [[0, 0.35], [100, 0.8]]},     // Ball Skills
+    "int_contested": {"curve": "linear", "points": [[0, 0.05], [100, 0.25]]}, // Ball Skills
+    "int_alone": {"curve": "linear", "points": [[0, 0.1], [100, 0.35]]},      // Ball Skills
     "tip_chance": 0.25,       // a breakup or drop stays live
     "tip_keep": 0.3,          // share of its velocity a tipped ball keeps
     "tip_up": [1.0, 3.0]      // yd/s added upward

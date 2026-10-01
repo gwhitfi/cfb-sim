@@ -95,7 +95,7 @@ TEST(Play, AccuracyMatters) {
     // The same throws with every accuracy at 95 vs. 25.
     const auto completions = [](const DataSet& d) {
         int complete = 0;
-        for (std::uint64_t seed = 1; seed <= 80; ++seed) {
+        for (std::uint64_t seed = 1; seed <= 200; ++seed) {
             PlayOptions o = options("trips_stick", seed);
             o.target = "Z";
             complete += run_play(d, o).complete ? 1 : 0;
@@ -108,6 +108,7 @@ TEST(Play, AccuracyMatters) {
         for (Player& p : good.rosters.at("state_u").players) p.attributes[a] = 95;
         for (Player& p : bad.rosters.at("state_u").players) p.attributes[a] = 25;
     }
+    // About 90% vs. 70%: a gap of ~40 in 200, with a spread of ~8.
     EXPECT_GT(completions(good), completions(bad) + 20);
 }
 

@@ -88,6 +88,9 @@ class Behavior {
     virtual int eyes() const { return -1; }
     // Man coverage: the receiver he's covering, or -1.
     virtual int man_target() const { return -1; }
+    // Any coverage: the receiver he's playing right now (his man, or the
+    // threat in his zone), or -1.
+    virtual int covering() const { return -1; }
     // Receivers: seconds after the snap of his latest break.
     virtual double last_break() const { return -std::numeric_limits<double>::infinity(); }
 };

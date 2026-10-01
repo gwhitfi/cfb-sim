@@ -94,7 +94,7 @@ struct Job {
     std::vector<RouteOption> options;  // Route: coverage-dependent branches
     std::string action;                // Block: "scheme", "protect", "stalk", "check_release"...
     std::string target;                // Block, ReturnBlock, Man: who to block / cover
-    std::string ref;                   // Zone id, Support role, Rush lane, ReturnBlock rule
+    std::string ref;                   // Zone id, Support role, Rush lane, ReturnBlock rule, Man leverage
     std::string gap;                   // Gap, Blitz, Rush: "A".."D"
     Side side = Side::None;            // Gap, Blitz, Rush
     std::optional<double> lane_x;      // CoverLane

@@ -122,7 +122,23 @@ Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view 
             job.ref = value.as_string();
             break;
         case JobKind::Man:
-            job.target = value.as_string();
+            // "#1_strong", or {"target": "#1_strong", "leverage": "outside"}.
+            if (value.is_string()) {
+                job.target = value.as_string();
+            } else {
+                value.allow_only({"target", "leverage"});
+                job.target = value.string("target");
+                job.ref = value.string_or("leverage", "inside");
+                if (job.ref != "inside" && job.ref != "outside") {
+                    value.at("leverage").fail("leverage must be inside or outside");
+                }
+            }
+            if (!job.target.starts_with("back_") &&
+                !(job.target.size() >= 4 && job.target[0] == '#' && job.target[1] >= '1' &&
+                  job.target[1] <= '3' &&
+                  (job.target.substr(2) == "_strong" || job.target.substr(2) == "_weak"))) {
+                value.fail("man target must look like #1_strong, #2_weak, or back_1");
+            }
             break;
         case JobKind::Rush:
             value.allow_only({"lane", "gap", "side"});

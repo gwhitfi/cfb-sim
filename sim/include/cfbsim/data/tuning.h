@@ -105,6 +105,7 @@ struct PassingTuning {
     double covered = 0.2;       // a read under this is dropped after the minimum look
     Curve peripheral_rate;      // Vision -> per-second chance to notice a wide-open man
     double wide_open = 0.85;
+    double peripheral_min_depth = 5.0;  // yd downfield
     double give_up_seconds = 4.5;  // after the snap: throw the best he's seen, or throw it away
     double throw_away_past = 5.0;  // yd past the receiver, out of bounds
 
@@ -185,6 +186,7 @@ struct DefenseTuning {
     double face_max_deg = 45.0;
     double threat_lookahead = 0.5;
     double eyes_weight = 2.0;
+    double switch_margin = 1.3;
     double deep_min_depth = 10.0;
     double deep_cushion = 2.0;
     double under_short = 2.0;

@@ -34,7 +34,7 @@ Vec2 RouteRunner::last_direction() const {
     return (last - before).normalized();
 }
 
-std::optional<std::pair<Vec2, double>> RouteRunner::catch_spot(const PlayState& play) const {
+std::optional<std::pair<Vec2, double>> ball_drop_spot(const PlayState& play) {
     const Ball& ball = play.world().ball();
     if (ball.state != Ball::State::InFlight) return std::nullopt;
     const PassingTuning& t = play.tuning().passing;
@@ -46,6 +46,34 @@ std::optional<std::pair<Vec2, double>> RouteRunner::catch_spot(const PlayState& 
     return std::pair{at.ground(), *when};
 }
 
+Vec2 RouteRunner::settle_spot(const PlayState& play) const {
+    // The spot near the end of the route farthest from the nearby zone
+    // defenders (every defender counts; there's no way to tell man from zone
+    // by looking at him).
+    const DefenseTuning& t = play.tuning().defense;
+    const Vec2 end = play.frame.to_play(points_.back().pos);
+    std::vector<Vec2> near;
+    for (int d = play.offense_count; d < play.count(); ++d) {
+        const Vec2 p = play.play_pos(d);
+        if ((p - end).length() <= t.settle_range) near.push_back(p);
+    }
+    if (near.empty()) return points_.back().pos;
+    Vec2 best = end;
+    double best_gap = -1.0;
+    for (int ix = -2; ix <= 2; ++ix) {
+        for (int iy = -1; iy <= 1; ++iy) {
+            const Vec2 c = end + Vec2{t.settle_lateral * ix / 2.0, t.settle_depth * iy};
+            double gap = 1e9;
+            for (Vec2 p : near) gap = std::min(gap, (p - c).length());
+            if (gap > best_gap + 1e-9) {
+                best_gap = gap;
+                best = c;
+            }
+        }
+    }
+    return play.frame.to_field(best);
+}
+
 Intent RouteRunner::decide(const PlayState& play, int self, Actions& /*actions*/) {
     const Agent& me = play.agent(self);
 
@@ -53,7 +81,7 @@ Intent RouteRunner::decide(const PlayState& play, int self, Actions& /*actions*/
     // get there with it, and look it in.
     if (play.since_snap() >= start_ && play.pass && play.pass->target == self &&
         play.sees_throw(self)) {
-        if (const auto spot = catch_spot(play)) {
+        if (const auto spot = ball_drop_spot(play)) {
             const auto [where, seconds] = *spot;
             const double dist = (where - me.pos).length();
             const double needed = dist / std::max(seconds, kTickSeconds);
@@ -75,7 +103,15 @@ Intent RouteRunner::decide(const PlayState& play, int self, Actions& /*actions*/
         Intent in;
         return in;
     }
-    return run_route(play, me, next_, play.since_snap());
+    // A settle route finds open grass once he gets near the end of it.
+    if (end_ == RouteEnd::Settle && next_ + 1 >= points_.size() &&
+        play.since_snap() - settle_checked_ >= play.tuning().defense.settle_recheck) {
+        settle_ = settle_spot(play);
+        settle_checked_ = play.since_snap();
+    }
+    Intent in = run_route(play, me, next_, play.since_snap());
+    if (in.plant) last_break_ = play.since_snap();
+    return in;
 }
 
 // The route itself. It reads the runner from `me` and his progress from
@@ -136,9 +172,15 @@ Intent RouteRunner::run_route(const PlayState& play, const Agent& me, std::size_
         return in;
     }
 
-    // stop / settle: sit down at the end and face the QB. (Settling into a
-    // hole between zone defenders needs defenders: phase 5.)
-    in.velocity = steer::arrive(me, points_.back().pos, me.move.top_speed, t.route_decel_rate);
+    // stop / settle: sit down at the end (or the open spot he's settling
+    // into, at a jog) and face the QB.
+    if (settle_) {
+        in.velocity = steer::arrive(me, *settle_, std::min(me.move.top_speed, 4.0),
+                                    t.route_decel_rate);
+    } else {
+        in.velocity =
+            steer::arrive(me, points_.back().pos, me.move.top_speed, t.route_decel_rate);
+    }
     if (me.vel.length() < 1.5 && play.qb >= 0) {
         const Vec2 to_qb = play.agent(play.qb).pos - me.pos;
         if (to_qb.length() > 0.1) in.face = to_qb.normalized();
@@ -148,7 +190,7 @@ Intent RouteRunner::run_route(const PlayState& play, const Agent& me, std::size_
 
 std::optional<Vec2> RouteRunner::predict(const PlayState& play, int self, double seconds) const {
     if (play.pass && play.pass->target == self) {
-        if (const auto spot = catch_spot(play)) return spot->first;
+        if (const auto spot = ball_drop_spot(play)) return spot->first;
     }
     // Run the route forward on a *copy* of him: same steering, same physics,
     // nobody else on the field. `Agent ghost = ...` copies the whole struct

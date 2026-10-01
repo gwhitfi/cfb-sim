@@ -211,7 +211,7 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     const Reader qb = root.at("qb");
     qb.allow_only({"look_skill", "look_seconds", "min_look_seconds", "perceive_skill",
                    "perceive_sd", "throw_threshold", "decay_after", "decay_rate",
-                   "threshold_floor", "covered", "peripheral_rate", "wide_open",
+                   "threshold_floor", "covered", "peripheral_rate", "wide_open", "peripheral_min_depth",
                    "give_up_seconds", "throw_away_past"});
     t.look_skill = parse_blend(qb.at("look_skill"));
     t.look_seconds = parse_curve(qb.at("look_seconds"));
@@ -225,6 +225,7 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     t.covered = qb.number("covered");
     t.peripheral_rate = parse_curve(qb.at("peripheral_rate"));
     t.wide_open = qb.number("wide_open");
+    t.peripheral_min_depth = qb.number("peripheral_min_depth");
     t.give_up_seconds = qb.number("give_up_seconds");
     t.throw_away_past = qb.number("throw_away_past");
 
@@ -335,12 +336,13 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
 
     const Reader zone = root.at("zone");
     zone.allow_only({"skill", "lag", "face_max_deg", "threat_lookahead", "eyes_weight",
-                     "deep_min_depth", "deep_cushion", "under_short", "drift", "margin"});
+                     "switch_margin", "deep_min_depth", "deep_cushion", "under_short", "drift", "margin"});
     t.zone_skill = parse_blend(zone.at("skill"));
     t.zone_lag = parse_curve(zone.at("lag"));
     t.face_max_deg = zone.number("face_max_deg");
     t.threat_lookahead = zone.number("threat_lookahead");
     t.eyes_weight = zone.number("eyes_weight");
+    t.switch_margin = zone.number("switch_margin");
     t.deep_min_depth = zone.number("deep_min_depth");
     t.deep_cushion = zone.number("deep_cushion");
     t.under_short = zone.number("under_short");

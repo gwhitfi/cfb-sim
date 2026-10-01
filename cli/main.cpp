@@ -1,6 +1,8 @@
 // cfbsim: headless runner for the game sim.
 // Subcommands are added as the build plan phases need them.
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -46,8 +48,9 @@ void print_usage() {
            "  run-drill scramble      players chasing random waypoints (determinism check)\n"
            "      --seed N --players N --seconds S\n"
            "  (run-drill options)     --out FILE.jsonl  write a tracking file   --data DIR\n"
-           "  run-play                run one offensive play against an empty field\n"
+           "  run-play                run one play, against a defense or an empty field\n"
            "      --team ID --play ID   (required)\n"
+           "      --defense ID --def-play ID   the defense (default: an empty field)\n"
            "      --flip                run the mirrored version\n"
            "      --hash left|middle|right (default middle)   --yard-line N (own N, default 25)\n"
            "      --direction right|left  which way the offense goes (default right)\n"
@@ -334,6 +337,12 @@ int cmd_run_play(const Options& opt) {
     o.flip = opt.has("flip");
     o.huddle = !opt.has("no-huddle");
     o.target = opt.get("target");
+    o.defense = opt.get("defense");
+    o.defense_play = opt.get("def-play");
+    if (!o.defense.empty() && o.defense_play.empty()) {
+        std::cerr << "cfbsim run-play: --defense needs --def-play\n";
+        return 1;
+    }
     const auto hash = cfbsim::from_name(cfbsim::kHashNames, opt.get("hash", "middle"));
     if (!hash) {
         std::cerr << "cfbsim run-play: --hash must be left, middle, or right\n";
@@ -364,8 +373,15 @@ int cmd_run_play(const Options& opt) {
     }
 
     const int count = std::max(1, static_cast<int>(*runs));
-    int complete = 0, touchdowns = 0, busts = 0;
+    int complete = 0, touchdowns = 0, busts = 0, picks = 0;
     double yards = 0.0;
+    struct TargetStats {
+        int thrown = 0, complete = 0, picks = 0;
+        double yards = 0.0, time = 0.0;
+    };
+    std::map<std::string, TargetStats> by_target;
+    // Is openness honest? Completion rate by the openness at the throw.
+    std::array<std::pair<int, int>, 5> calibration{};  // [0-.2), ..., [.8-1]: thrown, complete
     try {
         for (int k = 0; k < count; ++k) {
             o.seed = static_cast<std::uint64_t>(*seed) + static_cast<std::uint64_t>(k);
@@ -378,15 +394,45 @@ int cmd_run_play(const Options& opt) {
             complete += r.complete ? 1 : 0;
             touchdowns += r.outcome == "touchdown" ? 1 : 0;
             busts += static_cast<int>(r.busts.size());
+            picks += r.interception ? 1 : 0;
             yards += r.yards;
+            if (!r.target.empty()) {
+                TargetStats& ts = by_target[r.thrown_away ? "(away)" : r.target];
+                ++ts.thrown;
+                ts.complete += r.complete ? 1 : 0;
+                ts.picks += r.interception ? 1 : 0;
+                ts.yards += r.yards;
+                ts.time += r.time_to_throw;
+                if (!r.thrown_away) {
+                    const auto bucket = static_cast<std::size_t>(std::min(4.0, r.openness * 5.0));
+                    ++calibration[bucket].first;
+                    calibration[bucket].second += r.complete ? 1 : 0;
+                }
+            }
         }
     } catch (const cfbsim::PlayError& e) {
         std::cerr << "cfbsim run-play: " << e.what() << "\n";
         return 1;
     }
     if (count > 1) {
-        std::printf("%d runs: %d complete, %d touchdowns, %d busts, %.1f yd per play\n", count,
-                    complete, touchdowns, busts, yards / count);
+        std::printf(
+            "%d runs: %d complete, %d intercepted, %d touchdowns, %d busts, %.1f yd per play\n",
+            count, complete, picks, touchdowns, busts, yards / count);
+        for (const auto& [slot, ts] : by_target) {
+            std::printf("  %-7s %4d thrown, %3.0f%% complete, %2d intercepted, %5.1f yd, %.2f s\n",
+                        slot.c_str(), ts.thrown, 100.0 * ts.complete / ts.thrown, ts.picks,
+                        ts.yards / ts.thrown, ts.time / ts.thrown);
+        }
+        if (!o.defense.empty()) {
+            std::printf("  openness at the throw -> completed:");
+            for (std::size_t b = 0; b < calibration.size(); ++b) {
+                const auto [thrown, done] = calibration[b];
+                if (thrown == 0) continue;
+                std::printf("  %.1f-%.1f %d/%d", 0.2 * static_cast<double>(b),
+                            0.2 * static_cast<double>(b + 1), done, thrown);
+            }
+            std::printf("\n");
+        }
     }
     if (tracking) std::cout << "wrote " << opt.get("out") << "\n";
     return 0;

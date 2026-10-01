@@ -38,6 +38,7 @@
     "face_max_deg": 45,      // he opens at most this far from his path toward the QB
     "threat_lookahead": 0.5, // s: receivers about to enter the zone count
     "eyes_weight": 2.0,      // extra weight on the QB's read (x zone skill / 100)
+    "switch_margin": 1.3,    // underneath: switch to another threat only if it's this much bigger
     "deep_min_depth": 10,    // zones whose depth band starts this deep play the deepest threat
     "deep_cushion": 2.0,     // yd deeper than the deepest threat
     "under_short": 2.0,      // yd short of the threat, between him and the QB

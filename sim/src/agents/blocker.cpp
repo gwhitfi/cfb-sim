@@ -31,6 +31,19 @@ Intent StandInBlocker::decide(const PlayState& play, int self, Actions& /*action
     return in;
 }
 
+Key StandInBlocker::key() const {
+    switch (kind_) {
+        case Kind::PassSet:
+        case Kind::CheckRelease:
+            return Key::PassSet;
+        case Kind::RunBlock:
+            return Key::RunBlock;
+        case Kind::Stalk:
+            break;
+    }
+    return Key::None;
+}
+
 bool StandInBlocker::done(const PlayState& play, int /*self*/) const {
     return kind_ == Kind::CheckRelease && play.since_snap() >= until_;
 }
