@@ -2,7 +2,10 @@
 // base class, and the actions behaviors can ask for (internal).
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -25,6 +28,7 @@ struct Actions {
     struct Throw {
         int from = -1;
         int target = -1;
+        bool away = false;  // throw it away (out of bounds past `target`)
     };
     struct Handoff {
         int from = -1;
@@ -46,6 +50,9 @@ struct Actions {
 // calls `decide()` and the call goes to whichever subclass the object really
 // is, looked up at run time through the object's vtable.
 // ---------------------------------------------------------------------------
+// What a player shows the defense at the snap (movement-and-interaction.md#play-recognition).
+enum class Key : std::uint8_t { None, PassSet, RunBlock, Drop, Handoff };
+
 class Behavior {
   public:
     // A base class with virtual functions needs a virtual destructor, so
@@ -73,6 +80,16 @@ class Behavior {
 
     // Debug overlay shapes for this tick (see TrackingWriter).
     virtual void draw(const PlayState& /*play*/, int /*self*/, Json& /*shapes*/) const {}
+
+    // The key this player shows the defense (OL: pass set or run block; QB:
+    // drop or handoff).
+    virtual Key key() const { return Key::None; }
+    // QB: the receiver he's looking at (agent index), or -1.
+    virtual int eyes() const { return -1; }
+    // Man coverage: the receiver he's covering, or -1.
+    virtual int man_target() const { return -1; }
+    // Receivers: seconds after the snap of his latest break.
+    virtual double last_break() const { return -std::numeric_limits<double>::infinity(); }
 };
 
 // One player's place on this play.
@@ -94,7 +111,13 @@ struct PassInfo {
     std::int64_t tick = 0;  // release tick
     Vec3 release;
     Vec3 aim;                // where the QB meant it to go, before placement error
-    bool attempted = false;  // the target has tried to catch it
+    bool away = false;       // thrown away: nobody plays it
+};
+
+// Where a player was `lag` seconds ago, as he looked then.
+struct Seen {
+    Vec2 pos;  // extended along `vel` to now (dead reckoning)
+    Vec2 vel;
 };
 
 class PlayState {
@@ -108,6 +131,8 @@ class PlayState {
           formation(the_formation),
           book(playbook),
           frame(play_frame),
+          // The defense is never flipped: its sides come from the strength call.
+          defense_frame(play_frame.unflipped()),
           world_(world) {}
 
     const DataSet& data;
@@ -115,6 +140,15 @@ class PlayState {
     const Formation& formation;
     const Playbook& book;
     const PlayFrame frame;
+    const PlayFrame defense_frame;
+
+    // The defense, if there is one. Agents [0, offense_count) are the
+    // offense and the rest the defense.
+    const Play* defense_play = nullptr;
+    const Formation* defense_formation = nullptr;
+    const Playbook* defense_book = nullptr;
+    int offense_count = 0;
+    std::optional<OffenseRead> offense;  // the offense as the defense read it at the snap
 
     std::vector<SlotInfo> slots;  // one per agent, in agent order
     int qb = -1;
@@ -130,6 +164,21 @@ class PlayState {
     // long until he notices it (drawn when it happens).
     std::vector<double> get_off;
     std::vector<double> throw_reaction;
+    // The handoff, and when each player notices it.
+    std::optional<std::int64_t> handoff_tick;
+    std::vector<double> handoff_reaction;
+
+    // Every player's position and velocity on every tick since the snap, so
+    // defenders can react to what they saw a moment ago.
+    struct Snapshot {
+        Vec2 pos;
+        Vec2 vel;
+    };
+    std::vector<std::vector<Snapshot>> history;
+
+    // Openness of each receiver this tick (1 when there's no defense, or for
+    // players who aren't running routes).
+    std::vector<double> open;
 
     // Behaviors, one per agent. The vector owns them: std::unique_ptr deletes
     // each behavior when it is replaced or when the PlayState goes away.
@@ -143,9 +192,13 @@ class PlayState {
     const Behavior* behavior(int i) const { return behaviors[static_cast<std::size_t>(i)].get(); }
     int count() const { return static_cast<int>(slots.size()); }
 
-    // Agent index of a slot, or -1.
+    bool is_offense(int i) const { return i < offense_count; }
+    bool has_defense() const { return count() > offense_count; }
+    bool teammates(int a, int b) const { return is_offense(a) == is_offense(b); }
+
+    // Agent index of an offensive slot, or -1.
     int index_of(std::string_view slot) const {
-        for (int i = 0; i < count(); ++i) {
+        for (int i = 0; i < offense_count; ++i) {
             if (slots[static_cast<std::size_t>(i)].slot == slot) return i;
         }
         return -1;
@@ -166,22 +219,51 @@ class PlayState {
         const double since = static_cast<double>(world_.tick() - pass->tick) * kTickSeconds;
         return since >= throw_reaction[static_cast<std::size_t>(i)];
     }
+    bool sees_handoff(int i) const {
+        if (!handoff_tick) return false;
+        const double since = static_cast<double>(world_.tick() - *handoff_tick) * kTickSeconds;
+        return since >= handoff_reaction[static_cast<std::size_t>(i)];
+    }
     bool has_ball(int i) const {
         const Ball& b = world_.ball();
         return b.state == Ball::State::Held && b.carrier == i;
     }
+    // The player holding the ball, or -1.
+    int carrier() const {
+        const Ball& b = world_.ball();
+        return b.state == Ball::State::Held ? b.carrier : -1;
+    }
 
-    // Field-frame unit vector pointing downfield.
+    // Field-frame unit vector pointing downfield (the offense's way).
     Vec2 downfield() const { return frame.dir_to_field({0.0, 1.0}); }
+    // The way player i's team is going.
+    Vec2 downfield_for(int i) const { return is_offense(i) ? downfield() : downfield() * -1.0; }
     Vec2 play_pos(int i) const { return frame.to_play(agent(i).pos); }
+
+    double openness(int i) const {
+        return open.empty() ? 1.0 : open[static_cast<std::size_t>(i)];
+    }
+    // The receiver the QB is looking at, or -1.
+    int qb_eyes() const {
+        const Behavior* b = qb >= 0 && behaviors.size() > static_cast<std::size_t>(qb)
+                                ? behavior(qb)
+                                : nullptr;
+        return b ? b->eyes() : -1;
+    }
+
+    // Where player i was `lag` seconds ago, extended along his velocity then.
+    Seen seen(int i, double lag) const {
+        const auto idx = static_cast<std::size_t>(i);
+        if (history.empty()) return {agent(i).pos, agent(i).vel};
+        const auto back = static_cast<std::size_t>(std::max(0.0, std::round(lag / kTickSeconds)));
+        const std::size_t k = history.size() - 1 - std::min(back, history.size() - 1);
+        const Snapshot& s = history[k][idx];
+        const double dt = static_cast<double>(history.size() - 1 - k) * kTickSeconds;
+        return {s.pos + s.vel * dt, s.vel};
+    }
 
   private:
     World& world_;
 };
-
-// How open a receiver is: the chance a good throw right now is completed
-// (movement-and-interaction.md#openness). With no defenders yet every
-// receiver is wide open. Phase 5 replaces this with the real model.
-inline double openness(const PlayState& /*play*/, int /*receiver*/) { return 1.0; }
 
 }  // namespace cfbsim

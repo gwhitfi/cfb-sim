@@ -56,6 +56,12 @@ class PlayFrame {
     bool flipped() const { return flip_; }
     // Multiply an authored x (or x offset) by this to mirror it: -1 when flipped.
     double mirror() const { return flip_ ? -1.0 : 1.0; }
+    // The same frame, not mirrored.
+    PlayFrame unflipped() const {
+        PlayFrame f = *this;
+        f.flip_ = false;
+        return f;
+    }
 
     // Positions and directions between the frames.
     Vec2 to_field(Vec2 play) const { return {ball_.x + dir_ * play.y, ball_.y - dir_ * play.x}; }
@@ -75,8 +81,9 @@ class PlayFrame {
     Side field_side() const;
     Side boundary_side() const;
 
-    // Play-frame y of the goal line the offense is attacking.
+    // Play-frame y of the goal line the offense is attacking (and its own).
     double goal_line_y() const;
+    double own_goal_line_y() const { return goal_line_y() - 100.0; }
 
   private:
     Vec2 ball_;
@@ -105,9 +112,56 @@ struct LineGaps {
 // Throws GeometryError if either side has fewer than a G and a T.
 LineGaps find_gaps(double center_x, std::span<const double> line_x, double max_split = 2.5);
 
+// What a defense sees when it lines up: the offense's line, its receivers
+// counted from the sideline in, its backs, and the strength call
+// (movement-and-interaction.md#alignment). Positions are play-frame.
+struct OffenseRead {
+    double center_x = 0.0;
+    // Per side (index 0 = left, 1 = right), from the inside out: G, T, and an
+    // attached TE if there is one.
+    std::array<std::vector<double>, 2> line;
+    // Per side: agent indices of the receivers, #1 (widest) first.
+    std::array<std::vector<int>, 2> receivers;
+    std::vector<int> backs;  // agent indices of backs in the middle (back_1 first)
+    std::vector<Vec2> pos;   // every offensive player's position, by agent index
+    Side strong = Side::Right;
+
+    static constexpr std::size_t index(Side side) { return side == Side::Left ? 0 : 1; }
+    bool has_te(Side side) const { return line[index(side)].size() == 3; }
+    // play-frame x of the outermost lineman (the TE if attached) on `side`.
+    double end_of_line(Side side) const { return line[index(side)].back(); }
+    // A man coverage target ("#2_strong", "#1_weak", "back_1"): the agent
+    // index, or nullopt if the offense has no such player.
+    std::optional<int> player(std::string_view target) const;
+    // Left/Right for a strong/weak side; any other side unchanged.
+    Side resolve(Side side) const;
+};
+
+// Reads the offense's set. `pos`: each player's play-frame position;
+// `on_line`: whether his formation slot is on the line; `center`, `qb`: agent
+// indices. Throws GeometryError if the line has no G and T on a side.
+// (std::vector<bool> is a packed special case that a std::span can't view,
+// so it is passed by const reference.)
+OffenseRead read_offense(std::span<const Vec2> pos, const std::vector<bool>& on_line, int center,
+                         int qb);
+
+// Applies a defensive playbook's strength call ("te", "passing_strength",
+// "field", "boundary", "back"): the first call that picks a side wins; the
+// field side if none does.
+Side strength_from_call(const OffenseRead& offense, std::span<const std::string> calls,
+                        const PlayFrame& frame);
+
+// Defensive alignment constants (data/tuning/defense.json "alignment").
+struct AlignmentTuning {
+    double shade = 0.5;           // yd: a shade technique is this far off the man
+    double ghost_te_split = 1.4;  // yd outside the T where a missing TE would be
+};
+
 // What anchors can refer to while one formation or play is being laid out.
 struct AnchorContext {
     const PlayFrame* frame = nullptr;
+    const OffenseRead* offense = nullptr;  // defense only: technique, receiver, strong/weak
+    AlignmentTuning alignment;
     // Aligned play-frame position of a slot, or nullopt if it isn't placed (yet).
     std::function<std::optional<Vec2>(std::string_view slot)> slot_pos;
     const LineGaps* gaps = nullptr;  // only once the line is set
@@ -115,12 +169,15 @@ struct AnchorContext {
 
 // Play-frame x / y of an authored coordinate, with mirroring applied. Throws
 // GeometryError for anchors this context can't resolve (defensive anchors
-// until phase 5, special teams y anchors until phase 9, gaps before the snap).
+// without an offense, special teams y anchors until phase 9, gaps before the snap).
 double resolve_x(const Anchor& a, const AnchorContext& ctx);
 double resolve_y(const Anchor& a, const AnchorContext& ctx);
 
 // Every slot's aligned play-frame position, in formation order. Slots
 // anchored to other slots are placed after them, wherever they are listed.
-std::vector<Vec2> align_formation(const Formation& formation, const PlayFrame& frame);
+// `offense`: for a defensive formation, the offense it lines up against.
+std::vector<Vec2> align_formation(const Formation& formation, const PlayFrame& frame,
+                                  const OffenseRead* offense = nullptr,
+                                  AlignmentTuning alignment = {});
 
 }  // namespace cfbsim

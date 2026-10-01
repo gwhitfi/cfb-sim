@@ -12,7 +12,29 @@
     "look_skill": {"decisions": 0.5, "coverage_reading": 0.5},
     "look_seconds": {"curve": "linear", "points": [[0, 0.8], [100, 0.3]]},
     "min_look_seconds": 0.15,  // looking at a read at least this long before throwing it
-    "throw_threshold": 0.6     // perceived openness needed to throw
+    // Perceived openness = true openness + a bias drawn when he starts looking.
+    "perceive_skill": {"vision": 0.5, "coverage_reading": 0.5},
+    "perceive_sd": {"curve": "linear", "points": [[0, 0.25], [100, 0.04]]},
+    // Decisions -> perceived openness needed to throw.
+    "throw_threshold": {"curve": "linear", "points": [[0, 0.5], [100, 0.65]]},
+    "decay_after": 1.5,       // s after he's set, the threshold starts dropping...
+    "decay_rate": 0.15,       // ...this much per second...
+    "threshold_floor": 0.3,   // ...down to this
+    "covered": 0.2,           // a read that looks this covered is dropped after the minimum look
+    // Vision -> per-second chance of noticing a wide-open receiver he isn't reading.
+    "peripheral_rate": {"curve": "linear", "points": [[0, 0.4], [100, 2.0]]},
+    "wide_open": 0.85,
+    "give_up_seconds": 4.5,   // s after the snap: throw the best he's seen, or throw it away
+    "throw_away_past": 5.0    // yd past the receiver nearest the sideline, out of bounds
+  },
+
+  // How open a receiver is: the chance a good throw now is completed.
+  "openness": {
+    "contest_scale": 0.15,    // s: defender arrival margin -> contest (a logistic)
+    "contest_bias": 0.5,
+    "contest_weight": 0.9,    // a fully contested ball is still caught 10% of the time
+    "lane_factor": 0.5,       // per defender under the throwing lane
+    "projection_rounds": 4    // iterations for the projected catch point
   },
 
   "throw": {
@@ -48,5 +70,22 @@
     "reach_penalty": 0.12,  // at full reach the chance drops by this share
     "fast_ball_speed": 22,  // yd/s: faster balls are harder to catch...
     "fast_ball_penalty": 0.01  // ...by this share per yd/s over
+  },
+
+  // Catches with defenders around (movement-and-interaction.md#catches-against-defenders).
+  "contested": {
+    "traffic_range": 1.5,     // yd: a defender this close is traffic
+    "traffic_penalty": {"curve": "linear", "points": [[0, 0.15], [100, 0.03]]},  // Catch in Traffic -> share lost
+    "traffic_bravery_share": 0.25,  // Bravery's share in that rating
+    "receiver": {"contested_catch": 0.5, "catching": 0.2, "jumping": 0.15, "strength": 0.15},
+    "defender": {"ball_skills": 0.6, "jumping": 0.2, "strength": 0.2},
+    "closer_bonus": 10,       // skill points for being closer to the ball
+    "skill_scale": 15,
+    "catch_factor": 0.75,     // a receiver who wins the contest still has to hold on
+    "int_contested": {"curve": "linear", "points": [[0, 0.2], [100, 0.6]]},  // Ball Skills
+    "int_alone": {"curve": "linear", "points": [[0, 0.35], [100, 0.8]]},     // Ball Skills
+    "tip_chance": 0.25,       // a breakup or drop stays live
+    "tip_keep": 0.3,          // share of its velocity a tipped ball keeps
+    "tip_up": [1.0, 3.0]      // yd/s added upward
   }
 }

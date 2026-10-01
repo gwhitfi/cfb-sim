@@ -48,7 +48,7 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
         const double looked = now - look_start_;
         // Only the read he's looking at has a fresh openness value.
         const bool can_throw = stage_ == Stage::Read && looked >= t.min_look_seconds;
-        if (can_throw && openness(play, target) >= t.throw_threshold) return true;
+        if (can_throw && openness(play, target) >= t.throw_threshold(50.0)) return true;
         // He doesn't move off a read until he could have thrown it.
         if (stage_ == Stage::Read && looked >= look_seconds_) {
             read_ = (read_ + 1) % reads_.size();

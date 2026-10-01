@@ -1,0 +1,73 @@
+{
+  // Defense: alignment, play recognition, man and zone coverage, and the
+  // run-fit / rush / pursuit stand-ins used until phases 6-7
+  // (docs/design/movement-and-interaction.md#defense--coverage-phase-5).
+  "format_version": 1,
+
+  "alignment": {
+    "shade": 0.5,           // yd: a shade technique is this far off the man
+    "ghost_te_split": 1.4   // yd outside the T where a missing TE is assumed (6, 7, 9 techs)
+  },
+
+  // Run or pass? Skill = blend + pk_weight x effective Playbook Knowledge.
+  // The read starts after the reaction delay (play.json "reaction").
+  "recognition": {
+    "skill": {"anticipation": 0.4, "discipline": 0.2},
+    "pk_weight": 0.4,
+    "pass_prior": 0.55,
+    "rate": {"curve": "linear", "points": [[0, 2.5], [100, 10]]},  // per second
+    "pass_target": 0.95,
+    "run_target": 0.05
+  },
+
+  "man": {
+    "skill": {"man_coverage": 0.6, "anticipation": 0.4},
+    "lag": {"curve": "linear", "points": [[0, 0.45], [100, 0.12]]},   // s behind the receiver
+    "sell": {"curve": "linear", "points": [[0, 0.0], [100, 0.12]]},   // receiver's Route Running -> extra lag at a break
+    "sell_window": 0.5,     // s after a break the sell applies
+    "leverage": 1.0,        // yd inside or outside the receiver
+    "min_cushion": 1.0,     // yd: trailing over the top
+    "cushion_shrink": 0.5,  // cushion lost per yd the receiver gains downfield
+    "gain": 2.5,            // per second: how hard he closes on his spot
+    "backpedal_share": 0.9  // he turns and runs once he needs more than this share of backpedal speed
+  },
+
+  "zone": {
+    "skill": {"zone_coverage": 0.6, "anticipation": 0.4},
+    "lag": {"curve": "linear", "points": [[0, 0.5], [100, 0.15]]},
+    "face_max_deg": 45,      // he opens at most this far from his path toward the QB
+    "threat_lookahead": 0.5, // s: receivers about to enter the zone count
+    "eyes_weight": 2.0,      // extra weight on the QB's read (x zone skill / 100)
+    "deep_min_depth": 10,    // zones whose depth band starts this deep play the deepest threat
+    "deep_cushion": 2.0,     // yd deeper than the deepest threat
+    "under_short": 2.0,      // yd short of the threat, between him and the QB
+    "drift": 3.0,            // yd toward the QB's read with no threat
+    "margin": 2.0            // yd he may leave his zone by
+  },
+
+  // Stand-ins until blocking (phase 6) and tackling (phase 7).
+  "standin": {
+    "gap_depth": 1.0,         // yd off the ball when filling a gap
+    "alley": [3.0, 4.0],      // [yd outside the end of the line, yd deep]
+    "force": [5.0, 2.0],
+    "deep_fill": 8.0,         // yd deep in the middle
+    "contain_outside": 1.0,   // yd outside the end of the line (rush and run contain)
+    "pursue_lead": 0.4        // s ahead of the carrier pursuers aim
+  },
+
+  "busts": {
+    "late_lag": 0.3,          // s of extra lag for a man defender who's late
+    "late_drop": [0.3, 0.8]   // s a zone defender stands still before dropping
+  },
+
+  // Receivers reading the defense.
+  "routes": {
+    "option_skill": {"anticipation": 0.5},
+    "option_pk_weight": 0.5,
+    "option_correct": {"curve": "linear", "points": [[0, 0.6], [100, 0.97]]},
+    "settle_lateral": 3.0,    // yd either side of the route's end
+    "settle_depth": 1.0,      // yd up or back
+    "settle_recheck": 0.25,   // s
+    "settle_range": 8.0       // yd: zone defenders this close matter
+  }
+}

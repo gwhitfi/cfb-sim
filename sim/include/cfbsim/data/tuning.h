@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cfbsim/core/curve.h"
+#include "cfbsim/core/vec.h"
 
 namespace cfbsim {
 
@@ -93,7 +94,26 @@ struct PassingTuning {
     Blend look_skill;
     Curve look_seconds;  // look skill -> seconds per read
     double min_look_seconds = 0.15;
-    double throw_threshold = 0.6;
+
+    // Reading openness (movement-and-interaction.md#qb-reads).
+    Blend perceive_skill;
+    Curve perceive_sd;       // perceive skill -> sd of the bias on a read's openness
+    Curve throw_threshold;   // Decisions -> perceived openness needed to throw
+    double decay_after = 1.5;   // s after he's set before the threshold starts to drop
+    double decay_rate = 0.15;   // per s
+    double threshold_floor = 0.3;
+    double covered = 0.2;       // a read under this is dropped after the minimum look
+    Curve peripheral_rate;      // Vision -> per-second chance to notice a wide-open man
+    double wide_open = 0.85;
+    double give_up_seconds = 4.5;  // after the snap: throw the best he's seen, or throw it away
+    double throw_away_past = 5.0;  // yd past the receiver, out of bounds
+
+    // Openness (movement-and-interaction.md#openness).
+    double contest_scale = 0.15;  // s
+    double contest_bias = 0.5;
+    double contest_weight = 0.9;
+    double lane_factor = 0.5;
+    int projection_rounds = 4;
 
     Curve throw_speed;       // Throw Power -> yd/s
     Curve throw_effort;      // air distance -> share of top speed
@@ -117,12 +137,87 @@ struct PassingTuning {
     double reach_penalty = 0.25;
     double fast_ball_speed = 22.0;
     double fast_ball_penalty = 0.01;
+
+    // Catches against defenders (movement-and-interaction.md#catches-against-defenders).
+    double traffic_range = 1.5;
+    Curve traffic_penalty;  // Catch in Traffic -> share of catch chance lost
+    double traffic_bravery_share = 0.25;
+    Blend contest_receiver;
+    Blend contest_defender;
+    double contest_closer_bonus = 10.0;
+    double contest_skill_scale = 15.0;
+    double contested_catch_factor = 0.75;
+    Curve int_contested;  // Ball Skills -> chance a defender who wins the contest intercepts
+    Curve int_alone;      // Ball Skills -> chance a defender alone at the ball intercepts
+    double tip_chance = 0.25;
+    double tip_keep = 0.3;
+    double tip_up_min = 1.0, tip_up_max = 3.0;
+};
+
+// data/tuning/defense.json: alignment, play recognition, coverage, and the
+// run-fit and rush stand-ins (movement-and-interaction.md#defense--coverage-phase-5).
+struct DefenseTuning {
+    double shade = 0.5;
+    double ghost_te_split = 1.4;
+
+    // Play recognition: skill = blend + pk_weight x effective Playbook Knowledge.
+    Blend recognition_skill;
+    double recognition_pk_weight = 0.4;
+    double pass_prior = 0.55;
+    Curve recognition_rate;  // skill -> per second
+    double pass_target = 0.95;
+    double run_target = 0.05;
+
+    // Man coverage.
+    Blend man_skill;
+    Curve man_lag;    // skill -> s
+    Curve sell;       // the receiver's Route Running -> extra lag at a break, s
+    double sell_window = 0.5;
+    double leverage = 1.0;
+    double min_cushion = 1.0;
+    double cushion_shrink = 0.5;
+    double man_gain = 2.5;
+    double backpedal_share = 0.9;
+
+    // Zone coverage.
+    Blend zone_skill;
+    Curve zone_lag;
+    double face_max_deg = 45.0;
+    double threat_lookahead = 0.5;
+    double eyes_weight = 2.0;
+    double deep_min_depth = 10.0;
+    double deep_cushion = 2.0;
+    double under_short = 2.0;
+    double drift = 3.0;
+    double zone_margin = 2.0;
+
+    // Stand-ins: run fits, rush, pursuit (phases 6-7 replace them).
+    double gap_depth = 1.0;
+    Vec2 alley{3.0, 4.0};  // yd outside the end of the line, yd deep
+    Vec2 force{5.0, 2.0};
+    double deep_fill = 8.0;
+    double contain_outside = 1.0;
+    double pursue_lead = 0.4;
+
+    // Coverage busts.
+    double late_lag = 0.3;
+    double late_drop_min = 0.3, late_drop_max = 0.8;
+
+    // Option routes and settling (offense, but they read the defense).
+    Blend option_skill;
+    double option_pk_weight = 0.5;
+    Curve option_correct;  // skill -> chance of reading man/zone right
+    double settle_lateral = 3.0;
+    double settle_depth = 1.0;
+    double settle_recheck = 0.25;
+    double settle_range = 8.0;
 };
 
 struct Tuning {
     MovementTuning movement;
     PlayTuning play;
     PassingTuning passing;
+    DefenseTuning defense;
 };
 
 }  // namespace cfbsim

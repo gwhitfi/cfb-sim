@@ -168,3 +168,116 @@ TEST(Gaps, FromTheLinemensPositions) {
 
     EXPECT_THROW(find_gaps(0.0, std::vector<double>{-1.4, 0.0, 1.4}), GeometryError);
 }
+
+// ---------------------------------------------------------------------------
+// Defensive alignment (phase 5)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// An offensive formation as the defense sees it: aligned positions, the
+// line, receivers, and the strength call.
+struct OffenseSet {
+    const Formation* formation;
+    std::vector<Vec2> pos;
+    OffenseRead read;
+    int slot(std::string_view name) const {
+        for (std::size_t i = 0; i < formation->slots.size(); ++i) {
+            if (formation->slots[i].name == name) return static_cast<int>(i);
+        }
+        return -1;
+    }
+    double x(std::string_view name) const { return pos[static_cast<std::size_t>(slot(name))].x; }
+};
+
+OffenseSet offense_set(const std::string& id, const PlayFrame& frame) {
+    OffenseSet o;
+    o.formation = &data().formations.at(id);
+    o.pos = align_formation(*o.formation, frame);
+    std::vector<bool> on_line;
+    int center = -1, qb = -1;
+    for (std::size_t i = 0; i < o.formation->slots.size(); ++i) {
+        const FormationSlot& s = o.formation->slots[i];
+        on_line.push_back(s.on_line);
+        if (s.stance == Stance::Snap) center = static_cast<int>(i);
+        if (s.stance == Stance::Gun || s.stance == Stance::UnderCenter) qb = static_cast<int>(i);
+    }
+    o.read = read_offense(o.pos, on_line, center, qb);
+    o.read.strong = strength_from_call(o.read, data().playbooks.at("43_base").strength_call, frame);
+    return o;
+}
+
+double def_x(const std::string& formation, const OffenseSet& o, const PlayFrame& frame,
+             std::string_view slot) {
+    const Formation& f = data().formations.at(formation);
+    const std::vector<Vec2> d = align_formation(f, frame, &o.read);
+    for (std::size_t i = 0; i < f.slots.size(); ++i) {
+        if (f.slots[i].name == slot) return d[i].x;
+    }
+    return 1e9;
+}
+
+}  // namespace
+
+TEST(Defense, ReadsTheOffense) {
+    const PlayFrame frame(25, Hash::Middle, true, false);
+    const OffenseSet sb = offense_set("singleback_2x2", frame);
+    // Attached TE on the right: G, T, TE there; G, T on the left.
+    EXPECT_EQ(sb.read.line[1].size(), 3u);
+    EXPECT_EQ(sb.read.line[0].size(), 2u);
+    EXPECT_EQ(sb.read.strong, Side::Right);  // "te" decides
+    // Receivers counted from the sideline in.
+    ASSERT_EQ(sb.read.receivers[0].size(), 2u);
+    EXPECT_EQ(sb.read.receivers[0][0], sb.slot("X"));
+    EXPECT_EQ(sb.read.receivers[0][1], sb.slot("H"));
+    ASSERT_EQ(sb.read.receivers[1].size(), 2u);
+    EXPECT_EQ(sb.read.receivers[1][0], sb.slot("Z"));
+    EXPECT_EQ(sb.read.receivers[1][1], sb.slot("Y"));
+    ASSERT_EQ(sb.read.backs.size(), 1u);
+    EXPECT_EQ(sb.read.backs[0], sb.slot("RB"));
+    EXPECT_EQ(sb.read.player("#2_strong"), sb.slot("Y"));
+    EXPECT_EQ(sb.read.player("#1_weak"), sb.slot("X"));
+    EXPECT_EQ(sb.read.player("back_1"), sb.slot("RB"));
+    EXPECT_EQ(sb.read.player("#3_strong"), std::nullopt);
+
+    // Trips right with no TE on the line: passing strength decides.
+    const OffenseSet trips = offense_set("gun_trips_rt", frame);
+    EXPECT_EQ(trips.read.strong, Side::Right);
+    EXPECT_EQ(trips.read.player("#3_strong"), trips.slot("Y"));
+    // 2x2 with no TE: a tie on both, so the field side (middle hash: right).
+    EXPECT_EQ(offense_set("gun_2x2", PlayFrame(25, Hash::Right, true, false)).read.strong,
+              Side::Left);
+}
+
+TEST(Defense, TechniquesAndReceiverAnchors) {
+    const PlayFrame frame(25, Hash::Middle, true, false);
+    const OffenseSet o = offense_set("singleback_2x2", frame);
+    const auto x = [&](std::string_view slot) { return def_x("43_over", o, frame, slot); };
+    EXPECT_NEAR(x("SDE"), o.x("RT") + 0.5, kEps);              // 5 tech strong
+    EXPECT_NEAR(x("DT"), o.x("RG") + 0.5, kEps);               // 3 tech strong
+    EXPECT_NEAR(x("NT"), (o.x("C") + o.x("LG")) / 2.0, kEps);  // 1 tech weak
+    EXPECT_NEAR(x("WDE"), o.x("LT") - 0.5, kEps);              // 5 tech weak
+    EXPECT_NEAR(x("SAM"), o.x("Y") + 0.5, kEps);               // 9 tech on the TE
+    EXPECT_NEAR(x("SCB"), o.x("Z") + 1.0, kEps);               // 1 yd outside #1 strong
+    EXPECT_NEAR(x("WCB"), o.x("X") - 1.0, kEps);               // 1 yd outside #1 weak
+    EXPECT_NEAR(x("SS"), frame.hash_x(Side::Right), kEps);
+
+    // Nickel against trips: the NB is 1 yd inside #2 strong (H).
+    const OffenseSet trips = offense_set("gun_trips_rt", frame);
+    EXPECT_NEAR(def_x("nickel_over", trips, frame, "NB"), trips.x("H") - 1.0, kEps);
+}
+
+TEST(Defense, FlippedOffenseMirrorsTheDefense) {
+    // Flipping the offense on the middle hash moves strength and every
+    // defender to the other side.
+    const PlayFrame frame(25, Hash::Middle, true, false);
+    const PlayFrame flipped(25, Hash::Middle, true, true);
+    const OffenseSet a = offense_set("singleback_2x2", frame);
+    const OffenseSet b = offense_set("singleback_2x2", flipped);
+    EXPECT_EQ(b.read.strong, Side::Left);
+    // The defense itself is never flipped: it uses an unflipped frame.
+    for (const FormationSlot& s : data().formations.at("43_over").slots) {
+        EXPECT_NEAR(def_x("43_over", a, frame, s.name), -def_x("43_over", b, frame, s.name), 1e-6)
+            << s.name;
+    }
+}
