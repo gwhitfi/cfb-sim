@@ -5,7 +5,8 @@ import { defineConfig, type Plugin } from "vite";
 
 // The repo root, where `cfbsim run-drill ... --out x.jsonl` writes by default.
 const REPO = fileURLToPath(new URL("..", import.meta.url));
-// Folders searched for tracking files (not recursive beyond these).
+// Folders searched for tracking files: the repo root, out/, and one level of
+// folders inside out/ (a game's per-snap files from `--tracking out/NAME`).
 const SEARCH = [".", "out"];
 
 // Dev-server only: lists and serves the repo's tracking files, so the viewer
@@ -50,17 +51,22 @@ function trackingFiles(): Plugin {
 
 async function listFiles(): Promise<string[]> {
   const found: string[] = [];
-  for (const dir of SEARCH) {
-    let names: string[];
+  const scan = async (dir: string, depth: number) => {
+    let entries;
     try {
-      names = await readdir(join(REPO, dir));
+      entries = await readdir(join(REPO, dir), { withFileTypes: true });
     } catch {
-      continue; // folder doesn't exist
+      return; // folder doesn't exist
     }
-    for (const name of names.sort()) {
-      if (name.endsWith(".jsonl")) found.push(dir === "." ? name : `${dir}/${name}`);
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const e of entries) {
+      const path = dir === "." ? e.name : `${dir}/${e.name}`;
+      // Game logs are .jsonl too, but they hold no positions to draw.
+      if (e.isFile() && e.name.endsWith(".jsonl") && !e.name.endsWith(".gamelog.jsonl")) found.push(path);
+      if (e.isDirectory() && depth > 0) await scan(path, depth - 1);
     }
-  }
+  };
+  for (const dir of SEARCH) await scan(dir, dir === "out" ? 1 : 0);
   return found;
 }
 

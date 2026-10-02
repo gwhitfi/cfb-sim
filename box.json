@@ -1,0 +1,566 @@
+{
+  "teams": [
+    {
+      "team": "state_u",
+      "points": 84,
+      "plays": 62,
+      "total_yards": 938.7,
+      "first_downs": 14,
+      "first_downs_rush": 2,
+      "first_downs_pass": 12,
+      "first_downs_penalty": 0,
+      "rush_att": 34,
+      "rush_yds": 267.3,
+      "pass_att": 28,
+      "pass_cmp": 24,
+      "pass_yds": 671.5,
+      "sacks_taken": 1,
+      "interceptions": 0,
+      "fumbles_lost": 0,
+      "third_down": [
+        4,
+        11
+      ],
+      "fourth_down": [
+        0,
+        1
+      ],
+      "penalties": 4,
+      "penalty_yds": 25.0,
+      "punts": 6,
+      "field_goals": [
+        0,
+        0
+      ],
+      "timeouts_used": 0,
+      "possession": "28:20",
+      "injuries": 0
+    },
+    {
+      "team": "tech",
+      "points": 27,
+      "plays": 73,
+      "total_yards": 505.5,
+      "first_downs": 13,
+      "first_downs_rush": 3,
+      "first_downs_pass": 10,
+      "first_downs_penalty": 0,
+      "rush_att": 40,
+      "rush_yds": 49.3,
+      "pass_att": 33,
+      "pass_cmp": 21,
+      "pass_yds": 456.2,
+      "sacks_taken": 5,
+      "interceptions": 3,
+      "fumbles_lost": 0,
+      "third_down": [
+        2,
+        15
+      ],
+      "fourth_down": [
+        0,
+        0
+      ],
+      "penalties": 4,
+      "penalty_yds": 35.0,
+      "punts": 11,
+      "field_goals": [
+        2,
+        2
+      ],
+      "timeouts_used": 0,
+      "possession": "31:40",
+      "injuries": 0
+    }
+  ],
+  "periods": [
+    [
+      28,
+      10
+    ],
+    [
+      21,
+      3
+    ],
+    [
+      21,
+      0
+    ],
+    [
+      14,
+      14
+    ]
+  ],
+  "players": [
+    {
+      "id": "stu_004",
+      "name": "J. Green",
+      "team": "state_u",
+      "passing": {
+        "cmp": 24,
+        "att": 28,
+        "yds": 671.5,
+        "td": 6,
+        "int": 0
+      },
+      "rushing": {
+        "att": 1,
+        "yds": -3.2,
+        "td": 0,
+        "long": 0.0
+      }
+    },
+    {
+      "id": "stu_008",
+      "name": "C. Mitchell",
+      "team": "state_u",
+      "rushing": {
+        "att": 33,
+        "yds": 270.5,
+        "td": 5,
+        "long": 74.7
+      },
+      "receiving": {
+        "rec": 1,
+        "targets": 1,
+        "yds": 6.1,
+        "td": 0,
+        "long": 6.1
+      }
+    },
+    {
+      "id": "stu_011",
+      "name": "D. Mitchell",
+      "team": "state_u",
+      "receiving": {
+        "rec": 5,
+        "targets": 6,
+        "yds": 105.1,
+        "td": 2,
+        "long": 68.4
+      }
+    },
+    {
+      "id": "stu_014",
+      "name": "M. Nelson",
+      "team": "state_u",
+      "receiving": {
+        "rec": 10,
+        "targets": 12,
+        "yds": 337.4,
+        "td": 2,
+        "long": 69.9
+      }
+    },
+    {
+      "id": "stu_016",
+      "name": "B. Reed",
+      "team": "state_u",
+      "receiving": {
+        "rec": 4,
+        "targets": 4,
+        "yds": 136.8,
+        "td": 1,
+        "long": 94.5
+      }
+    },
+    {
+      "id": "stu_019",
+      "name": "C. Allen",
+      "team": "state_u",
+      "receiving": {
+        "rec": 4,
+        "targets": 5,
+        "yds": 86.0,
+        "td": 1,
+        "long": 30.4
+      }
+    },
+    {
+      "id": "stu_035",
+      "name": "M. Stewart",
+      "team": "state_u",
+      "defense": {
+        "tackles": 1,
+        "sacks": 0,
+        "int": 2,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_039",
+      "name": "T. Walker",
+      "team": "state_u",
+      "defense": {
+        "tackles": 8,
+        "sacks": 2,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_044",
+      "name": "M. King",
+      "team": "state_u",
+      "defense": {
+        "tackles": 3,
+        "sacks": 2,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_045",
+      "name": "M. Baker",
+      "team": "state_u",
+      "defense": {
+        "tackles": 2,
+        "sacks": 1,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_046",
+      "name": "C. Hill",
+      "team": "state_u",
+      "defense": {
+        "tackles": 9,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_049",
+      "name": "C. Williams",
+      "team": "state_u",
+      "defense": {
+        "tackles": 4,
+        "sacks": 0,
+        "int": 1,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_053",
+      "name": "M. Harris",
+      "team": "state_u",
+      "defense": {
+        "tackles": 4,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_055",
+      "name": "L. Scott",
+      "team": "state_u",
+      "defense": {
+        "tackles": 8,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_057",
+      "name": "J. Turner",
+      "team": "state_u",
+      "defense": {
+        "tackles": 2,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_059",
+      "name": "J. Clark",
+      "team": "state_u",
+      "defense": {
+        "tackles": 4,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_062",
+      "name": "N. Allen",
+      "team": "state_u",
+      "defense": {
+        "tackles": 2,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_066",
+      "name": "T. Hall",
+      "team": "state_u",
+      "defense": {
+        "tackles": 11,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "stu_067",
+      "name": "H. Anderson",
+      "team": "state_u",
+      "kicking": {
+        "fg": [
+          0,
+          0
+        ],
+        "long": 0.0,
+        "xp": [
+          12,
+          12
+        ]
+      }
+    },
+    {
+      "id": "stu_070",
+      "name": "J. Hill",
+      "team": "state_u",
+      "punting": {
+        "punts": 6,
+        "yds": 240.0
+      }
+    },
+    {
+      "id": "tech_001",
+      "name": "O. Scott",
+      "team": "tech",
+      "passing": {
+        "cmp": 21,
+        "att": 33,
+        "yds": 456.2,
+        "td": 3,
+        "int": 3
+      },
+      "rushing": {
+        "att": 5,
+        "yds": -35.1,
+        "td": 0,
+        "long": 0.0
+      }
+    },
+    {
+      "id": "tech_008",
+      "name": "T. Brooks",
+      "team": "tech",
+      "rushing": {
+        "att": 35,
+        "yds": 84.4,
+        "td": 0,
+        "long": 20.3
+      }
+    },
+    {
+      "id": "tech_013",
+      "name": "C. Williams",
+      "team": "tech",
+      "receiving": {
+        "rec": 4,
+        "targets": 6,
+        "yds": 51.8,
+        "td": 1,
+        "long": 28.8
+      }
+    },
+    {
+      "id": "tech_015",
+      "name": "A. Green",
+      "team": "tech",
+      "receiving": {
+        "rec": 10,
+        "targets": 15,
+        "yds": 283.3,
+        "td": 1,
+        "long": 81.7
+      }
+    },
+    {
+      "id": "tech_017",
+      "name": "T. Turner",
+      "team": "tech",
+      "receiving": {
+        "rec": 6,
+        "targets": 6,
+        "yds": 111.2,
+        "td": 1,
+        "long": 75.0
+      }
+    },
+    {
+      "id": "tech_019",
+      "name": "C. Walker",
+      "team": "tech",
+      "receiving": {
+        "rec": 1,
+        "targets": 5,
+        "yds": 9.9,
+        "td": 0,
+        "long": 9.9
+      },
+      "defense": {
+        "tackles": 1,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_024",
+      "name": "C. Scott",
+      "team": "tech",
+      "defense": {
+        "tackles": 1,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_037",
+      "name": "G. Hill",
+      "team": "tech",
+      "defense": {
+        "tackles": 1,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_043",
+      "name": "T. Stewart",
+      "team": "tech",
+      "defense": {
+        "tackles": 3,
+        "sacks": 1,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_047",
+      "name": "K. Morris",
+      "team": "tech",
+      "defense": {
+        "tackles": 2,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_050",
+      "name": "T. Thomas",
+      "team": "tech",
+      "defense": {
+        "tackles": 10,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_053",
+      "name": "D. Collins",
+      "team": "tech",
+      "defense": {
+        "tackles": 7,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_054",
+      "name": "J. Edwards",
+      "team": "tech",
+      "defense": {
+        "tackles": 6,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_055",
+      "name": "C. Nelson",
+      "team": "tech",
+      "defense": {
+        "tackles": 4,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_056",
+      "name": "D. Wright",
+      "team": "tech",
+      "defense": {
+        "tackles": 2,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_062",
+      "name": "S. King",
+      "team": "tech",
+      "defense": {
+        "tackles": 4,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_064",
+      "name": "Z. Martin",
+      "team": "tech",
+      "defense": {
+        "tackles": 8,
+        "sacks": 0,
+        "int": 0,
+        "fum_rec": 0
+      }
+    },
+    {
+      "id": "tech_067",
+      "name": "X. Carter",
+      "team": "tech",
+      "kicking": {
+        "fg": [
+          2,
+          2
+        ],
+        "long": 24.0,
+        "xp": [
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "id": "tech_069",
+      "name": "C. Carter",
+      "team": "tech",
+      "punting": {
+        "punts": 11,
+        "yds": 440.0
+      }
+    }
+  ]
+}

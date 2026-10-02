@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -69,7 +70,9 @@ void print_usage() {
            "      --home ID --away ID   (default state_u vs tech)   --game FILE  a game setup file\n"
            "      --seed N (default 1)  --log FILE.gamelog.jsonl   --box FILE.json\n"
            "      --games N             play N seeds and print averages instead\n"
-           "  replay FILE             re-run a game log and check it reproduces exactly\n";
+           "      --tracking DIR        write a tracking file per snap (for the viewer)\n"
+           "  replay FILE             re-run a game log and check it reproduces exactly\n"
+           "      --tracking DIR        also write a tracking file per snap\n";
 }
 
 // "--key value" pairs and bare "--flag"s. Small on purpose; we'll swap in a
@@ -741,6 +744,18 @@ int cmd_matrix(const Options& opt) {
     return 0;
 }
 
+// --tracking DIR: one tracking file per snap, DIR/<name>.jsonl.
+std::function<std::unique_ptr<std::ostream>(const std::string&)> tracking_files(const Options& opt) {
+    if (!opt.has("tracking")) return {};
+    const fs::path dir = opt.get("tracking");
+    fs::create_directories(dir);
+    return [dir](const std::string& name) -> std::unique_ptr<std::ostream> {
+        auto file = std::make_unique<std::ofstream>(dir / (name + ".jsonl"));
+        if (!*file) return nullptr;
+        return file;
+    };
+}
+
 int cmd_play_game(const Options& opt) {
     const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
     if (!report.ok()) {
@@ -850,6 +865,7 @@ int cmd_play_game(const Options& opt) {
             return 1;
         }
     }
+    o.tracking = tracking_files(opt);
     cfbsim::GameResult r;
     try {
         r = cfbsim::play_game(data, o, opt.has("log") ? &log_file : nullptr);
@@ -862,6 +878,7 @@ int cmd_play_game(const Options& opt) {
               << " snaps\n\n"
               << cfbsim::box_score_text(r.box, data);
     if (opt.has("log")) std::cout << "\nwrote " << opt.get("log") << "\n";
+    if (opt.has("tracking")) std::cout << "wrote a tracking file per snap to " << opt.get("tracking") << "/\n";
     if (opt.has("box")) {
         std::ofstream box(opt.get("box"));
         box << cfbsim::box_score_json(r.box).dump(2) << "\n";
@@ -881,7 +898,8 @@ int cmd_replay(std::string_view file, const Options& opt) {
         std::cerr << "cfbsim: can't read " << file << "\n";
         return 1;
     }
-    const cfbsim::ReplayReport r = cfbsim::replay_game(report.data, in);
+    const cfbsim::ReplayReport r = cfbsim::replay_game(report.data, in, tracking_files(opt));
+    if (opt.has("tracking")) std::cout << "wrote a tracking file per snap to " << opt.get("tracking") << "/\n";
     if (r.ok) {
         std::cout << "replay OK: " << r.lines << " lines match (" << r.result.score[0] << "-" << r.result.score[1]
                   << ")\n";

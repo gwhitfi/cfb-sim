@@ -6,6 +6,8 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <iosfwd>
 #include <map>
 #include <optional>
@@ -23,6 +25,10 @@ struct GameOptions {
     std::uint64_t seed = 1;
     double crowd = 0.5;  // 0-1: raises the away offense's false starts
     bool neutral = false;
+    // Optional: a tracking file for every snap. Called with a name such as
+    // "001_q1_1500_home_trips_stick"; return a stream to write it to (or
+    // nullptr to skip that snap). The caller decides where files go.
+    std::function<std::unique_ptr<std::ostream>(const std::string& name)> tracking;
 };
 
 // GameSetup (a data/games/*.json file) -> options. A setup without a seed
@@ -95,7 +101,9 @@ struct ReplayReport {
 
 // Re-runs a game from its log (the header and the inputs) and checks the
 // regenerated log matches line for line.
-ReplayReport replay_game(const DataSet& data, std::istream& log);
+// `tracking`: as in GameOptions, to write tracking files for the replayed game.
+ReplayReport replay_game(const DataSet& data, std::istream& log,
+                         std::function<std::unique_ptr<std::ostream>(const std::string& name)> tracking = {});
 
 // The box score as JSON, and as a readable text summary.
 nlohmann::ordered_json box_score_json(const BoxScore& box);

@@ -104,6 +104,12 @@ export function parseTracking(text: string): Recording {
 
     if (header === null) {
       if (j.type !== "header") throw new TrackingError(`${where}: expected the header line first`);
+      if (j.rules !== undefined && j.players === undefined) {
+        throw new TrackingError(
+          "this is a game log (decisions and results, no player positions). " +
+            "Write tracking files for it with: cfbsim replay FILE --tracking out/NAME",
+        );
+      }
       header = parseHeader(j, where);
       overlays = parseShapes(j.overlays, `${where}: overlays`, header.players.length, layers);
       continue;

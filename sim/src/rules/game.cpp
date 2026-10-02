@@ -123,6 +123,8 @@ class Game {
     SnapResult snap();
     void attempt_try(int team, int ot);
     bool run_try_play(int team);
+    // Runs the play, writing a tracking file when the options ask for one.
+    PlayResult run_tracked(const PlayOptions& o, const std::string& label);
 
     // --- one snap's pieces -------------------------------------------------
     PlayOptions play_options(const PlayCall& call, const std::string& defense_play);
@@ -455,8 +457,8 @@ bool Game::run_try_play(int team) {
     });
     const Json dcall = ask("call_play", 1 - team, [&] { return Json{{"play", coach(1 - team).defense_call(g_)}}; });
     const PlayOptions o = play_options({call.value("play", ""), call.value("flip", false)}, dcall.value("play", ""));
-    const PlayResult r = run_play(data_, o);
     ++snaps_;
+    const PlayResult r = run_tracked(o, o.play + "_try");
     wear(r, 0.0);
     bool good = false;
     if (r.outcome == "touchdown") {
@@ -481,6 +483,23 @@ bool Game::run_try_play(int team) {
 // ---------------------------------------------------------------------------
 // One snap
 // ---------------------------------------------------------------------------
+
+PlayResult Game::run_tracked(const PlayOptions& o, const std::string& label) {
+    if (!opt_.tracking) return run_play(data_, o);
+    const std::string clock = clock_text(g_.clock);
+    std::string mmss;
+    for (const char c : clock) {
+        if (c != ':') mmss += c;
+    }
+    char num[8];
+    std::snprintf(num, sizeof num, "%03d", snaps_);
+    const std::string name = std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + mmss + "_" +
+                             team_key(g_.offense) + "_" + label;
+    const std::unique_ptr<std::ostream> out = opt_.tracking(name);
+    if (!out) return run_play(data_, o);
+    TrackingWriter writer(*out);
+    return run_play(data_, o, &writer);
+}
 
 PlayOptions Game::play_options(const PlayCall& call, const std::string& defense_play) {
     const int off = g_.offense, def = g_.defense();
@@ -892,7 +911,7 @@ SnapResult Game::snap() {
     }
     PlayResult r;
     try {
-        r = clock_play ? kneel_or_spike(call.play) : run_play(data_, o);
+        r = clock_play ? kneel_or_spike(call.play) : run_tracked(o, call.play);
     } catch (const PlayError& e) {
         throw GameError(std::string("play ") + call.play + " at " + situation_text() + ": " + e.what());
     }
@@ -1133,7 +1152,8 @@ GameResult play_game(const DataSet& data, const GameOptions& options, std::ostre
     return game.run();
 }
 
-ReplayReport replay_game(const DataSet& data, std::istream& log) {
+ReplayReport replay_game(const DataSet& data, std::istream& log,
+                         std::function<std::unique_ptr<std::ostream>(const std::string& name)> tracking) {
     ReplayReport report;
     Json header;
     std::vector<std::string> original;
@@ -1154,6 +1174,7 @@ ReplayReport replay_game(const DataSet& data, std::istream& log) {
     o.seed = header.value("seed", std::uint64_t{0});
     o.crowd = header.value("crowd", 0.5);
     o.neutral = header.value("neutral", false);
+    o.tracking = std::move(tracking);
 
     std::ostringstream out;
     try {

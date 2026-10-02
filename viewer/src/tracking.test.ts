@@ -61,6 +61,11 @@ describe("parseTracking", () => {
     expect(rec.frameCount).toBe(1);
   });
 
+  it("explains that a game log isn't a tracking file", () => {
+    const log = file({ type: "header", sim_version: "0.1.0", rules: "ncaa_fbs", seed: 1, home: "a", away: "b" });
+    expect(() => parseTracking(log)).toThrow("this is a game log");
+  });
+
   it("gives errors that name the line", () => {
     expect(() => parseTracking(file(tick(0, 10)))).toThrow("line 1: expected the header line first");
     expect(() => parseTracking(file(header, tick(0, 10), tick(0, 11)))).toThrow("line 3: tick 0 is not after tick 0");
