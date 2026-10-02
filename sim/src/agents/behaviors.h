@@ -12,6 +12,7 @@
 
 #include "cfbsim/core/rng.h"
 #include "cfbsim/play/routes.h"
+#include "play/lanes.h"
 #include "play/play_state.h"
 
 namespace cfbsim {
@@ -152,6 +153,8 @@ class PassingQb final : public Behavior {
         double escape_chance = 0.5;    // throws it away instead of taking a sack
         bool hold = false;             // never throws (timing a protection)
         Vec2 snapper;                  // play frame: the snapper at the snap
+        LaneSkill lane;                // how he sees the field when he runs
+        double scramble_rate = 0.4;    // chance per second he takes off with nothing open
     };
 
     // `seed`: his own random stream (perception noise, peripheral vision),
@@ -164,10 +167,13 @@ class PassingQb final : public Behavior {
     Key key() const override { return Key::Drop; }
     int eyes() const override;
     double pressure() const override { return pressure_; }
+    bool carrying() const override { return tucked_; }
+    bool committed() const override { return tucked_; }
     bool went_hot() const { return went_hot_; }
+    bool scrambled() const { return stage_ == Stage::Scramble || tucked_; }
 
   private:
-    enum class Stage : std::uint8_t { WaitForBall, Drop, Set, Read, Deliver, Done };
+    enum class Stage : std::uint8_t { WaitForBall, Drop, Set, Read, Scramble, Deliver, Done };
 
     void look_at(std::size_t read, double now);
     double threshold(const PlayState& play) const;
@@ -175,6 +181,10 @@ class PassingQb final : public Behavior {
     void sense(const PlayState& play, int self);
     // Where to stand in the pocket this tick (field frame).
     Vec2 pocket_spot(const PlayState& play, int self);
+    // Takes off running (movement-and-interaction.md#scrambles).
+    void start_scramble(const PlayState& play, int self, Actions& actions);
+    // Scrambling: runs by the lane AI, still looking to throw behind the line.
+    Intent scramble(const PlayState& play, int self, Actions& actions);
 
     Setup s_;
     Rng rng_;
@@ -199,6 +209,15 @@ class PassingQb final : public Behavior {
     bool panic_rolled_ = false;
     bool frozen_ = false;       // he failed to get rid of it: he'll take the sack
     std::optional<Vec2> pocket_;  // field frame: where he's standing in the pocket
+
+    // Scrambles.
+    LaneRunner lane_;
+    double last_read_done_ = -1.0;  // when he finished his progression the first time
+    double next_probe_ = 0.0;       // s: when he next checks for a running lane
+    double scramble_start_ = 0.0;
+    bool tucked_ = false;           // past the line: he's a runner, no more throws
+    std::vector<int> tried_;        // tacklers he has tried a move on
+    double juke_seen_ = -1.0;
 };
 
 // ---------------------------------------------------------------------------
@@ -223,9 +242,10 @@ class HandoffQb final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Ball carrier: follow the designed path, then run straight downfield (the
-// real ball carrier AI comes in phase 7). With no path he is free at once
-// (a receiver after the catch).
+// Ball carrier (movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7):
+// follow the designed path, make the run read, then run free by the lane AI,
+// with evasion moves near contact. With no path he is free at once (a
+// receiver after the catch, a returner).
 // ---------------------------------------------------------------------------
 class BallCarrier final : public Behavior {
   public:
@@ -233,33 +253,76 @@ class BallCarrier final : public Behavior {
         Vec2 pos;  // field frame
         std::string label;
     };
+    struct Setup {
+        std::vector<Mark> path;
+        std::size_t free_after = 0;  // he is free once he reaches path[free_after]
+        Vec2 start;                  // field frame
+        std::vector<std::string> reads;  // bang, bend, bounce
+        double playside = 1.0;       // play-frame x sign of the play side
+        LaneSkill lane;
+    };
 
-    // He is free once he reaches path[free_after] (or the end of the path).
-    BallCarrier(std::vector<Mark> path, std::size_t free_after, Vec2 start)
-        : path_(std::move(path)), free_after_(free_after), start_(start) {}
+    // `seed`: his own random stream (lane noise, read and move choices).
+    BallCarrier(Setup setup, std::uint64_t seed);
 
-    std::string_view name() const override { return "ball_carrier"; }
+    std::string_view name() const override { return free_ ? "run_free" : "ball_carrier"; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
     std::optional<Vec2> predict(const PlayState& play, int self, double seconds) const override;
     void draw(const PlayState& play, int self, Json& shapes) const override;
+    bool carrying() const override { return true; }
+    bool committed() const override { return free_; }
 
-    bool is_free() const { return next_ > free_after_ || next_ >= path_.size(); }
+    bool is_free() const { return free_; }
 
   private:
-    std::vector<Mark> path_;
-    std::size_t free_after_;
-    Vec2 start_;
+    void make_read(const PlayState& play, int self, Actions& actions);
+    void try_move(const PlayState& play, int self, Actions& actions);
+    Intent run_free(const PlayState& play, int self);
+
+    Setup s_;
+    Rng rng_;
+    LaneRunner lane_;
     std::size_t next_ = 0;
+    bool free_ = false;
+    std::optional<Vec2> read_dir_;  // field frame
+    double read_until_ = -1.0;
+    std::string read_;
+    std::vector<int> tried_;        // tacklers he has tried a move on
+    double juke_seen_ = -1.0;       // the latest juke result he has acted on
 };
 
-// Straight downfield for his team, easing off the sideline (field frame).
-Vec2 run_downfield(const PlayState& play, int self);
+// Runs a free ball carrier: lane AI plus evasion moves and stepping out of
+// bounds. Shared by BallCarrier and a scrambling QB.
+Intent run_with_ball(const PlayState& play, int self, LaneRunner& lane, Rng& rng,
+                     std::vector<int>& tried, double& juke_seen, Actions& actions,
+                     std::optional<Vec2> bias = std::nullopt, double bias_cone = 0.0);
 
-// Chases the ball carrier, aiming a little ahead of him (a stand-in until
-// pursuit angles in phase 7).
+// Chases the ball carrier through his intercept point, keeping leverage
+// (movement-and-interaction.md#pursuit).
 class Pursuer final : public Behavior {
   public:
+    struct Setup {
+        double quality = 1.0;  // share of the carrier's velocity he projects
+        double lag = 0.2;      // s: how late he sees the carrier
+        bool contain = false;  // keeps outside-in leverage
+        double effort = 1.0;   // share of top speed far from the play
+    };
+    Pursuer() = default;
+    explicit Pursuer(Setup setup) : s_(setup) {}
+
     std::string_view name() const override { return "pursue"; }
+    Intent decide(const PlayState& play, int self, Actions& actions) override;
+    void draw(const PlayState& play, int self, Json& shapes) const override;
+
+  private:
+    Setup s_;
+    std::optional<Vec2> aim_;  // field frame (drawing)
+};
+
+// Everyone goes for a loose ball.
+class LooseBall final : public Behavior {
+  public:
+    std::string_view name() const override { return "loose_ball"; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
 };
 
@@ -294,8 +357,11 @@ struct ZoneArea {
 // ---------------------------------------------------------------------------
 class Defender final : public Behavior {
   public:
+    // `pursuit`: how he chases. `disciplined`: he stays in his run fit until
+    // the carrier commits (else he chases as soon as he sees the handoff).
     Defender(std::unique_ptr<Behavior> run_job, std::unique_ptr<Behavior> pass_job,
-             double read_delay, double read_rate, double prior);
+             double read_delay, double read_rate, double prior, Pursuer::Setup pursuit,
+             bool disciplined);
 
     std::string_view name() const override { return "defender"; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
@@ -308,6 +374,7 @@ class Defender final : public Behavior {
 
   private:
     void update_belief(const PlayState& play, int self);
+    bool should_pursue(const PlayState& play, int self, int carrier) const;
 
     std::unique_ptr<Behavior> run_job_;
     std::unique_ptr<Behavior> pass_job_;
@@ -315,6 +382,8 @@ class Defender final : public Behavior {
     double read_delay_;
     double read_rate_;
     double p_pass_;
+    bool disciplined_;
+    bool pursuing_ = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -392,7 +461,29 @@ class Rusher final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Go to a spot and hold it: run fits (until phase 7) and spies.
+// A run fit (movement-and-interaction.md#run-fits): fill his gap, flowing
+// with the ball carrier. A down lineman attacks it past the line.
+// ---------------------------------------------------------------------------
+class GapFit final : public Behavior {
+  public:
+    struct Setup {
+        double gap_x = 0.0;      // play frame
+        double depth = 1.0;      // play y he fills at
+        double flow_share = 0.0; // toward the carrier's x ...
+        double flow_max = 0.0;   // ... at most this far
+        double lag = 0.2;
+    };
+    explicit GapFit(Setup setup) : s_(setup) {}
+
+    std::string_view name() const override { return "gap"; }
+    Intent decide(const PlayState& play, int self, Actions& actions) override;
+
+  private:
+    Setup s_;
+};
+
+// ---------------------------------------------------------------------------
+// Go to a spot and hold it: run support and spies.
 // ---------------------------------------------------------------------------
 class HoldSpot final : public Behavior {
   public:

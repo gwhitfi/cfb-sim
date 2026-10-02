@@ -4,6 +4,7 @@ add_executable(cfbsim_tests
     attributes_test.cpp
     ball_flight_test.cpp
     blocking_test.cpp
+    tackling_test.cpp
     curve_test.cpp
     defense_test.cpp
     data_dir_test.cpp

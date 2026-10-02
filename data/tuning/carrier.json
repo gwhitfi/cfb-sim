@@ -1,0 +1,80 @@
+{
+  // The ball carrier: lanes, run reads, evasion moves, and the QB's scrambles
+  // (docs/design/movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
+  "format_version": 1,
+
+  "lanes": {
+    "decide_seconds": 0.15,   // he re-picks his heading this often
+    "headings": 17,           // candidate headings, evenly spread ...
+    "span_deg": 100,          // ... from this far left to this far right of downfield
+    "horizon": 2.0,           // s along each ray
+    "sample": 0.1,            // s between samples
+    "react": 0.1,             // s added to every defender's time to reach
+    "engaged_delay": 0.8,     // s x (1 - shed) for an engaged defender
+    "screen_width": 1.0,      // yd: a teammate this close to a defender's line to the carrier screens him ...
+    "screen_delay": 0.35,     // ... for this many s
+    "sideline_margin": 1.0,   // yd: rays end this far from the sideline
+    "fall_weight": 0.3,       // score + this x forward (every lane shut: fall forward)
+    "open_bonus": 2.0,        // yd x forward when a ray stays free to the horizon
+    "cut_cost_seconds": 0.5,  // (1 - speed kept through the cut) x speed x this = yd
+    "switch_margin": 1.0,     // yd: a new heading must beat his current one by this
+    "plant_deg": 30           // a change bigger than this is a planted cut
+  },
+
+  "vision": {
+    "skill": {"vision": 0.7, "anticipation": 0.3},
+    "cone_deg": {"curve": "linear", "points": [[0, 55], [100, 110]]},  // half-angle
+    "range": {"curve": "linear", "points": [[0, 8], [100, 30]]},       // yd
+    "lag": {"curve": "linear", "points": [[0, 0.3], [100, 0.1]]},      // s
+    "feel_range": 2.0,        // yd: defenders this close are always noticed
+    "decision_sd": {"curve": "linear", "points": [[0, 2.5], [100, 0.3]]}  // Decisions -> yd of noise
+  },
+
+  "sideline": {
+    "margin": 2.0,            // yd: this close to the sideline ...
+    "contact": 0.4,           // ... contact this soon (s) ...
+    "gain": 1.0               // ... and no lane worth this many yd: he steps out
+  },
+
+  // Run reads, in the play frame: x toward the play side from the aim point, y from the line.
+  "reads": {
+    "distance": 1.5,          // yd from the aim point he reads
+    "bang": [0.0, 3.0],
+    "bend": [-3.0, 3.0],
+    "bounce": [4.0, 1.0],
+    "commit": 0.35,           // s his heading stays near the read ...
+    "cone_deg": 25            // ... within this
+  },
+
+  "moves": {
+    "window": 0.3,            // s to contact ...
+    "range": 0.8,             // ... and within this many yd past the tackler's reach
+    "juke": {"elusiveness": 0.6, "agility": 0.4},
+    "spin": {"elusiveness": 0.5, "balance": 0.5},
+    "stiff_arm": {"break_tackle": 0.6, "strength": 0.4},
+    "shoulder": {"break_tackle": 0.5, "strength": 0.5},
+    "shoulder_mass_points": 25,  // x ln(lb / 210)
+    "counter": {"tackling": 0.5, "anticipation": 0.3, "agility": 0.2},
+    "front_deg": 45,          // tackler within this of his heading: in front
+    "behind_deg": 135,        // past this: behind (no move)
+    "off_angle_fit": 0.6,     // a move's skill x this at the wrong angle
+    "choice_sd": 10,
+    "min": 35,                // no move if the best is under this
+    "scale": 15,              // contest scale
+    "edge": 25,               // points added to the tackler's counter (he has the angle)
+    "juke_result": {"stumble": 0.5, "cut_deg": 45, "fail": 5},
+    "spin_result": {"keep": 0.7, "fail": 10},
+    "stiff_arm_bonus": 20,
+    "shoulder_result": {"bonus": 15, "fall": 0.5}
+  },
+
+  "scramble": {
+    "escape_lane": 3.0,       // yd: best lane to scramble instead of throwing it away
+    "wait": 1.0,              // s after his last read ...
+    "lane": 6.0,              // ... with a lane this good (yd) ...
+    "skill": {"speed": 0.4, "decisions": 0.3, "pocket_presence": 0.3},
+    "rate": {"curve": "linear", "points": [[0, 0.25], [100, 0.6]]},  // ... chance per second he takes off
+    "read_seconds": 2.0,      // s he keeps reading while scrambling behind the line
+    "tuck_line": -1.0         // play y where he tucks it and runs
+  }
+}

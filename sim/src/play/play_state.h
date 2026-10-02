@@ -39,9 +39,43 @@ struct Actions {
         int from = -1;
         bool power = true;  // power (bull rush, long arm) or finesse (swim, rip, spin)
     };
+    // A ball carrier's move against a tackler about to reach him.
+    enum class Move : std::uint8_t { Juke, Spin, StiffArm, Shoulder };
+    struct Evasion {
+        int from = -1;
+        int tackler = -1;
+        Move move = Move::Juke;
+    };
     std::optional<Throw> throw_ball;
     std::optional<Handoff> handoff;
     std::vector<RushMove> rush_moves;  // any number of rushers can try one on the same tick
+    std::optional<Evasion> evasion;
+    // Events a behavior wants written to the tracking file (a run read).
+    std::vector<std::pair<std::string, Json>> notes;
+};
+
+std::string_view to_string(Actions::Move move);
+
+// The result of an evasion move, kept while it applies to that tackler's try
+// (movement-and-interaction.md#evasion-moves).
+struct EvasionResult {
+    int carrier = -1;
+    int tackler = -1;
+    Actions::Move move = Actions::Move::Juke;
+    bool won = false;
+    double bonus = 0.0;   // + to the carrier's resistance (won stiff arm, shoulder)
+    double penalty = 0.0; // + to the tackler's score (a failed juke or spin)
+    double fall = 0.0;    // yd of extra forward fall (shoulder)
+    double until = 0.0;   // s after the snap
+};
+
+// A drag-down in progress: the tackler is wrapped up on the carrier.
+struct DragDown {
+    int carrier = -1;
+    int tackler = -1;
+    Vec2 start;           // field frame
+    double distance = 0.0;  // yd he'll drag him
+    double best_y = 0.0;  // play frame: forward progress so far
 };
 
 // How a blocker is blocking, which picks the skill blend for his engagements.
@@ -129,6 +163,10 @@ class Behavior {
     virtual BlockStyle block_style() const { return BlockStyle::None; }
     // QB: the pressure he feels (0..1).
     virtual double pressure() const { return 0.0; }
+    // Running with the ball (a ball carrier, or a QB who has tucked it), and
+    // whether he has picked his lane (past his read: fits end).
+    virtual bool carrying() const { return false; }
+    virtual bool committed() const { return false; }
 };
 
 // One player's place on this play.
@@ -232,6 +270,13 @@ class PlayState {
     };
     std::vector<Immunity> immune;
 
+    // Tackling (phase 7): per agent, stumbling until (s after the snap) at a
+    // share of top speed; evasion results in force; a drag-down in progress.
+    std::vector<double> stumble_until;
+    std::vector<double> stumble_share;
+    std::vector<EvasionResult> evasions;
+    std::optional<DragDown> drag;
+
     // Behaviors, one per agent. The vector owns them: std::unique_ptr deletes
     // each behavior when it is replaced or when the PlayState goes away.
     std::vector<std::unique_ptr<Behavior>> behaviors;
@@ -311,6 +356,17 @@ class PlayState {
         return nullptr;
     }
     bool engaged(int i) const { return engagement_of(i) != nullptr; }
+    bool stumbling(int i) const {
+        return !stumble_until.empty() && since_snap() < stumble_until[static_cast<std::size_t>(i)];
+    }
+    // Knocked down or stumbling: seconds until he's back to full speed.
+    double down_for(int i) const {
+        const auto idx = static_cast<std::size_t>(i);
+        double t = 0.0;
+        if (!down_until.empty()) t = std::max(t, down_until[idx] - since_snap());
+        if (!stumble_until.empty()) t = std::max(t, stumble_until[idx] - since_snap());
+        return t;
+    }
     bool knocked_down(int i) const {
         return !down_until.empty() && since_snap() < down_until[static_cast<std::size_t>(i)];
     }

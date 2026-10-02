@@ -111,6 +111,12 @@ std::pair<double, double> parse_range(const detail::Reader& r) {
     return {lo, hi};
 }
 
+// [x, y] offsets such as "bend": [-3.0, 3.0].
+std::pair<double, double> parse_pair(const detail::Reader& r) {
+    if (!r.is_array() || r.size() != 2) r.fail("expected [x, y]");
+    return {r.at(std::size_t{0}).as_number(), r.at(std::size_t{1}).as_number()};
+}
+
 }  // namespace
 
 PlayTuning parse_play_tuning(const Json& json, const std::string& source) {
@@ -306,7 +312,7 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     using detail::Reader;
 
     const Reader root(json, source);
-    root.allow_only({"format_version", "alignment", "recognition", "man", "zone", "standin",
+    root.allow_only({"format_version", "alignment", "recognition", "man", "zone", "run_support",
                      "busts", "routes"});
     detail::require_format_version(root);
     DefenseTuning t;
@@ -353,9 +359,8 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.drift = zone.number("drift");
     t.zone_margin = zone.number("margin");
 
-    const Reader st = root.at("standin");
-    st.allow_only({"gap_depth", "alley", "force", "deep_fill", "contain_outside", "pursue_lead"});
-    t.gap_depth = st.number("gap_depth");
+    const Reader st = root.at("run_support");
+    st.allow_only({"alley", "force", "deep_fill", "contain_outside"});
     // [yd outside the end of the line, yd deep]
     const auto spot = [](const Reader& r) {
         if (!r.is_array() || r.size() != 2) r.fail("expected [outside, depth]");
@@ -365,7 +370,6 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.force = spot(st.at("force"));
     t.deep_fill = st.number("deep_fill");
     t.contain_outside = st.number("contain_outside");
-    t.pursue_lead = st.number("pursue_lead");
 
     const Reader b = root.at("busts");
     b.allow_only({"late_lag", "late_drop"});
@@ -404,7 +408,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
     e.allow_only({"contact_angle_deg", "recover_seconds", "immune_seconds", "control_rate",
                   "control_noise", "skill_scale", "mass_points", "double_team_points",
                   "pass_set_fade", "shed_rate", "shed_leverage", "shed_decay", "leverage_width", "push_speed",
-                  "contact_gap", "hold_gain", "shed_turn_deg", "break_distance",
+                  "contact_gap", "hold_gain", "shed_turn_deg", "break_distance", "release",
                   "pancake_run", "pancake_pass", "pancake_control", "down", "hold_at",
                   "hold_skill", "hold_chance", "hold_setback"});
     t.contact_angle_deg = e.number("contact_angle_deg");
@@ -425,6 +429,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
     t.hold_gain = e.number("hold_gain");
     t.shed_turn_deg = e.number("shed_turn_deg");
     t.break_distance = e.number("break_distance");
+    std::tie(t.release_past, t.release_distance) = parse_range(e.at("release"));
     t.pancake_run = e.number("pancake_run");
     t.pancake_pass = e.number("pancake_pass");
     t.pancake_control = e.number("pancake_control");
@@ -542,6 +547,240 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
     t.escape_chance = parse_curve(q.at("escape_chance"));
     t.composure_penalty = parse_curve(q.at("composure_penalty"));
     t.pressure_radius = q.number("pressure_radius");
+    return t;
+}
+
+CarrierTuning parse_carrier_tuning(const Json& json, const std::string& source) {
+    using detail::parse_blend;
+    using detail::parse_curve;
+    using detail::Reader;
+
+    const Reader root(json, source);
+    root.allow_only({"format_version", "lanes", "vision", "sideline", "reads", "moves", "scramble"});
+    detail::require_format_version(root);
+    CarrierTuning t;
+
+    const Reader l = root.at("lanes");
+    l.allow_only({"decide_seconds", "headings", "span_deg", "horizon", "sample", "react",
+                  "engaged_delay", "screen_width", "screen_delay", "sideline_margin", "fall_weight",
+                  "open_bonus", "cut_cost_seconds", "switch_margin", "plant_deg"});
+    t.decide_seconds = l.number("decide_seconds");
+    t.headings = l.integer("headings");
+    if (t.headings < 3) l.at("headings").fail("needs at least 3 headings");
+    t.span_deg = l.number("span_deg");
+    t.horizon = l.number("horizon");
+    t.sample = l.number("sample");
+    if (t.sample <= 0.0) l.at("sample").fail("must be positive");
+    t.react = l.number("react");
+    t.engaged_delay = l.number("engaged_delay");
+    t.screen_width = l.number("screen_width");
+    t.screen_delay = l.number("screen_delay");
+    t.sideline_margin = l.number("sideline_margin");
+    t.fall_weight = l.number("fall_weight");
+    t.open_bonus = l.number("open_bonus");
+    t.cut_cost_seconds = l.number("cut_cost_seconds");
+    t.switch_margin = l.number("switch_margin");
+    t.plant_deg = l.number("plant_deg");
+
+    const Reader v = root.at("vision");
+    v.allow_only({"skill", "cone_deg", "range", "lag", "feel_range", "decision_sd"});
+    t.vision_skill = parse_blend(v.at("skill"));
+    t.cone_deg = parse_curve(v.at("cone_deg"));
+    t.vision_range = parse_curve(v.at("range"));
+    t.vision_lag = parse_curve(v.at("lag"));
+    t.feel_range = v.number("feel_range");
+    t.decision_sd = parse_curve(v.at("decision_sd"));
+
+    const Reader sl = root.at("sideline");
+    sl.allow_only({"margin", "contact", "gain"});
+    t.step_out_margin = sl.number("margin");
+    t.step_out_time = sl.number("contact");
+    t.step_out_gain = sl.number("gain");
+
+    const Reader r = root.at("reads");
+    r.allow_only({"distance", "bang", "bend", "bounce", "commit", "cone_deg"});
+    t.read_distance = r.number("distance");
+    std::tie(t.bang_x, t.bang_y) = parse_pair(r.at("bang"));
+    std::tie(t.bend_x, t.bend_y) = parse_pair(r.at("bend"));
+    std::tie(t.bounce_x, t.bounce_y) = parse_pair(r.at("bounce"));
+    t.read_commit = r.number("commit");
+    t.read_cone_deg = r.number("cone_deg");
+
+    const Reader m = root.at("moves");
+    m.allow_only({"window", "range", "edge", "juke", "spin", "stiff_arm", "shoulder", "shoulder_mass_points",
+                  "counter", "front_deg", "behind_deg", "off_angle_fit", "choice_sd", "min",
+                  "scale", "juke_result", "spin_result", "stiff_arm_bonus", "shoulder_result"});
+    t.move_window = m.number("window");
+    t.move_range = m.number("range");
+    t.move_edge = m.number("edge");
+    t.juke = parse_blend(m.at("juke"));
+    t.spin = parse_blend(m.at("spin"));
+    t.stiff_arm = parse_blend(m.at("stiff_arm"));
+    t.shoulder = parse_blend(m.at("shoulder"));
+    t.shoulder_mass_points = m.number("shoulder_mass_points");
+    t.move_counter = parse_blend(m.at("counter"));
+    t.front_deg = m.number("front_deg");
+    t.behind_deg = m.number("behind_deg");
+    t.off_angle_fit = m.number("off_angle_fit");
+    t.move_choice_sd = m.number("choice_sd");
+    t.move_min = m.number("min");
+    t.move_scale = m.number("scale");
+    const Reader jr = m.at("juke_result");
+    jr.allow_only({"stumble", "cut_deg", "fail"});
+    t.juke_stumble = jr.number("stumble");
+    t.juke_cut_deg = jr.number("cut_deg");
+    t.juke_fail = jr.number("fail");
+    const Reader sr = m.at("spin_result");
+    sr.allow_only({"keep", "fail"});
+    t.spin_keep = sr.number("keep");
+    t.spin_fail = sr.number("fail");
+    t.stiff_arm_bonus = m.number("stiff_arm_bonus");
+    const Reader hr = m.at("shoulder_result");
+    hr.allow_only({"bonus", "fall"});
+    t.shoulder_bonus = hr.number("bonus");
+    t.shoulder_fall = hr.number("fall");
+
+    const Reader sc = root.at("scramble");
+    sc.allow_only({"escape_lane", "wait", "lane", "skill", "rate", "read_seconds", "tuck_line"});
+    t.escape_lane = sc.number("escape_lane");
+    t.scramble_wait = sc.number("wait");
+    t.scramble_lane = sc.number("lane");
+    t.scramble_skill = parse_blend(sc.at("skill"));
+    t.scramble_rate = parse_curve(sc.at("rate"));
+    t.scramble_read_seconds = sc.number("read_seconds");
+    t.tuck_line = sc.number("tuck_line");
+    return t;
+}
+
+TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source) {
+    using detail::parse_blend;
+    using detail::parse_curve;
+    using detail::Reader;
+
+    const Reader root(json, source);
+    root.allow_only({"format_version", "pursuit", "fits", "tackle", "fumble", "loose_ball"});
+    detail::require_format_version(root);
+    TacklingTuning t;
+
+    const Reader p = root.at("pursuit");
+    p.allow_only({"skill", "prediction", "lag", "upfield", "horizon", "step", "attack_range", "attack_lead", "breakdown_speed", "breakdown_cos", "leverage", "leverage_range", "squeeze_room",
+                  "sideline_inside", "top_cushion", "top_keep", "effort_range", "effort"});
+    t.pursuit_skill = parse_blend(p.at("skill"));
+    t.prediction = parse_curve(p.at("prediction"));
+    t.pursue_lag = parse_curve(p.at("lag"));
+    t.upfield = p.number("upfield");
+    t.pursue_horizon = p.number("horizon");
+    t.pursue_step = p.number("step");
+    if (t.pursue_step <= 0.0) p.at("step").fail("must be positive");
+    t.attack_range = p.number("attack_range");
+    t.attack_lead = p.number("attack_lead");
+    t.breakdown_speed = p.number("breakdown_speed");
+    t.breakdown_cos = p.number("breakdown_cos");
+    t.leverage = p.number("leverage");
+    t.leverage_range = p.number("leverage_range");
+    t.squeeze_room = p.number("squeeze_room");
+    t.sideline_inside = p.number("sideline_inside");
+    t.top_cushion = p.number("top_cushion");
+    t.top_keep = p.number("top_keep");
+    t.effort_range = p.number("effort_range");
+    t.effort = parse_curve(p.at("effort"));
+
+    const Reader f = root.at("fits");
+    f.allow_only({"depth", "step", "flow_share", "flow_max", "commit_range", "stay_in_gap"});
+    t.fit_depth = f.number("depth");
+    t.fit_step = f.number("step");
+    t.flow_share = f.number("flow_share");
+    t.flow_max = f.number("flow_max");
+    t.commit_range = f.number("commit_range");
+    t.stay_in_gap = parse_curve(f.at("stay_in_gap"));
+
+    const Reader k = root.at("tackle");
+    k.allow_only({"skill", "resistance", "edge", "angle", "momentum", "assist", "dive", "arm_base", "arm_min_shed", "arm_reach", "arm_retry", "scale",
+                  "outcomes", "drag", "broken", "missed", "stumble_speed", "fall"});
+    t.tackle_skill = parse_blend(k.at("skill"));
+    t.resistance = parse_blend(k.at("resistance"));
+    t.tackle_edge = k.number("edge");
+    const Reader an = k.at("angle");
+    an.allow_only({"side", "behind"});
+    t.angle_side = an.number("side");
+    t.angle_behind = an.number("behind");
+    const Reader mo = k.at("momentum");
+    mo.allow_only({"points", "cap", "speed"});
+    t.momentum_points = mo.number("points");
+    t.momentum_cap = mo.number("cap");
+    t.momentum_speed = mo.number("speed");
+    const Reader as = k.at("assist");
+    as.allow_only({"points", "seconds", "max"});
+    t.assist_points = as.number("points");
+    t.assist_seconds = as.number("seconds");
+    t.assist_max = as.integer("max");
+    const Reader dv = k.at("dive");
+    dv.allow_only({"extra", "closing", "penalty", "down"});
+    t.dive_extra = dv.number("extra");
+    t.dive_closing = dv.number("closing");
+    t.dive_penalty = dv.number("penalty");
+    std::tie(t.dive_down_min, t.dive_down_max) = parse_range(dv.at("down"));
+    t.arm_base = k.number("arm_base");
+    t.arm_min_shed = k.number("arm_min_shed");
+    t.arm_reach = k.number("arm_reach");
+    t.arm_retry = k.number("arm_retry");
+    t.outcome_scale = k.number("scale");
+    const Reader oc = k.at("outcomes");
+    oc.allow_only({"clean", "drag", "broken", "missed"});
+    const auto outcome = [&](const char* name, double& base, double& slope) {
+        const Reader o = oc.at(name);
+        o.allow_only({"base", "slope"});
+        base = o.number("base");
+        if (base < 0.0) o.at("base").fail("can't be negative");
+        slope = o.number("slope");
+    };
+    outcome("clean", t.clean_base, t.clean_slope);
+    outcome("drag", t.drag_base, t.drag_slope);
+    outcome("broken", t.broken_base, t.broken_slope);
+    outcome("missed", t.miss_base, t.miss_slope);
+    const Reader dr = k.at("drag");
+    dr.allow_only({"share", "distance"});
+    t.drag_share = dr.number("share");
+    std::tie(t.drag_min, t.drag_max) = parse_range(dr.at("distance"));
+    const Reader br = k.at("broken");
+    br.allow_only({"keep", "stumble", "tackler_down"});
+    std::tie(t.broken_keep_min, t.broken_keep_max) = parse_range(br.at("keep"));
+    t.broken_stumble = br.number("stumble");
+    std::tie(t.tackler_down_min, t.tackler_down_max) = parse_range(br.at("tackler_down"));
+    const Reader mi = k.at("missed");
+    mi.allow_only({"stumble", "keep"});
+    t.miss_stumble = mi.number("stumble");
+    t.miss_keep = mi.number("keep");
+    t.stumble_speed = k.number("stumble_speed");
+    const Reader fa = k.at("fall");
+    fa.allow_only({"max", "speed"});
+    t.fall_max = fa.number("max");
+    t.fall_speed = fa.number("speed");
+
+    const Reader fu = root.at("fumble");
+    fu.allow_only({"chance", "hit_power", "blind", "big_hit", "big_hit_momentum"});
+    t.fumble_chance = parse_curve(fu.at("chance"));
+    t.hit_power_factor = fu.number("hit_power");
+    t.blind_factor = fu.number("blind");
+    t.big_hit_factor = fu.number("big_hit");
+    t.big_hit_momentum = fu.number("big_hit_momentum");
+
+    const Reader lb = root.at("loose_ball");
+    lb.allow_only({"out_speed", "out_up", "bounce", "roll_friction", "recover_height",
+                   "recover_rate", "recover_skill", "scoop", "lead"});
+    std::tie(t.out_speed_min, t.out_speed_max) = parse_range(lb.at("out_speed"));
+    std::tie(t.out_up_min, t.out_up_max) = parse_range(lb.at("out_up"));
+    const Reader bo = lb.at("bounce");
+    bo.allow_only({"keep_z", "keep_xy", "turn_deg"});
+    t.bounce_keep_z = bo.number("keep_z");
+    t.bounce_keep_xy = bo.number("keep_xy");
+    t.bounce_turn_deg = bo.number("turn_deg");
+    t.roll_friction = lb.number("roll_friction");
+    t.recover_height = lb.number("recover_height");
+    t.recover_rate = lb.number("recover_rate");
+    t.recover_skill = parse_blend(lb.at("recover_skill"));
+    t.scoop = lb.number("scoop");
+    t.loose_lead = lb.number("lead");
     return t;
 }
 

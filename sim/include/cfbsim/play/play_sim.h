@@ -33,8 +33,8 @@ struct PlayOptions {
 
 struct PlayResult {
     // How the play ended: "touchdown", "out_of_bounds", "incomplete",
-    // "tackled" (contact is down until phase 7), "sack", or "whistle" (the
-    // time limit).
+    // "tackled", "sack", "safety", "recovered" (a loose ball fallen on),
+    // "fumble_out_of_bounds", or "whistle" (the time limit).
     std::string outcome;
     std::string summary;  // one readable line
     bool complete = false;
@@ -62,6 +62,19 @@ struct PlayResult {
     int pancakes = 0;
     int rush_moves_won = 0;
     std::vector<std::string> holds;  // blockers who held (flags; enforced in phase 8)
+    // Running and tackling (phase 7).
+    std::string read;                // the carrier's run read: bang, bend, bounce
+    int tackle_tries = 0;
+    int broken_tackles = 0;
+    int missed_tackles = 0;
+    int evasions_won = 0;
+    std::string tackler;             // who brought him down
+    double yards_after_contact = 0.0;  // from the first tackle try to the end
+    double yac = 0.0;                // yards after the catch
+    bool scramble = false;           // the QB ran
+    bool fumble = false;
+    bool fumble_lost = false;        // the other team recovered it
+    std::string recovered_by;        // slot
 };
 
 // Thrown for a play that can't be run (unknown team or play, a slot the

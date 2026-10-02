@@ -66,6 +66,12 @@ void without_rush(DataSet& d) {
     }
 }
 
+// The QB never scrambles (tests of how he throws).
+void no_scrambles(DataSet& d) {
+    d.tuning.carrier.scramble_lane = 1e9;
+    d.tuning.carrier.escape_lane = 1e9;
+}
+
 }  // namespace
 
 TEST(Defense, EveryPassPlayRunsAgainstEveryDefense) {
@@ -127,8 +133,10 @@ TEST(Defense, ManCoverageSkillMatters) {
                 PlayOptions o = matchup(play, "nickel_cover0", seed);
                 o.target = "X";
                 const PlayResult r = run_play(d, o);
-                if (r.thrown_away) continue;
-                sum += r.openness;
+                if (r.target.empty()) continue;  // no throw
+                // Thrown away: X was never open enough (counting only the
+                // throws would drop exactly the plays the good corners won).
+                sum += r.thrown_away ? 0.0 : r.openness;
                 ++n;
             }
         }
@@ -141,6 +149,8 @@ TEST(Defense, ManCoverageSkillMatters) {
     // Cover 0 brings six: without this the QB throws early against both.
     without_rush(good);
     without_rush(bad);
+    no_scrambles(good);
+    no_scrambles(bad);
     EXPECT_GT(openness(bad), openness(good) + 0.05);
 }
 
@@ -162,6 +172,7 @@ TEST(Defense, QbThrowsItAwayWhenNothingOpens) {
     // is up (no rush here: under pressure he throws it away sooner).
     DataSet d = data();
     without_rush(d);
+    no_scrambles(d);
     d.tuning.passing.throw_threshold = Curve::linear({{0.0, 1.5}});
     d.tuning.passing.threshold_floor = 1.5;
     d.tuning.passing.give_up_seconds = 2.5;

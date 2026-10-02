@@ -23,6 +23,7 @@
     "hold_gain": 4.0,          // per s: steering back to the contact spot
     "shed_turn_deg": 70,       // the defender works this far around the blocker by shed 1
     "break_distance": 2.2,     // yd: pulled further apart, the engagement ends
+    "release": [1.0, 3.0],     // yd: a ball carrier this far past the defender and this far away: he lets go and chases
     "pancake_run": 0.15,       // per s while control > pancake_control
     "pancake_pass": 0.05,
     "pancake_control": 0.85,
@@ -92,8 +93,8 @@
     "lb_depth_max": 7.0,
     "box_width": 8.0,          // yd either side of the snapper
     "reach_offset": 0.8,       // yd playside of the target
-    "climb_range": 3.0,        // yd: the linebacker this close, the combo climbs
-    "combo_seconds": 1.0,      // ... or after this long if the other blocker has control
+    "climb_range": 4.5,        // yd: the linebacker this close, the combo climbs
+    "combo_seconds": 0.6,      // ... or after this long if the other blocker has control
     "combo_control": 0.3,
     "stalk_cushion": 2.0,      // yd short of his man
     "pull_depth": 1.2,         // yd behind the line

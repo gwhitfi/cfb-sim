@@ -37,12 +37,30 @@ Vec2 toward_qb(const PlayState& play, const Agent& me) {
 // ---------------------------------------------------------------------------
 
 Defender::Defender(std::unique_ptr<Behavior> run_job, std::unique_ptr<Behavior> pass_job,
-                   double read_delay, double read_rate, double prior)
+                   double read_delay, double read_rate, double prior, Pursuer::Setup pursuit,
+                   bool disciplined)
     : run_job_(std::move(run_job)),
       pass_job_(std::move(pass_job)),
+      pursue_(pursuit),
       read_delay_(read_delay),
       read_rate_(read_rate),
-      p_pass_(prior) {}
+      p_pass_(prior),
+      disciplined_(disciplined) {}
+
+bool Defender::should_pursue(const PlayState& play, int self, int carrier) const {
+    // (movement-and-interaction.md#run-fits)
+    if (pursuing_) return true;
+    const Behavior* cb = play.behavior(carrier);
+    if (!cb->carrying()) return false;  // the QB in the pocket
+    if (play.pass) return true;         // after the catch
+    if (carrier == play.qb) return cb->committed();  // a QB who has tucked it
+    const double dist = (play.agent(carrier).pos - play.agent(self).pos).length();
+    const double y = play.play_pos(carrier).y;
+    if (playing_pass()) return y > 0.0 || dist < 3.0;  // fooled: he's still dropping
+    if (cb->committed() || y > 0.0 || dist < play.tuning().tackling.commit_range) return true;
+    // An undisciplined player leaves his fit as soon as he sees the handoff.
+    return !disciplined_ && play.sees_handoff(self);
+}
 
 void Defender::update_belief(const PlayState& play, int self) {
     const DefenseTuning& t = play.tuning().defense;
@@ -99,14 +117,11 @@ Intent Defender::decide(const PlayState& play, int self, Actions& actions) {
         }
     }
 
-    // Someone on offense has the ball (not the QB in the pocket): after a
-    // catch, chase him; on a run, once the carrier is through the line or on
-    // top of him.
-    if (carrier >= 0 && carrier != play.qb) {
-        const bool caught = play.pass.has_value();
-        const bool through = play.play_pos(carrier).y > 0.0 ||
-                             (play.agent(carrier).pos - me.pos).length() < 3.0;
-        if (caught || (!playing_pass() && through)) return pursue_.decide(play, self, actions);
+    // Someone on offense is running with the ball: chase him once he
+    // commits (after a catch, at once).
+    if (carrier >= 0 && should_pursue(play, self, carrier)) {
+        pursuing_ = true;
+        return pursue_.decide(play, self, actions);
     }
 
     Behavior& job = playing_pass() ? *pass_job_ : *run_job_;
@@ -114,6 +129,10 @@ Intent Defender::decide(const PlayState& play, int self, Actions& actions) {
 }
 
 void Defender::draw(const PlayState& play, int self, Json& shapes) const {
+    if (pursuing_) {
+        pursue_.draw(play, self, shapes);
+        return;
+    }
     (playing_pass() ? pass_job_ : run_job_)->draw(play, self, shapes);
     // His read, until he's sure.
     if (p_pass_ > 0.1 && p_pass_ < 0.9) {
@@ -342,6 +361,22 @@ Intent Rusher::decide(const PlayState& play, int self, Actions& actions) {
 // ---------------------------------------------------------------------------
 // Hold a spot
 // ---------------------------------------------------------------------------
+
+Intent GapFit::decide(const PlayState& play, int self, Actions& /*actions*/) {
+    const Agent& me = play.agent(self);
+    Intent in;
+    in.face = play.downfield_for(self);
+    if (!play.started(self)) return in;
+    // Shuffle with the carrier while keeping the gap.
+    double x = s_.gap_x;
+    const int c = play.carrier();
+    if (c >= 0 && play.is_offense(c) && s_.flow_share > 0.0) {
+        const double cx = play.frame.to_play(play.seen(c, s_.lag).pos).x;
+        x += std::clamp((cx - s_.gap_x) * s_.flow_share, -s_.flow_max, s_.flow_max);
+    }
+    in.velocity = steer::arrive(me, play.frame.to_field({x, s_.depth}), me.move.top_speed, me.move.decel);
+    return in;
+}
 
 Intent HoldSpot::decide(const PlayState& play, int self, Actions& /*actions*/) {
     const Agent& me = play.agent(self);

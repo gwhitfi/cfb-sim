@@ -21,8 +21,8 @@
     },
     "power": {
       "OL": [
-        {"if": "has_inside_threat", "do": "down",  "target": "backside_gap"},
-        {"if": "covered",           "do": "drive", "target": "man_on"},
+        {"if": "has_inside_threat", "do": "down",        "target": "backside_gap"},
+        {"if": "covered",           "do": "combo_climb", "target": "man_on", "climb_to": "first_lb_playside"},
         {"do": "combo_climb", "target": "playside_gap", "climb_to": "first_lb_playside"}
       ],
       "Y":  [{"do": "down", "target": "backside_gap"}]

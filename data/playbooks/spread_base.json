@@ -231,6 +231,287 @@
       "tags": ["quick_game", "short", "base", "1st_down", "2nd_short", "vs_zone", "vs_cover3", "vs_cover4"]
     },
     {
+      "id": "gun_inside_zone",
+      "name": "Gun Inside Zone",
+      "side": "offense",
+      "type": "run",
+      "formation": "gun_2x2",
+      "flip": true,
+      "run": {
+        "scheme": "inside_zone",
+        "direction": "right",
+        "carrier": "RB",
+        "qb_action": {
+          "do": "handoff",
+          "then": "drop_fake"
+        },
+        "path": [
+          {
+            "x": 0.5,
+            "y": -4.3,
+            "type": "mesh"
+          },
+          {
+            "x": {
+              "from": "gap_B",
+              "side": "right"
+            },
+            "y": -1,
+            "type": "aim"
+          }
+        ],
+        "free_after": "aim",
+        "reads": [
+          "bang",
+          "bend",
+          "bounce"
+        ]
+      },
+      "assignments": {
+        "LT": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "LG": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "C": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "RG": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "RT": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "X": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "H": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "Y": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "Z": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        }
+      },
+      "tags": [
+        "base",
+        "inside"
+      ]
+    },
+    {
+      "id": "gun_iz_trips",
+      "name": "Gun Inside Zone (away from trips)",
+      "side": "offense",
+      "type": "run",
+      "formation": "gun_trips_rt",
+      "flip": true,
+      "run": {
+        "scheme": "inside_zone",
+        "direction": "left",
+        "carrier": "RB",
+        "qb_action": {
+          "do": "handoff",
+          "then": "drop_fake"
+        },
+        "path": [
+          {
+            "x": -1.2,
+            "y": -4.2,
+            "type": "mesh"
+          },
+          {
+            "x": {
+              "from": "gap_B",
+              "side": "left"
+            },
+            "y": -1,
+            "type": "aim"
+          }
+        ],
+        "free_after": "aim",
+        "reads": [
+          "bang",
+          "bend",
+          "bounce"
+        ]
+      },
+      "assignments": {
+        "LT": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "LG": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "C": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "RG": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "RT": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "X": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "H": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "Y": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "Z": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        }
+      },
+      "tags": [
+        "base",
+        "inside"
+      ]
+    },
+    {
+      "id": "gun_power",
+      "name": "Gun Power",
+      "side": "offense",
+      "type": "run",
+      "formation": "gun_2x2",
+      "flip": true,
+      "run": {
+        "scheme": "power",
+        "direction": "right",
+        "carrier": "RB",
+        "qb_action": {
+          "do": "handoff",
+          "then": "drop_fake"
+        },
+        "path": [
+          {
+            "x": 0.3,
+            "y": -4.6,
+            "type": "mesh"
+          },
+          {
+            "x": {
+              "from": "gap_C",
+              "side": "right"
+            },
+            "y": -1,
+            "type": "aim"
+          }
+        ],
+        "free_after": "aim",
+        "reads": [
+          "bang",
+          "bend"
+        ]
+      },
+      "assignments": {
+        "LT": {
+          "block": {
+            "do": "cutoff",
+            "target": "backside_gap"
+          }
+        },
+        "LG": {
+          "block": {
+            "do": "pull_lead",
+            "target": "first_lb_playside"
+          }
+        },
+        "C": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "RG": {
+          "block": {
+            "do": "scheme"
+          }
+        },
+        "RT": {
+          "block": {
+            "do": "drive",
+            "target": "emol_playside"
+          }
+        },
+        "X": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "H": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "Y": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        },
+        "Z": {
+          "block": {
+            "do": "stalk",
+            "target": "man_over"
+          }
+        }
+      },
+      "tags": [
+        "base",
+        "short_yardage"
+      ]
+    },
+    {
       "id": "sb_inside_zone",
       "name": "Inside Zone",
       "side": "offense",
@@ -308,7 +589,7 @@
         "qb_action": {"do": "handoff", "then": "boot_fake_left"},
         "path": [
           {"x": 0.5, "y": -5.0, "type": "mesh"},
-          {"x": {"from": "gap_C", "side": "right"}, "y": -1, "type": "aim"}
+          {"x": {"from": "gap_D", "side": "right"}, "y": -1, "type": "aim"}
         ],
         "free_after": "aim",
         "reads": ["bang", "bend"]

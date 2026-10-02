@@ -18,9 +18,11 @@
 #include "cfbsim/physics/ball_flight.h"
 #include "cfbsim/play/routes.h"
 #include "play/engagements.h"
+#include "play/lanes.h"
 #include "play/openness.h"
 #include "play/play_state.h"
 #include "play/shapes.h"
+#include "play/tackles.h"
 
 namespace cfbsim {
 
@@ -108,6 +110,9 @@ class PlaySim {
                  PlayFrame(opt.yard_line, opt.hash, opt.offense_right, opt.flip), world_),
           blocking_(state_, [this](std::string_view name, Json fields) {
               event(name, std::move(fields));
+          }),
+          tackles_(state_, [this](std::string_view name, Json fields) {
+              event(name, std::move(fields));
           }) {
         state_.defense_play = defense.play;
         state_.defense_formation = defense.formation;
@@ -121,6 +126,7 @@ class PlaySim {
     const PassingTuning& passing() const { return state_.tuning().passing; }
     const DefenseTuning& defense() const { return state_.tuning().defense; }
     const BlockingTuning& blocking() const { return state_.tuning().blocking; }
+    const TacklingTuning& tackling() const { return state_.tuning().tackling; }
     std::size_t n() const { return state_.slots.size(); }
     Agent& agent(int i) { return world_.agents()[static_cast<std::size_t>(i)]; }
     void event(std::string_view name, Json fields = Json::object()) {
@@ -153,6 +159,9 @@ class PlaySim {
     std::vector<int> front(bool down_linemen) const;
     std::unique_ptr<Behavior> qb_behavior();
     std::unique_ptr<Behavior> carrier_behavior();
+    // A free ball carrier (after a catch, a turnover, a missed handoff).
+    std::unique_ptr<Behavior> free_carrier(int i);
+    Pursuer::Setup pursuit(int i, bool contain) const;
     Vec2 resolve_path_point(const PathPoint& p) const;
     const RouteRef& option_branch(int i, const Job& job);
 
@@ -177,8 +186,14 @@ class PlaySim {
     void catch_ball(int receiver, Vec3 at);
     void intercept(int defender, Vec3 at);
     void check_rules();
+    void handle_tackle(const TackleResult& r);
+    void fumble(int carrier);
+    void loose_ball();
+    void recover(int player);
+    void new_possession(int carrier);
     void track_pressure();
-    void whistle(const std::string& outcome);
+    // `spot`: where the ball is dead, if not the carrier's position (a tackle's forward progress).
+    void whistle(const std::string& outcome, std::optional<Vec2> spot = std::nullopt);
 
     const PlayOptions& opt_;
     const Team& team_;
@@ -189,6 +204,7 @@ class PlaySim {
     PlayState state_;
     PlayResult result_;
     Engagements blocking_;
+    Tackles tackles_;
 
     std::vector<std::size_t> job_index_;  // per agent: his current job in the sequence
     std::vector<std::optional<Bust>> busts_;
@@ -199,6 +215,10 @@ class PlaySim {
     // Playing a pass: who has had his try at it since the last touch.
     std::vector<bool> tried_;
     bool tipped_ = false;
+    // The ball after a fumble: where it came out, and who had it.
+    std::optional<Vec2> fumble_spot_;
+    bool fumbled_by_offense_ = true;
+    std::optional<double> catch_y_;  // play frame: where the catch was made (YAC)
 };
 
 // ---------------------------------------------------------------------------
@@ -298,6 +318,7 @@ void PlaySim::setup() {
     busts_.assign(n(), std::nullopt);
     tried_.assign(n(), false);
     blocking_.setup();
+    tackles_.setup();
 
     Ball& ball = world_.ball();
     ball.state = Ball::State::Spotted;
@@ -408,6 +429,7 @@ void PlaySim::write_frame() {
     if (state_.snapped()) {
         for (int i = 0; i < state_.count(); ++i) state_.behavior(i)->draw(state_, i, dbg);
         blocking_.draw(dbg);
+        tackles_.draw(dbg);
         if (state_.gaps) {
             for (const Side side : {Side::Left, Side::Right}) {
                 for (const char letter : {'A', 'B', 'C', 'D'}) {
@@ -789,7 +811,16 @@ int PlaySim::block_target_for(int i, const std::string& target, double side) con
     }
     if (target == "first_lb_playside") {
         // The nearest linebacker on his play side; failing that, the nearest.
-        const std::vector<int> lbs = front(false);
+        // On a play with a kick-out pull, not the man the puller kicks out.
+        std::vector<int> lbs = front(false);
+        bool kick = false;
+        for (const auto& [slot, a] : state_.play.assignments) {
+            for (const Job& j : a.sequence) kick = kick || j.action == "pull_kick";
+        }
+        if (kick) {
+            const int k = block_target_for(i, "kick_out_man", side);
+            std::erase(lbs, k);
+        }
         int best = -1;
         for (const int d : lbs) {
             const double ps = (state_.play_pos(d).x - me.x) * side;
@@ -1030,6 +1061,9 @@ std::unique_ptr<Behavior> PlaySim::qb_behavior() {
         setup.escape_chance = bt.escape_chance(r[Attr::PocketPresence]);
         setup.hold = opt_.hold_ball;
         setup.snapper = state_.play_pos(state_.center);
+        const CarrierTuning& ct = state_.tuning().carrier;
+        setup.lane = lane_skill(r, ct);
+        setup.scramble_rate = ct.scramble_rate(ct.scramble_skill(r));
         // His own random stream, seeded from the match RNG.
         return std::make_unique<PassingQb>(std::move(setup), world_.rng().next_u64());
     }
@@ -1074,15 +1108,38 @@ Vec2 PlaySim::resolve_path_point(const PathPoint& p) const {
 
 std::unique_ptr<Behavior> PlaySim::carrier_behavior() {
     const RunSpec& run = *state_.play.run;
-    std::vector<BallCarrier::Mark> path;
-    std::size_t free_after = run.path.empty() ? 0 : run.path.size() - 1;
+    BallCarrier::Setup s;
+    s.free_after = run.path.empty() ? 0 : run.path.size() - 1;
     for (std::size_t k = 0; k < run.path.size(); ++k) {
         const PathPoint& p = run.path[k];
-        path.push_back({state_.frame.to_field(resolve_path_point(p)), p.type});
-        if (!run.free_after.empty() && p.type == run.free_after) free_after = k;
+        s.path.push_back({state_.frame.to_field(resolve_path_point(p)), p.type});
+        if (!run.free_after.empty() && p.type == run.free_after) s.free_after = k;
     }
-    return std::make_unique<BallCarrier>(std::move(path), free_after,
-                                         state_.agent(state_.run_carrier).pos);
+    s.start = state_.agent(state_.run_carrier).pos;
+    s.reads = run.reads;
+    s.playside = playside();
+    s.lane = lane_skill(state_.agent(state_.run_carrier).ratings, state_.tuning().carrier);
+    return std::make_unique<BallCarrier>(std::move(s), world_.rng().next_u64());
+}
+
+std::unique_ptr<Behavior> PlaySim::free_carrier(int i) {
+    BallCarrier::Setup s;
+    s.start = state_.agent(i).pos;
+    s.lane = lane_skill(state_.agent(i).ratings, state_.tuning().carrier);
+    return std::make_unique<BallCarrier>(std::move(s), world_.rng().next_u64());
+}
+
+Pursuer::Setup PlaySim::pursuit(int i, bool contain) const {
+    // (movement-and-interaction.md#pursuit)
+    const TacklingTuning& t = tackling();
+    const Attributes& r = state_.agent(i).ratings;
+    const double skill = t.pursuit_skill(r);
+    Pursuer::Setup s;
+    s.quality = t.prediction(skill);
+    s.lag = t.pursue_lag(skill);
+    s.contain = contain;
+    s.effort = t.effort(r[Attr::WorkRate]);
+    return s;
 }
 
 const RouteRef& PlaySim::option_branch(int i, const Job& job) {
@@ -1203,10 +1260,20 @@ std::unique_ptr<Behavior> PlaySim::defense_behavior(int i) {
     const double delay = std::max(
         0.05, pt.reaction_delay(skill) + world_.rng().normal(0.0, pt.reaction_noise_sd));
 
-    std::unique_ptr<Behavior> pass = defense_job(i, *slot.assignment->pass, nullptr);
-    std::unique_ptr<Behavior> run = defense_job(i, *slot.assignment->run, &*slot.assignment->pass);
+    // Does he stay in his run fit, or chase as soon as he sees the handoff?
+    const bool disciplined = world_.rng().chance(tackling().stay_in_gap(r[Attr::Discipline]));
+    // The contain man keeps outside-in leverage in pursuit.
+    const Job& rj = *slot.assignment->run;
+    const Job& pj = *slot.assignment->pass;
+    const bool contain = rj.kind == JobKind::Contain ||
+                         (rj.kind == JobKind::Support && rj.ref.starts_with("force")) ||
+                         (pj.kind == JobKind::Rush && (pj.ref == "contain" || pj.gap == "contain"));
+
+    std::unique_ptr<Behavior> pass = defense_job(i, pj, nullptr);
+    std::unique_ptr<Behavior> run = defense_job(i, rj, &pj);
     return std::make_unique<Defender>(std::move(run), std::move(pass), delay,
-                                      t.recognition_rate(skill), t.pass_prior);
+                                      t.recognition_rate(skill), t.pass_prior,
+                                      pursuit(i, contain), disciplined);
 }
 
 std::unique_ptr<Behavior> PlaySim::zone_behavior(int i, const std::string& zone_id, double late) {
@@ -1276,14 +1343,23 @@ std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job*
         case JobKind::Spy:
             return std::make_unique<HoldSpot>("spy", field({o.center_x, 5.0}), 0.5);
 
-        // --- run jobs (stand-ins until phase 7)
+        // --- run jobs (movement-and-interaction.md#run-fits)
         case JobKind::Gap: {
-            // A down lineman attacks his gap (into the blockers); others fill
-            // it off the ball (a stand-in until phase 7).
+            // A down lineman attacks his gap (into the blockers); a
+            // linebacker fills it off the ball, flowing with the carrier.
             const Side side = side_of(job.side);
-            const double depth =
-                at.y <= blocking().down_lineman_depth ? blocking().dl_gap_depth : t.gap_depth;
-            return std::make_unique<HoldSpot>("gap", field({gap_x(side, job.gap), depth}), 1.0);
+            const TacklingTuning& tt = tackling();
+            GapFit::Setup g;
+            g.gap_x = gap_x(side, job.gap);
+            g.lag = pursuit(i, false).lag;
+            if (at.y <= blocking().down_lineman_depth) {
+                g.depth = blocking().dl_gap_depth;
+            } else {
+                g.depth = std::max(tt.fit_depth, at.y - tt.fit_step);
+                g.flow_share = tt.flow_share;
+                g.flow_max = tt.flow_max;
+            }
+            return std::make_unique<GapFit>(g);
         }
         case JobKind::Support: {
             // "deep_third": keep playing his deep zone; "alley_strong",
@@ -1309,7 +1385,7 @@ std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job*
                 1.0);
         }
         case JobKind::Pursue:
-            return std::make_unique<Pursuer>();
+            return std::make_unique<Pursuer>(pursuit(i, false));
         default:
             break;
     }
@@ -1327,8 +1403,7 @@ void PlaySim::live_intents(std::vector<Intent>& intents, Actions& actions) {
     if (state_.play.run && state_.has_ball(state_.qb) && state_.since_snap() > 2.5 &&
         !dynamic_cast<const BallCarrier*>(state_.behavior(state_.qb))) {
         event("handoff_missed");
-        state_.behaviors[static_cast<std::size_t>(state_.qb)] = std::make_unique<BallCarrier>(
-            std::vector<BallCarrier::Mark>{}, 0, state_.agent(state_.qb).pos);
+        state_.behaviors[static_cast<std::size_t>(state_.qb)] = free_carrier(state_.qb);
     }
 
     for (int i = 0; i < state_.count(); ++i) {
@@ -1373,6 +1448,12 @@ void PlaySim::apply(const Actions& actions) {
         throw_ball(actions.throw_ball->from, actions.throw_ball->target, actions.throw_ball->away);
     }
     if (!actions.rush_moves.empty()) blocking_.resolve_moves(actions.rush_moves, world_.rng());
+    if (actions.evasion) tackles_.resolve_evasion(*actions.evasion, world_.rng());
+    for (const auto& [name, fields] : actions.notes) {
+        if (name == "read") result_.read = fields.value("read", "");
+        if (name == "scramble") result_.scramble = true;
+        event(name, fields);
+    }
 }
 
 Projection PlaySim::project_catch(int qb_index, int target, int rounds, double delay) const {
@@ -1516,6 +1597,11 @@ void PlaySim::ball_phase() {
     if (exchange_pending_ && state_.since_snap() >= t.snap_exchange_seconds) {
         ball.carrier = state_.qb;
         exchange_pending_ = false;
+    }
+    if (ball.state == Ball::State::Loose) {
+        step_ballistic(ball.pos, ball.vel, passing().gravity, kTickSeconds);
+        if (state_.phase == PlayPhase::Live) loose_ball();
+        return;
     }
     if (ball.state != Ball::State::InFlight) return;
 
@@ -1699,10 +1785,10 @@ void PlaySim::catch_ball(int receiver, Vec3 at) {
     result_.complete = true;
     result_.air_yards = state_.frame.to_play(at.ground()).y;
     event("catch", {{"player", state_.slot_name(receiver)}, {"air_yards", result_.air_yards}});
+    catch_y_ = state_.frame.to_play(at.ground()).y;
     // After the catch he is a ball carrier. Assigning a new unique_ptr
     // deletes the RouteRunner it held.
-    state_.behaviors[static_cast<std::size_t>(receiver)] = std::make_unique<BallCarrier>(
-        std::vector<BallCarrier::Mark>{}, 0, state_.agent(receiver).pos);
+    state_.behaviors[static_cast<std::size_t>(receiver)] = free_carrier(receiver);
     job_index_[static_cast<std::size_t>(receiver)] = std::numeric_limits<std::size_t>::max() / 2;
 }
 
@@ -1724,12 +1810,25 @@ void PlaySim::intercept(int defender, Vec3 at) {
     result_.intercepted_by = state_.slot_name(defender);
     event("interception", {{"player", result_.intercepted_by},
                            {"air_yards", state_.frame.to_play(at.ground()).y}});
-    // He runs it back; the offense turns into tacklers.
-    state_.behaviors[static_cast<std::size_t>(defender)] = std::make_unique<BallCarrier>(
-        std::vector<BallCarrier::Mark>{}, 0, state_.agent(defender).pos);
-    for (int i = 0; i < state_.offense_count; ++i) {
-        state_.behaviors[static_cast<std::size_t>(i)] = std::make_unique<Pursuer>();
-        job_index_[static_cast<std::size_t>(i)] = std::numeric_limits<std::size_t>::max() / 2;
+    new_possession(defender);
+}
+
+void PlaySim::new_possession(int carrier) {
+    // A turnover (or a loose ball picked up): he runs with it; the other team
+    // turns into tacklers. His teammates pull up (no return blocking until
+    // phase 9).
+    state_.engagements.clear();
+    tackles_.reset_carrier();
+    for (int i = 0; i < state_.count(); ++i) {
+        const auto idx = static_cast<std::size_t>(i);
+        job_index_[idx] = std::numeric_limits<std::size_t>::max() / 2;
+        if (i == carrier) {
+            state_.behaviors[idx] = free_carrier(i);
+        } else if (state_.teammates(i, carrier)) {
+            state_.behaviors[idx] = std::make_unique<HoldSpot>("escort", state_.agent(i).pos, 0.0);
+        } else {
+            state_.behaviors[idx] = std::make_unique<Pursuer>(pursuit(i, false));
+        }
     }
 }
 
@@ -1754,10 +1853,13 @@ void PlaySim::track_pressure() {
 
 void PlaySim::check_rules() {
     if (state_.phase != PlayPhase::Live) return;
+    const auto out_of_bounds = [](Vec2 p) {
+        return p.y < 0.0 || p.y > kFieldWidth || p.x < 0.0 || p.x > kFieldLength;
+    };
     const int c = state_.carrier();
     if (c >= 0) {
         const Vec2 p = state_.agent(c).pos;
-        if (p.y < 0.0 || p.y > kFieldWidth || p.x < 0.0 || p.x > kFieldLength) {
+        if (out_of_bounds(p)) {
             whistle("out_of_bounds");
             return;
         }
@@ -1767,38 +1869,148 @@ void PlaySim::check_rules() {
             whistle("touchdown");
             return;
         }
-        // Contact is down until tackling exists (phase 7).
-        for (int j = 0; j < state_.count(); ++j) {
-            if (state_.teammates(j, c)) continue;
-            // A blocked or knocked-down player can't make the tackle.
-            if (state_.engaged(j) || state_.knocked_down(j)) continue;
-            const Agent& tackler = state_.agent(j);
-            if ((tackler.pos - p).length() <= tackler.body.reach) {
-                const bool sack = c == state_.qb && state_.play.pass && !state_.pass;
-                event("contact", {{"by", state_.slot_name(j)}, {"on", state_.slot_name(c)}});
-                whistle(sack ? "sack" : "tackled");
-                return;
-            }
-        }
+    }
+    const Ball& ball = world_.ball();
+    if (ball.state == Ball::State::Loose && out_of_bounds(ball.pos.ground())) {
+        // The team that fumbled keeps it: spotted where it went out, or at
+        // the fumble if it went forward (verify the rule in phase 8).
+        const Vec2 at = ball.pos.ground();
+        const double sign = fumbled_by_offense_ ? 1.0 : -1.0;
+        const bool forward = (state_.frame.to_play(at).y - state_.frame.to_play(*fumble_spot_).y) * sign > 0.0;
+        whistle("fumble_out_of_bounds", forward ? *fumble_spot_ : at);
+        return;
     }
     if (state_.since_snap() >= tuning().play_max_seconds) whistle("whistle");
 }
 
-void PlaySim::whistle(const std::string& outcome) {
+void PlaySim::handle_tackle(const TackleResult& r) {
+    if (state_.phase != PlayPhase::Live) return;
+    const int c = state_.carrier();
+    if (c < 0) return;
+    if (r.fumble) {
+        fumble(c);
+        return;
+    }
+    if (!r.down) return;
+    const double y = state_.frame.to_play(r.spot).y;
+    std::string outcome = "tackled";
+    if (c == state_.qb && state_.play.pass && !state_.pass && y < 0.0) outcome = "sack";
+    if (state_.is_offense(c) && y <= state_.frame.own_goal_line_y()) outcome = "safety";
+    whistle(outcome, r.spot);
+}
+
+void PlaySim::fumble(int carrier) {
+    // (movement-and-interaction.md#fumbles-and-the-loose-ball)
+    const TacklingTuning& t = tackling();
+    Rng& rng = world_.rng();
+    const Agent& a = state_.agent(carrier);
+    Ball& ball = world_.ball();
+    fumble_spot_ = a.pos;
+    fumbled_by_offense_ = state_.is_offense(carrier);
+    result_.fumble = true;
+    ball.state = Ball::State::Loose;
+    ball.carrier = -1;
+    ball.pos = {a.pos.x, a.pos.y, 1.0};
+    const double angle = rng.uniform(0.0, 2.0 * std::numbers::pi);
+    const double speed = rng.uniform(t.out_speed_min, t.out_speed_max);
+    const Vec2 out = a.vel * 0.5 + Vec2{std::cos(angle), std::sin(angle)} * speed;
+    ball.vel = {out.x, out.y, rng.uniform(t.out_up_min, t.out_up_max)};
+    event("fumble", {{"player", state_.slot_name(carrier)}});
+
+    state_.engagements.clear();
+    tackles_.reset_carrier();
+    for (int i = 0; i < state_.count(); ++i) {
+        const auto idx = static_cast<std::size_t>(i);
+        state_.behaviors[idx] = std::make_unique<LooseBall>();
+        job_index_[idx] = std::numeric_limits<std::size_t>::max() / 2;
+    }
+}
+
+void PlaySim::loose_ball() {
+    // A football bounces: it keeps a share of its speed and turns at random.
+    const TacklingTuning& t = tackling();
+    Rng& rng = world_.rng();
+    Ball& ball = world_.ball();
+    if (ball.pos.z <= 0.0) {
+        ball.pos.z = 0.0;
+        if (ball.vel.z < -0.8) {
+            const double turn = rng.uniform(-t.bounce_turn_deg, t.bounce_turn_deg) * std::numbers::pi / 180.0;
+            const Vec2 flat = ball.vel.ground().rotated(turn) * t.bounce_keep_xy;
+            ball.vel = {flat.x, flat.y, -ball.vel.z * t.bounce_keep_z};
+        } else {
+            // Rolling.
+            ball.vel.z = 0.0;
+            const Vec2 flat = ball.vel.ground();
+            const double speed = flat.length();
+            const double slower = std::max(0.0, speed - t.roll_friction * kTickSeconds);
+            const Vec2 v = speed > 1e-6 ? flat * (slower / speed) : Vec2{};
+            ball.vel = {v.x, v.y, 0.0};
+        }
+    }
+    if (ball.pos.z > t.recover_height) return;
+
+    // Players at the ball try to get it, closest first.
+    std::vector<std::pair<double, int>> near;
+    for (int i = 0; i < state_.count(); ++i) {
+        if (state_.knocked_down(i)) continue;
+        const Agent& a = state_.agent(i);
+        const double d = (a.pos - ball.pos.ground()).length();
+        if (d <= a.body.reach) near.emplace_back(d, i);
+    }
+    std::stable_sort(near.begin(), near.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (const auto& [d, i] : near) {
+        const double skill = t.recover_skill(state_.agent(i).ratings);
+        if (rng.chance(t.recover_rate * (0.5 + skill / 200.0))) {
+            recover(i);
+            return;
+        }
+    }
+}
+
+void PlaySim::recover(int player) {
+    const TacklingTuning& t = tackling();
+    Ball& ball = world_.ball();
+    ball.state = Ball::State::Held;
+    ball.carrier = player;
+    ball.vel = {};
+    result_.recovered_by = state_.slot_name(player);
+    result_.fumble_lost = !state_.is_offense(player) && !result_.interception;
+    event("recovery", {{"player", result_.recovered_by}});
+    // He falls on it, unless he scoops it up on the run.
+    const double skill = t.recover_skill(state_.agent(player).ratings);
+    if (world_.rng().chance(t.scoop * skill / 100.0)) {
+        new_possession(player);
+        return;
+    }
+    whistle("recovered", state_.agent(player).pos);
+}
+
+void PlaySim::whistle(const std::string& outcome, std::optional<Vec2> spot) {
     state_.phase = PlayPhase::Dead;
     state_.engagements.clear();
+    state_.drag.reset();
     dead_tick_ = world_.tick();
     result_.outcome = outcome;
     result_.seconds = state_.since_snap();
 
     const int c = state_.carrier();
     if (c >= 0) result_.carrier = state_.slot_name(c);
-    if (result_.interception) {
+    const Vec2 at = spot ? *spot : (c >= 0 ? state_.agent(c).pos : world_.ball().pos.ground());
+    const double y = state_.frame.to_play(at).y;
+    if (result_.interception || result_.fumble_lost) {
         result_.defense_touchdown = outcome == "touchdown";
+        if (result_.fumble_lost && fumble_spot_) result_.yards = state_.frame.to_play(*fumble_spot_).y;
     } else if (outcome == "touchdown") {
         result_.yards = state_.frame.goal_line_y();
-    } else if (outcome != "incomplete" && c >= 0) {
-        result_.yards = state_.frame.to_play(state_.agent(c).pos).y;
+    } else if (outcome != "incomplete") {
+        result_.yards = y;
+    }
+    if (!result_.interception && !result_.fumble_lost && outcome != "incomplete") {
+        if (result_.complete && catch_y_) result_.yac = result_.yards - *catch_y_;
+        if (const auto first = tackles_.stats().first_contact_y) {
+            result_.yards_after_contact = result_.yards - *first;
+        }
     }
     event(outcome, {{"yards", result_.yards}});
 }
@@ -1826,11 +2038,15 @@ PlayResult PlaySim::run() {
                 break;  // everyone pulls up (a zero desired velocity)
         }
         apply(actions);
-        if (state_.phase == PlayPhase::Live) blocking_.steer(intents);
+        if (state_.phase == PlayPhase::Live) {
+            blocking_.steer(intents);
+            tackles_.steer(intents);
+        }
         world_.step(intents);
         if (state_.phase == PlayPhase::Live) {
             blocking_.interact(world_.rng());
             track_pressure();
+            handle_tackle(tackles_.interact(world_.rng()));
             record_history();
         }
         ball_phase();
@@ -1845,6 +2061,12 @@ PlayResult PlaySim::run() {
     result_.pancakes = bs.pancakes;
     result_.rush_moves_won = bs.rush_moves_won;
     result_.holds = bs.holds;
+    const TackleStats& ts = tackles_.stats();
+    result_.tackle_tries = ts.tries;
+    result_.broken_tackles = ts.broken;
+    result_.missed_tackles = ts.missed;
+    result_.evasions_won = ts.evasions_won;
+    result_.tackler = ts.tackler;
 
     // One readable line.
     std::ostringstream s;

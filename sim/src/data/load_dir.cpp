@@ -89,6 +89,8 @@ LoadReport load_data_dir(const fs::path& root) {
     load_tuning("passing.json", parse_passing_tuning, data.tuning.passing);
     load_tuning("defense.json", parse_defense_tuning, data.tuning.defense);
     load_tuning("blocking.json", parse_blocking_tuning, data.tuning.blocking);
+    load_tuning("carrier.json", parse_carrier_tuning, data.tuning.carrier);
+    load_tuning("tackling.json", parse_tackling_tuning, data.tuning.tackling);
 
     for (const fs::path& file : json_files(root / "formations", /*recursive=*/true)) {
         if (auto f = load(file, parse_formation)) {

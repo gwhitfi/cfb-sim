@@ -392,6 +392,11 @@ int cmd_run_play(const Options& opt) {
     int sacks = 0, pressured = 0, hot = 0, sheds = 0, pancakes = 0, holds = 0, moves = 0;
     double yards = 0.0, pressure_time = 0.0, held_up = 0.0;
     std::vector<double> pocket;  // per run: how long the pocket held
+    std::vector<double> gains;   // per run: yards (runs, completions, sacks; not incompletions)
+    int tries = 0, broken = 0, missed = 0, evaded = 0, fumbles = 0, lost = 0, scrambles = 0;
+    double yac = 0.0, after_contact = 0.0, before_contact = 0.0;
+    int contacted = 0;
+    std::map<std::string, int> reads;
     struct TargetStats {
         int thrown = 0, complete = 0, picks = 0;
         double yards = 0.0, time = 0.0;
@@ -419,6 +424,21 @@ int cmd_run_play(const Options& opt) {
             pancakes += r.pancakes;
             holds += static_cast<int>(r.holds.size());
             moves += r.rush_moves_won;
+            if (r.outcome != "incomplete" && !r.interception && !r.fumble_lost) gains.push_back(r.yards);
+            tries += r.tackle_tries;
+            broken += r.broken_tackles;
+            missed += r.missed_tackles;
+            evaded += r.evasions_won;
+            fumbles += r.fumble ? 1 : 0;
+            lost += r.fumble_lost ? 1 : 0;
+            scrambles += r.scramble ? 1 : 0;
+            yac += r.yac;
+            if (r.tackle_tries > 0) {
+                ++contacted;
+                after_contact += r.yards_after_contact;
+                before_contact += r.yards - r.yards_after_contact;
+            }
+            if (!r.read.empty()) ++reads[r.read];
             if (r.time_to_pressure >= 0.0) {
                 ++pressured;
                 pressure_time += r.time_to_pressure;
@@ -459,6 +479,41 @@ int cmd_run_play(const Options& opt) {
                 "  blocks: %d sheds, %d rush moves won, %d pancakes, %d holds\n",
                 sacks, pressured, pressured > 0 ? pressure_time / pressured : 0.0, held_up / count,
                 pct(0.1), pct(0.5), pct(0.9), hot, sheds, moves, pancakes, holds);
+        }
+        if (!gains.empty()) {
+            // The spread of the gains, not just the average (phase 7).
+            std::vector<double> g = gains;
+            std::sort(g.begin(), g.end());
+            const auto at = [&](double q) {
+                return g[std::min(g.size() - 1, static_cast<std::size_t>(q * static_cast<double>(g.size())))];
+            };
+            const auto share = [&](auto pred) {
+                return 100.0 * static_cast<double>(std::count_if(g.begin(), g.end(), pred)) /
+                       static_cast<double>(g.size());
+            };
+            double sum = 0.0;
+            for (const double y : g) sum += y;
+            std::printf(
+                "  gains (%zu): %.1f yd avg, 10/50/90%%: %.1f %.1f %.1f, <= 0: %.0f%%, 10+: %.0f%%, "
+                "20+: %.0f%%\n",
+                g.size(), sum / static_cast<double>(g.size()), at(0.1), at(0.5), at(0.9),
+                share([](double y) { return y <= 0.0; }), share([](double y) { return y >= 10.0; }),
+                share([](double y) { return y >= 20.0; }));
+            std::printf(
+                "  tackling: %.2f tries, %.2f broken, %.2f missed, %.2f moves won per play; "
+                "%.1f yd before and %.1f after contact; %d fumbles (%d lost)",
+                static_cast<double>(tries) / count, static_cast<double>(broken) / count,
+                static_cast<double>(missed) / count, static_cast<double>(evaded) / count,
+                contacted > 0 ? before_contact / contacted : 0.0,
+                contacted > 0 ? after_contact / contacted : 0.0, fumbles, lost);
+            if (complete > 0) std::printf("; %.1f yd after the catch", yac / complete);
+            if (scrambles > 0) std::printf("; %d scrambles", scrambles);
+            std::printf("\n");
+            if (!reads.empty()) {
+                std::printf("  reads:");
+                for (const auto& [name, n] : reads) std::printf(" %s %d", name.c_str(), n);
+                std::printf("\n");
+            }
         }
         for (const auto& [slot, ts] : by_target) {
             std::printf("  %-7s %4d thrown, %3.0f%% complete, %2d intercepted, %5.1f yd, %.2f s\n",
@@ -502,9 +557,10 @@ std::string short_name(std::string id) {
     return id;
 }
 
-// Every pass play in the offense's playbook against every play in the
-// defense's: success rate (complete for 4+ yd, the 1st-and-10 standard),
-// completion rate, and interceptions.
+// Every pass and run play in the offense's playbook against every play in
+// the defense's. Pass plays: success rate (complete for 4+ yd, the
+// 1st-and-10 standard), completion, interceptions, sacks, pressure. Run
+// plays: yards per carry and success (4+ yd). Then totals for both.
 int cmd_matrix(const Options& opt) {
     const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
     if (!report.ok()) {
@@ -516,7 +572,7 @@ int cmd_matrix(const Options& opt) {
     const std::string defense = opt.get("defense", "tech");
     const auto runs_opt = number_option(opt, "runs", 100);
     if (!runs_opt) return 1;
-    const int runs = std::max(1, static_cast<int>(*runs_opt));
+    const int reps = std::max(1, static_cast<int>(*runs_opt));
     const auto oteam = data.teams.find(offense);
     const auto dteam = data.teams.find(defense);
     if (oteam == data.teams.end() || dteam == data.teams.end()) {
@@ -531,9 +587,11 @@ int cmd_matrix(const Options& opt) {
         return only.empty() || std::find(only.begin(), only.end(), id) != only.end();
     };
 
-    std::vector<const cfbsim::Play*> plays, defs;
+    std::vector<const cfbsim::Play*> plays, runs, defs;
     for (const cfbsim::Play& p : obook.plays) {
-        if (p.type == cfbsim::PlayType::Pass && wanted(only_plays, p.id)) plays.push_back(&p);
+        if (!wanted(only_plays, p.id)) continue;
+        if (p.type == cfbsim::PlayType::Pass) plays.push_back(&p);
+        if (p.type == cfbsim::PlayType::Run) runs.push_back(&p);
     }
     for (const cfbsim::Play& p : dbook.plays) {
         if (wanted(only_defs, p.id)) defs.push_back(&p);
@@ -541,50 +599,71 @@ int cmd_matrix(const Options& opt) {
 
     struct Cell {
         int success = 0, complete = 0, picks = 0, sacks = 0, pressured = 0, thrown = 0;
+        int scrambles = 0, fumbles_lost = 0;
+        double yards = 0.0, completed_yards = 0.0;
     };
     std::vector<std::vector<Cell>> cells(plays.size(), std::vector<Cell>(defs.size()));
-    try {
-        for (std::size_t a = 0; a < plays.size(); ++a) {
+    std::vector<std::vector<Cell>> run_cells(runs.size(), std::vector<Cell>(defs.size()));
+    std::vector<double> run_gains;  // every carry, for the spread
+    const auto play_cells = [&](const std::vector<const cfbsim::Play*>& list,
+                                std::vector<std::vector<Cell>>& out) {
+        for (std::size_t a = 0; a < list.size(); ++a) {
             for (std::size_t b = 0; b < defs.size(); ++b) {
-                for (int k = 0; k < runs; ++k) {
+                for (int k = 0; k < reps; ++k) {
                     cfbsim::PlayOptions o;
                     o.team = offense;
-                    o.play = plays[a]->id;
+                    o.play = list[a]->id;
                     o.defense = defense;
                     o.defense_play = defs[b]->id;
                     o.seed = static_cast<std::uint64_t>(k + 1);
                     o.huddle = false;
                     o.hash = static_cast<cfbsim::Hash>(k % 3);
-                    o.flip = plays[a]->flip && (k / 3) % 2 == 1;
+                    o.flip = list[a]->flip && (k / 3) % 2 == 1;
                     const cfbsim::PlayResult r = cfbsim::run_play(data, o);
-                    Cell& c = cells[a][b];
+                    Cell& c = out[a][b];
+                    const bool gained = !r.interception && !r.fumble_lost && r.outcome != "incomplete";
+                    c.yards += gained ? r.yards : 0.0;
                     c.complete += r.complete ? 1 : 0;
-                    c.success += r.complete && r.yards >= 4.0 ? 1 : 0;
+                    c.completed_yards += r.complete && gained ? r.yards : 0.0;
+                    c.success += (list[a]->type == cfbsim::PlayType::Run || r.complete) && gained &&
+                                         r.yards >= 4.0
+                                     ? 1
+                                     : 0;
                     c.picks += r.interception ? 1 : 0;
                     c.sacks += r.outcome == "sack" ? 1 : 0;
                     c.pressured += r.time_to_pressure >= 0.0 ? 1 : 0;
                     c.thrown += !r.target.empty() && !r.thrown_away ? 1 : 0;
+                    c.scrambles += r.scramble ? 1 : 0;
+                    c.fumbles_lost += r.fumble_lost ? 1 : 0;
+                    if (list[a]->type == cfbsim::PlayType::Run && gained) run_gains.push_back(r.yards);
                 }
             }
         }
+    };
+    try {
+        play_cells(plays, cells);
+        play_cells(runs, run_cells);
     } catch (const cfbsim::PlayError& e) {
         std::cerr << "cfbsim matrix: " << e.what() << "\n";
         return 1;
     }
 
-    const auto table = [&](const char* title, auto value) {
-        std::printf("\n%s (%d plays per cell)\n%-16s", title, runs, "");
+    const auto table_of = [&](const char* title, const std::vector<const cfbsim::Play*>& list,
+                              const std::vector<std::vector<Cell>>& grid, auto value) {
+        if (list.empty()) return;
+        std::printf("\n%s (%d plays per cell)\n%-16s", title, reps, "");
         for (const cfbsim::Play* d : defs) std::printf(" %11.11s", short_name(d->id).c_str());
         std::printf("\n");
-        for (std::size_t a = 0; a < plays.size(); ++a) {
-            std::printf("%-16.16s", plays[a]->id.c_str());
-            for (std::size_t b = 0; b < defs.size(); ++b) std::printf(" %11s", value(cells[a][b]).c_str());
+        for (std::size_t a = 0; a < list.size(); ++a) {
+            std::printf("%-16.16s", list[a]->id.c_str());
+            for (std::size_t b = 0; b < defs.size(); ++b) std::printf(" %11s", value(grid[a][b]).c_str());
             std::printf("\n");
         }
     };
+    const auto table = [&](const char* title, auto value) { table_of(title, plays, cells, value); };
     const auto pct = [&](int n) {
         char buf[16];
-        std::snprintf(buf, sizeof buf, "%.0f%%", 100.0 * n / runs);
+        std::snprintf(buf, sizeof buf, "%.0f%%", 100.0 * n / reps);
         return std::string(buf);
     };
     std::printf("%s offense vs %s defense\n", offense.c_str(), defense.c_str());
@@ -594,25 +673,65 @@ int cmd_matrix(const Options& opt) {
     table("Sacks", [&](const Cell& c) { return std::to_string(c.sacks); });
     table("Pressured", [&](const Cell& c) { return pct(c.pressured); });
 
-    Cell all;
-    for (const auto& row : cells) {
-        for (const Cell& c : row) {
-            all.success += c.success;
-            all.complete += c.complete;
-            all.picks += c.picks;
-            all.sacks += c.sacks;
-            all.pressured += c.pressured;
-            all.thrown += c.thrown;
+    table_of("Runs: yards per carry", runs, run_cells, [&](const Cell& c) {
+        char buf[16];
+        std::snprintf(buf, sizeof buf, "%.1f", c.yards / reps);
+        return std::string(buf);
+    });
+    table_of("Runs: success (4+ yd)", runs, run_cells, [&](const Cell& c) { return pct(c.success); });
+
+    const auto sum = [](const std::vector<std::vector<Cell>>& grid) {
+        Cell all;
+        for (const auto& row : grid) {
+            for (const Cell& c : row) {
+                all.success += c.success;
+                all.complete += c.complete;
+                all.picks += c.picks;
+                all.sacks += c.sacks;
+                all.pressured += c.pressured;
+                all.thrown += c.thrown;
+                all.scrambles += c.scrambles;
+                all.fumbles_lost += c.fumbles_lost;
+                all.yards += c.yards;
+                all.completed_yards += c.completed_yards;
+            }
         }
+        return all;
+    };
+    if (!plays.empty()) {
+        const Cell all = sum(cells);
+        const double total = static_cast<double>(reps) * static_cast<double>(plays.size() * defs.size());
+        std::printf(
+            "\nAll %.0f pass plays: %.0f%% success, %.0f%% completion (%.0f%% of passes thrown), "
+            "%.1f yd per completion, %.1f yd per play, %.1f%% intercepted, %.1f%% sacks, "
+            "%.0f%% pressured, %.1f%% scrambles\n",
+            total, 100.0 * all.success / total, 100.0 * all.complete / total,
+            all.thrown > 0 ? 100.0 * all.complete / all.thrown : 0.0,
+            all.complete > 0 ? all.completed_yards / all.complete : 0.0, all.yards / total,
+            all.thrown > 0 ? 100.0 * all.picks / all.thrown : 0.0, 100.0 * all.sacks / total,
+            100.0 * all.pressured / total, 100.0 * all.scrambles / total);
     }
-    const double total = static_cast<double>(runs) * static_cast<double>(plays.size() * defs.size());
-    std::printf(
-        "\nAll %.0f plays: %.0f%% success, %.0f%% completion (%.0f%% of passes thrown), "
-        "%.1f%% intercepted, %.1f%% sacks, %.0f%% pressured\n",
-        total, 100.0 * all.success / total, 100.0 * all.complete / total,
-        all.thrown > 0 ? 100.0 * all.complete / all.thrown : 0.0,
-        all.thrown > 0 ? 100.0 * all.picks / all.thrown : 0.0, 100.0 * all.sacks / total,
-        100.0 * all.pressured / total);
+    if (!runs.empty()) {
+        const Cell all = sum(run_cells);
+        const double total = static_cast<double>(reps) * static_cast<double>(runs.size() * defs.size());
+        std::sort(run_gains.begin(), run_gains.end());
+        const auto at = [&](double q) {
+            return run_gains.empty() ? 0.0
+                                     : run_gains[std::min(run_gains.size() - 1,
+                                                          static_cast<std::size_t>(q * static_cast<double>(run_gains.size())))];
+        };
+        const auto share = [&](auto pred) {
+            return run_gains.empty() ? 0.0
+                                     : 100.0 * static_cast<double>(std::count_if(run_gains.begin(), run_gains.end(), pred)) /
+                                           static_cast<double>(run_gains.size());
+        };
+        std::printf(
+            "All %.0f runs: %.1f yd per carry, %.0f%% success, 10/50/90%%: %.1f %.1f %.1f, "
+            "<= 0: %.0f%%, 10+: %.0f%%, 20+: %.0f%%, %d fumbles lost\n",
+            total, all.yards / total, 100.0 * all.success / total, at(0.1), at(0.5), at(0.9),
+            share([](double y) { return y <= 0.0; }), share([](double y) { return y >= 10.0; }),
+            share([](double y) { return y >= 20.0; }), all.fumbles_lost);
+    }
     return 0;
 }
 

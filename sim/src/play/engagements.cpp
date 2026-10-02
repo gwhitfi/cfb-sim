@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <numbers>
 
 #include "cfbsim/core/curve.h"
@@ -203,6 +204,20 @@ void Engagements::end_broken() {
             play_.has_ball(e.defender)) {
             list.erase(list.begin() + static_cast<std::ptrdiff_t>(k));
             continue;
+        }
+        // The ball carrier has gone by: the defender lets go and chases.
+        const int c = play_.carrier();
+        if (c >= 0 && play_.behavior(c) && play_.behavior(c)->carrying()) {
+            const Vec2 to = play_.agent(c).pos - play_.agent(e.defender).pos;
+            if (to.dot(play_.downfield_for(c)) > t.release_past && to.length() > t.release_distance) {
+                // For the rest of the play: the blockers are behind him now.
+                const double rest = std::numeric_limits<double>::infinity();
+                play_.immune.push_back({e.blocker, e.defender, rest});
+                if (e.helper >= 0) play_.immune.push_back({e.helper, e.defender, rest});
+                event_("release", {{"player", play_.slot_name(e.defender)}, {"from", play_.slot_name(e.blocker)}});
+                list.erase(list.begin() + static_cast<std::ptrdiff_t>(k));
+                continue;
+            }
         }
         ++k;
     }

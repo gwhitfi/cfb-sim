@@ -34,11 +34,12 @@ bool follow_path(const Agent& me, const std::vector<Vec2>& path, std::size_t& ne
 // ---------------------------------------------------------------------------
 
 PassingQb::PassingQb(Setup setup, std::uint64_t seed)
-    : s_(std::move(setup)), rng_(seed), seen_(s_.reads.size(), -1.0) {}
+    : s_(std::move(setup)), rng_(seed), seen_(s_.reads.size(), -1.0), lane_(s_.lane) {}
 
 int PassingQb::eyes() const {
     if (s_.reads.empty() || stage_ == Stage::WaitForBall || stage_ == Stage::Done) return -1;
     if (stage_ == Stage::Deliver) return away_ ? -1 : target_;
+    if (tucked_) return -1;
     return s_.reads[read_];
 }
 
@@ -130,6 +131,8 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
     // drops (the clock on his first read starts when he starts the drop) but
     // can only throw once he's set. Returns true when he decides to throw.
     const BlockingTuning& bt = play.tuning().blocking;
+    const CarrierTuning& ct = play.tuning().carrier;
+    bool run = false;  // he decided to scramble
     const auto best_seen = [&]() {
         std::size_t best = 0;
         for (std::size_t k = 1; k < seen_.size(); ++k) {
@@ -198,6 +201,11 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
                 return true;
             }
             if (rng_.chance(s_.escape_chance)) {
+                // Away from the rush: run if there's a lane, else throw it away.
+                if (!s_.hold && lane_.probe(play, self) >= ct.escape_lane) {
+                    run = true;
+                    return false;
+                }
                 throw_away();
                 return true;
             }
@@ -219,6 +227,7 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
         // Move on when the look is over, or early if it's clearly covered.
         if (looked >= s_.look_seconds ||
             (looked >= t.min_look_seconds && perceived < t.covered)) {
+            if (read_ + 1 == s_.reads.size() && last_read_done_ < 0.0) last_read_done_ = now;
             look_at((read_ + 1) % s_.reads.size(), now);
             return false;
         }
@@ -267,9 +276,23 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
             [[fallthrough]];
         case Stage::Read:
             in.velocity = steer::arrive(me, pocket_spot(play, self), bt.pocket_speed, 8.0);
-            if (!read()) return in;
+            if (!read()) {
+                // Nothing open for a while and a lane in front of him: he takes off.
+                if (!run && !s_.hold && last_read_done_ >= 0.0 && now - last_read_done_ >= ct.scramble_wait &&
+                    now >= next_probe_) {
+                    next_probe_ = now + 0.25;
+                    run = lane_.probe(play, self) >= ct.scramble_lane &&
+                          rng_.chance(s_.scramble_rate * 0.25);
+                }
+                if (!run) return in;
+                start_scramble(play, self, actions);
+                return scramble(play, self, actions);
+            }
             stage_ = Stage::Deliver;
             stage_start_ = now;
+            [[fallthrough]];
+        case Stage::Scramble:
+            if (stage_ == Stage::Scramble) return scramble(play, self, actions);
             [[fallthrough]];
         case Stage::Deliver: {
             const Vec2 to_target = play.agent(target_).pos - me.pos;
@@ -285,6 +308,38 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
     return in;
 }
 
+void PassingQb::start_scramble(const PlayState& play, int self, Actions& actions) {
+    stage_ = Stage::Scramble;
+    scramble_start_ = play.since_snap();
+    actions.notes.emplace_back("scramble", Json{{"player", play.slot_name(self)}});
+}
+
+Intent PassingQb::scramble(const PlayState& play, int self, Actions& actions) {
+    // (movement-and-interaction.md#scrambles)
+    const PassingTuning& t = play.tuning().passing;
+    const CarrierTuning& ct = play.tuning().carrier;
+    const double now = play.since_snap();
+    Intent in = run_with_ball(play, self, lane_, rng_, tried_, juke_seen_, actions);
+    // Near the line, or too long on the move: he tucks it and runs.
+    if (!tucked_ && (play.play_pos(self).y >= ct.tuck_line || now - scramble_start_ >= ct.scramble_read_seconds)) {
+        tucked_ = true;
+    }
+    if (tucked_ || s_.reads.empty() || (play.drag && play.drag->carrier == self)) return in;
+    // Still looking to throw.
+    const int target = s_.reads[read_];
+    const double perceived = std::clamp(play.openness(target) + bias_, 0.0, 1.0);
+    seen_[read_] = perceived;
+    const double looked = now - look_start_;
+    if (looked >= t.min_look_seconds && perceived >= threshold(play)) {
+        target_ = target;
+        stage_ = Stage::Deliver;
+        stage_start_ = now;
+        return in;
+    }
+    if (looked >= s_.look_seconds) look_at((read_ + 1) % s_.reads.size(), now);
+    return in;
+}
+
 void PassingQb::draw(const PlayState& play, int self, Json& shapes) const {
     if (stage_ != Stage::WaitForBall && stage_ != Stage::Done && pressure_ > 0.05) {
         char text[24];
@@ -296,7 +351,11 @@ void PassingQb::draw(const PlayState& play, int self, Json& shapes) const {
                                           color, true));
         }
     }
-    if (s_.reads.empty() || (stage_ != Stage::Read && stage_ != Stage::Deliver)) return;
+    if (stage_ == Stage::Scramble) lane_.draw(play, self, shapes);
+    if (s_.reads.empty() || tucked_ ||
+        (stage_ != Stage::Read && stage_ != Stage::Scramble && stage_ != Stage::Deliver)) {
+        return;
+    }
     if (stage_ == Stage::Deliver) {
         shapes.push_back(shapes::ring("read", target_));
         shapes.push_back(shapes::tag("read", target_, away_ ? "throw away" : "throwing"));

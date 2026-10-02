@@ -196,13 +196,11 @@ struct DefenseTuning {
     double drift = 3.0;
     double zone_margin = 2.0;
 
-    // Stand-ins: run fits, rush, pursuit (phases 6-7 replace them).
-    double gap_depth = 1.0;
+    // Run support spots (gap fits and pursuit are in TacklingTuning).
     Vec2 alley{3.0, 4.0};  // yd outside the end of the line, yd deep
     Vec2 force{5.0, 2.0};
     double deep_fill = 8.0;
     double contain_outside = 1.0;
-    double pursue_lead = 0.4;
 
     // Coverage busts.
     double late_lag = 0.3;
@@ -240,6 +238,7 @@ struct BlockingTuning {
     double hold_gain = 4.0;           // per second: steering back to the contact spot
     double shed_turn_deg = 70.0;      // the defender's spot turns this far around the blocker at shed 1
     double break_distance = 2.2;      // yd: an engagement pulled further apart ends
+    double release_past = 1.0, release_distance = 3.0;  // the carrier past him: he lets go
     double pancake_run = 0.15;        // per second while control > pancake_control
     double pancake_pass = 0.05;
     double pancake_control = 0.85;
@@ -327,12 +326,147 @@ struct BlockingTuning {
     double pressure_radius = 2.5;   // yd: a defender this close to the QB is pressure (stats)
 };
 
+// data/tuning/carrier.json: the ball carrier's lanes, reads, evasion moves,
+// and the QB's scrambles (movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
+struct CarrierTuning {
+    // Lanes.
+    double decide_seconds = 0.15;   // he re-picks his heading this often
+    int headings = 17;              // candidate headings ...
+    double span_deg = 100.0;        // ... from this far left to this far right of downfield
+    double horizon = 2.0;           // s along each ray
+    double sample = 0.1;            // s between samples
+    double react = 0.1;             // s added to every defender's time to reach
+    double engaged_delay = 0.8;     // s x (1 - shed) for an engaged defender
+    double screen_width = 1.0;      // yd: a teammate this close to the defender's line screens him
+    double screen_delay = 0.35;     // s
+    double sideline_margin = 1.0;   // yd: rays end this far from the sideline
+    double fall_weight = 0.3;       // score + this x forward (falling forward)
+    double open_bonus = 2.0;        // yd x forward when a ray stays free to the horizon
+    double cut_cost_seconds = 0.5;  // speed lost in a cut x this = yd
+    double switch_margin = 1.0;     // yd: a new heading must beat his current one by this
+    double plant_deg = 30.0;        // a change bigger than this is a planted cut
+    Blend vision_skill;
+    Curve cone_deg;                 // vision skill -> half-angle
+    Curve vision_range;             // vision skill -> yd
+    Curve vision_lag;               // vision skill -> s
+    double feel_range = 2.0;        // yd: defenders this close are always noticed
+    Curve decision_sd;              // Decisions -> yd of noise on each score
+    double step_out_margin = 2.0;   // yd from the sideline
+    double step_out_time = 0.4;     // s to contact
+    double step_out_gain = 1.0;     // yd: best score under this
+
+    // Run reads (play frame offsets; x toward the play side).
+    double read_distance = 1.5;     // yd from the aim point
+    double bang_x = 0.0, bang_y = 3.0;
+    double bend_x = -3.0, bend_y = 3.0;
+    double bounce_x = 4.0, bounce_y = 1.0;
+    double read_commit = 0.35;      // s his heading stays near the read
+    double read_cone_deg = 25.0;
+
+    // Evasion moves.
+    double move_window = 0.3;       // s to contact ...
+    double move_range = 0.8;        // ... and within this far past the tackler's reach
+    Blend juke, spin, stiff_arm, shoulder, move_counter;
+    double shoulder_mass_points = 25.0;  // x ln(lb / 210)
+    double front_deg = 45.0, behind_deg = 135.0;
+    double off_angle_fit = 0.6;
+    double move_choice_sd = 10.0;
+    double move_min = 35.0;
+    double move_scale = 15.0;
+    double move_edge = 15.0;        // + the tackler's counter
+    double juke_stumble = 0.5, juke_cut_deg = 45.0, juke_fail = 5.0;
+    double spin_keep = 0.7, spin_fail = 10.0;
+    double stiff_arm_bonus = 20.0;
+    double shoulder_bonus = 15.0, shoulder_fall = 0.5;
+
+    // Scrambles.
+    double escape_lane = 3.0;       // yd: best lane score to scramble instead of throwing it away
+    double scramble_wait = 1.0;     // s after his last read
+    double scramble_lane = 6.0;     // yd
+    Blend scramble_skill;
+    Curve scramble_rate;            // skill -> chance per second
+    double scramble_read_seconds = 2.0;
+    double tuck_line = -1.0;        // play y: he tucks it here
+};
+
+// data/tuning/tackling.json: pursuit, run fits, tackles, fumbles, the loose ball.
+struct TacklingTuning {
+    // Pursuit.
+    Blend pursuit_skill;
+    Curve prediction;               // skill -> share of the carrier's velocity he projects
+    Curve pursue_lag;               // skill -> s: how late he sees the carrier
+    double upfield = 0.5;           // the carrier's heading bent this far toward downfield
+    double pursue_horizon = 3.0, pursue_step = 0.05;
+    double attack_range = 4.0, attack_lead = 0.4;  // close: straight at the carrier, leading him
+    double breakdown_speed = 4.0;   // yd/s floor while breaking down in front of him
+    double breakdown_cos = 0.7;     // ... with the carrier heading within this of him
+    double leverage = 1.0;          // yd inside (or outside, contain) of the intercept point
+    double leverage_range = 3.0;    // yd: closer than this, no offset
+    double squeeze_room = 4.0;      // yd from a sideline: no offset
+    double sideline_inside = 1.0;   // yd: predictions stay this far inside
+    double top_cushion = 3.0;       // yd downfield of the carrier: stay on top ...
+    double top_keep = 0.5;          // ... keeping this share of it
+    double effort_range = 10.0;     // yd
+    Curve effort;                   // Work Rate -> share of top speed further away
+
+    // Run fits.
+    double fit_depth = 1.0;         // yd off the ball (linebackers), at the closest
+    double fit_step = 1.5;          // yd up from his alignment
+    double flow_share = 0.4, flow_max = 1.5;
+    double commit_range = 3.0;      // yd: the carrier this close ends the fit
+    Curve stay_in_gap;              // Discipline -> chance
+
+    // Tackles.
+    Blend tackle_skill, resistance;
+    double angle_side = -8.0, angle_behind = -18.0;  // points
+    double tackle_edge = 20.0;      // points on every tackle score
+    double momentum_points = 20.0, momentum_cap = 15.0, momentum_speed = 1.0;
+    double assist_points = 10.0, assist_seconds = 0.5;
+    int assist_max = 2;
+    double dive_extra = 0.8;        // yd past his reach he can dive
+    double dive_closing = 0.5;      // yd/s: he dives when he isn't closing faster than this
+    double dive_penalty = 12.0;     // points off the tackle score
+    double dive_down_min = 0.8, dive_down_max = 1.2;  // s on the ground after a failed dive
+    double arm_min_shed = 0.3, arm_reach = 0.8, arm_retry = 0.5;
+    double arm_base = 0.4;          // engaged: x (base + (1 - base) x shed)
+    double outcome_scale = 20.0;
+    double clean_base = 0.55, clean_slope = 1.0;
+    double drag_base = 0.25, drag_slope = 0.3;
+    double broken_base = 0.10, broken_slope = -1.2;
+    double miss_base = 0.10, miss_slope = -1.2;
+    double drag_share = 0.5, drag_min = 0.5, drag_max = 3.0;
+    double broken_keep_min = 0.5, broken_keep_max = 0.8, broken_stumble = 0.5;
+    double tackler_down_min = 0.8, tackler_down_max = 1.5;
+    double miss_stumble = 0.6, miss_keep = 0.95;
+    double stumble_speed = 0.6;     // share of top speed while stumbling
+    double fall_max = 1.5, fall_speed = 9.0;
+
+    // Fumbles.
+    Curve fumble_chance;            // Ball Security -> chance per tackle event
+    double hit_power_factor = 0.5;
+    double blind_factor = 1.5;
+    double big_hit_factor = 2.0, big_hit_momentum = 2.0;
+
+    // The loose ball.
+    double out_speed_min = 2.0, out_speed_max = 4.0;
+    double out_up_min = 1.0, out_up_max = 3.0;
+    double bounce_keep_z = 0.35, bounce_keep_xy = 0.6, bounce_turn_deg = 60.0;
+    double roll_friction = 4.0;
+    double recover_height = 1.0;
+    double recover_rate = 0.35;     // per tick at full skill
+    Blend recover_skill;
+    double scoop = 0.3;
+    double loose_lead = 0.3;        // s ahead of the ball players run at
+};
+
 struct Tuning {
     MovementTuning movement;
     PlayTuning play;
     PassingTuning passing;
     DefenseTuning defense;
     BlockingTuning blocking;
+    CarrierTuning carrier;
+    TacklingTuning tackling;
 };
 
 }  // namespace cfbsim

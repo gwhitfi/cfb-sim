@@ -46,12 +46,37 @@ export function describeEvent(ev: TrackingEvent): string {
       return `${f.player} climbs to ${f.to}`;
     case "hot":
       return `${f.player} sees the blitz: hot read`;
+    case "release":
+      return `${f.player} comes off ${f.from}'s block to chase`;
+    case "read":
+      return `${f.player} reads ${f.read}`;
+    case "evasion":
+      return `${f.player} tries a ${text(f.move).replace("_", " ")} on ${f.on}: ${f.won ? "beats him" : "doesn't work"}`;
+    case "tackle":
+      return `TACKLE by ${f.player}${f.dive ? " (diving)" : ""}${f.arm ? " (out of a block)" : ""}`;
+    case "drag_down":
+      return `${f.player} wraps up ${f.on}, dragging him down`;
+    case "broken_tackle":
+      return `${f.on} breaks ${f.player}'s tackle`;
+    case "missed_tackle":
+      return `${f.player} misses ${f.on}${f.dive ? " (diving)" : ""}`;
+    case "big_hit":
+      return `BIG HIT by ${f.player}`;
+    case "fumble":
+      return `FUMBLE by ${f.player}`;
+    case "recovery":
+      return `recovered by ${f.player}`;
+    case "scramble":
+      return `${f.player} scrambles`;
     case "touchdown":
       return `touchdown (${yd(f.yards)})`;
     case "out_of_bounds":
     case "whistle":
     case "tackled":
     case "sack":
+    case "safety":
+    case "recovered":
+    case "fumble_out_of_bounds":
       return `${ev.event.replaceAll("_", " ")}, gain of ${yd(f.yards)}`;
     default: {
       const rest = Object.entries(f).map(([k, v]) => `${k}=${typeof v === "number" ? round(v) : text(v)}`);
