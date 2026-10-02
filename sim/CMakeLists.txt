@@ -30,6 +30,8 @@ add_library(cfbsim_core STATIC
     src/play/lanes.cpp
     src/play/tackles.cpp
     src/play/fouls.cpp
+    src/play/kick_sim.cpp
+    src/agents/special_teams.cpp
     src/rules/enforce.cpp
     src/rules/clock.cpp
     src/rules/lineup.cpp

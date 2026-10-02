@@ -1,0 +1,21 @@
+{
+  // In the kicking team's frame (see kickoff_std.json).
+  "format_version": 1,
+  "id": "punt_return_std",
+  "name": "Punt Return",
+  "side": "receiving",
+  "unit": "punt_return",
+  "slots": {
+    "L1": {"pos": "any", "x": -5,  "y": 1},
+    "L2": {"pos": "any", "x": -3,  "y": 1},
+    "L3": {"pos": "any", "x": -1,  "y": 1},
+    "L4": {"pos": "any", "x": 1,   "y": 1},
+    "L5": {"pos": "any", "x": 3,   "y": 1},
+    "L6": {"pos": "any", "x": 5,   "y": 1},
+    "JL": {"pos": "any", "x": {"from": "numbers", "side": "left", "offset": 0},  "y": 2},
+    "JR": {"pos": "any", "x": {"from": "numbers", "side": "right", "offset": 0}, "y": 2},
+    "M":  {"pos": "any", "x": 0,   "y": 8},
+    "U":  {"pos": "any", "x": 0,   "y": 25},
+    "PR": {"pos": "any", "x": 0,   "y": 42}
+  }
+}

@@ -242,6 +242,14 @@
                  "WILL": "OLB2", "SCB": "CB1", "WCB": "CB2", "SS": "SS1", "FS": "FS1"},
       "nickel": {"SDE": "DE1", "WDE": "DE2", "DT": "DT1", "NT": "DT2", "MIKE": "MLB1", "WILL": "OLB1",
                  "NB": "CB3", "SCB": "CB1", "WCB": "CB2", "SS": "SS1", "FS": "FS1"}
+    },
+    "special_units": {
+      "kickoff": {"K": "K1", "L5": "CB3", "L4": "SS2", "L3": "OLB3", "L2": "MLB2", "L1": "OLB4", "R1": "OLB5", "R2": "MLB3", "R3": "FS2", "R4": "CB4", "R5": "CB5"},
+      "kickoff_return": {"KR": "RB2", "F1": "OLB3", "F2": "TE3", "F3": "MLB2", "F4": "TE4", "F5": "OLB4", "M1": "FB1", "M2": "OLB5", "M3": "SS2", "U1": "WR5", "U2": "RB3"},
+      "punt": {"LS": "LS1", "LG": "OG3", "RG": "OG4", "LT": "TE3", "RT": "TE4", "GL": "CB3", "GR": "CB4", "WL": "OLB3", "WR": "MLB2", "PP": "FS2", "P": "P1"},
+      "punt_return": {"PR": "WR4", "L1": "DE3", "L2": "DT3", "L3": "DT4", "L4": "DE4", "L5": "OLB3", "L6": "MLB2", "JL": "CB3", "JR": "CB4", "M": "SS2", "U": "RB2"},
+      "field_goal": {"LS": "LS1", "LG": "OG1", "RG": "OG2", "LT": "OT1", "RT": "OT2", "LE": "TE1", "RE": "TE2", "WL": "OG3", "WR": "OT3", "H": "P1", "K": "K1"},
+      "fg_rush": {"E1": "DE1", "E2": "DE2", "R1": "DE3", "R2": "DT1", "R3": "DT2", "R4": "DT3", "R5": "DT4", "R6": "DE4", "B1": "OLB1", "B2": "MLB1", "S": "FS1"}
     }
   }
 }

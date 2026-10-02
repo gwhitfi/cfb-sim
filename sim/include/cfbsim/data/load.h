@@ -60,6 +60,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
 CarrierTuning parse_carrier_tuning(const Json& json, const std::string& source);
 TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source);
 GameTuning parse_game_tuning(const Json& json, const std::string& source);
+SpecialTuning parse_special_tuning(const Json& json, const std::string& source);
 RulesTable parse_rules(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------

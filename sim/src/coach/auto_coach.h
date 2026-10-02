@@ -33,6 +33,7 @@ class AutoCoach {
     KickChoice fourth_down(const GameState& g, double kick_distance) const;
     bool go_for_two(const GameState& g) const;  // after a touchdown, margin before the try
     bool runoff(const GameState& g) const;      // take a 10-second runoff (offended team)
+    std::string kickoff_kind(const GameState& g) const;  // deep, squib, or onside
 
   private:
     const DataSet& data_;

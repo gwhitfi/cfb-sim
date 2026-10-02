@@ -20,7 +20,9 @@
   },
 
   "spots": {
-    "kickoff_touchback": 25,        // own yard line
+    "kickoff_from": 35,             // the kicking team's own yard line
+    "kickoff_touchback": 25,        // own yard line (also a fair catch inside the 25)
+    "kickoff_out_of_bounds": 30,    // yd past the kick spot: an untouched kickoff out of bounds
     "touchback": 20,                // punts, interceptions, fumbles
     "try": 3,                       // yd from the goal line, kick or two
     "overtime_start": 25,           // the opponent's 25

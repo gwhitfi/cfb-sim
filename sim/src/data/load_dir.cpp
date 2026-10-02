@@ -92,6 +92,7 @@ LoadReport load_data_dir(const fs::path& root) {
     load_tuning("carrier.json", parse_carrier_tuning, data.tuning.carrier);
     load_tuning("tackling.json", parse_tackling_tuning, data.tuning.tackling);
     load_tuning("game.json", parse_game_tuning, data.tuning.game);
+    load_tuning("special.json", parse_special_tuning, data.tuning.special);
     if (const fs::path rules = root / "rules" / "ncaa_fbs.json"; !fs::exists(rules)) {
         report.errors.push_back("rules/ncaa_fbs.json: file not found");
     } else if (auto r = load(rules, parse_rules)) {

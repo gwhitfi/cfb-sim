@@ -1,0 +1,57 @@
+{
+  // Kicks, returns, and coverage (phase 9; docs/design/movement-and-interaction.md#special-teams-phase-9).
+  "format_version": 1,
+
+  "kickoff": {
+    "approach": 1.0,                // s from the start until the kicker reaches the tee
+    "deep_distance": {"curve": "linear", "points": [[0, 52], [100, 70]]},  // Kick Power -> yd in the air
+    "deep_hang": {"curve": "linear", "points": [[0, 3.4], [100, 4.2]]},    // s
+    "distance_sd": 3.5,             // yd
+    "lateral_sd": {"curve": "linear", "points": [[0, 7], [100, 2.5]]},     // Kick Accuracy -> yd
+    "squib_hang": 1.6,
+    "onside_hang": 0.8,
+    "short_sd": 2.0                 // yd: squib and onside landing error
+  },
+
+  "punt": {
+    "snap_speed": {"curve": "linear", "points": [[0, 12], [100, 19]]},     // Snapping -> yd/s
+    "hold": {"curve": "linear", "points": [[0, 1.3], [100, 0.9]]},         // Decisions -> s from his catch to the kick
+    "distance": {"curve": "linear", "points": [[0, 30], [100, 46]]},       // Punt Power -> yd past the line in the air
+    "hang": {"curve": "linear", "points": [[0, 3.5], [100, 4.6]]},
+    "distance_sd": 4.5,
+    "lateral_sd": {"curve": "linear", "points": [[0, 9], [100, 3.5]]},     // Punt Accuracy -> yd
+    "coffin": 13                    // yd short of the goal line he aims when he could reach the end zone
+  },
+
+  "field_goal": {
+    "snap_speed": {"curve": "linear", "points": [[0, 12], [100, 19]]},
+    "hold": {"curve": "linear", "points": [[0, 0.75], [100, 0.45]]},      // holder blend -> s to spot the ball
+    "holder": {"catching": 0.6, "concentration": 0.4},
+    "speed": {"curve": "linear", "points": [[0, 23.5], [100, 28.0]]},     // Kick Power -> yd/s off the foot
+    "speed_sd": 0.03,               // share
+    "angle_deg": 33,
+    "aim_sd_deg": {"curve": "linear", "points": [[0, 5.0], [100, 1.9]]},  // Kick Accuracy -> deg
+    "hold_sd_deg": 1.0,             // extra for a poor hold (x (1 - holder/100))
+    "composure_sd_deg": 0.8,        // extra under a rush, x (1 - Composure/100)
+    "post_half_width": 3.08,        // yd (18 ft 6 in apart)
+    "crossbar": 3.33,               // yd (10 ft)
+    "block_window": 3.0,            // yd from the kick point the ball is low enough to block
+    "block_height": 2.7,            // yd a rusher reaches with a jump (plus Jumping)
+    "block_chance": 0.5
+  },
+
+  "returns": {
+    "catch_range": 1.6,             // yd: he fields a kick this close
+    "muff_punt": {"curve": "linear", "points": [[0, 0.12], [100, 0.015]]},    // Catching -> chance
+    "muff_kickoff": {"curve": "linear", "points": [[0, 0.06], [100, 0.005]]},
+    "fair_catch_kickoff": 1.2,      // s: coverage this close (or closer) to the catch: fair catch inside the 25
+    "fair_catch_punt": -0.5,
+    "touchback_depth": 1.0,         // yd deep in the end zone: deeper than this he takes the touchback ...
+    "end_zone_return": 0.25,        // ... else he returns it this often
+    "let_bounce": 10,               // yd: a punt coming down inside his own 10, he lets it go
+    "set_depth": 12,                // yd in front of the catch the blockers set up
+    "hold_up": 1.2,                 // s the punt return line holds up
+    "jam": 2.5,                     // s the jammers stay on the gunners
+    "protect_release": 0.3          // s after the punt the protection releases into coverage
+  }
+}

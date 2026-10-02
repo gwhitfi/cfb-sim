@@ -18,7 +18,7 @@ enum class EnforceSpot : std::uint8_t {
     DeadBall,              // pre-snap: the line of scrimmage, no play
     SpotOfFoul,            // where the foul happened (grounding)
     PreviousOrFoulBeyond,  // previous spot, or the spot of the foul if beyond the line (holding)
-    SpotCapped,            // DPI: the spot of the foul, at most `yards` past the line
+    SpotCapped,            // DPI: the spot of the foul, at most yards past the line
     EndOfPlay,             // where the play ended (roughing, facemask)
 };
 inline constexpr std::array<EnumName<EnforceSpot>, 6> kEnforceSpotNames{{
@@ -52,6 +52,8 @@ struct RulesTable {
     double first_down = 10.0;
     double kickoff_touchback = 25.0, touchback = 20.0, try_line = 3.0, overtime_start = 25.0;
     double safety_kick_from = 20.0;
+    double kickoff_from = 35.0;           // the kicking team's own yard line
+    double kickoff_out_of_bounds = 30.0;  // yd from the kick spot the receivers get it
     std::map<std::string, PenaltyRule, std::less<>> penalties;
 
     // Throws std::out_of_range for an unknown foul type.

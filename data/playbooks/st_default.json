@@ -1,0 +1,161 @@
+{
+  // Special teams (phase 9). Coordinates are in the kicking team's frame:
+  // +y toward the receiving goal line, +x to the kicker's right.
+  "format_version": 1,
+  "id": "st_default",
+  "name": "Special Teams",
+  "side": "special",
+  "scheme": "special",
+  "formations": ["kickoff_std", "kickoff_return_std", "punt_spread", "punt_return_std",
+                 "field_goal_std", "fg_block_std"],
+  "plays": [
+    {
+      "id": "kickoff_deep",
+      "name": "Kickoff: Deep Middle",
+      "side": "kicking",
+      "type": "kickoff",
+      "formation": "kickoff_std",
+      "kick": {"kind": "deep", "target": {"x": 0, "y": {"from": "goal_line", "offset": -2}}, "hang": "high"},
+      "assignments": {
+        "K":  {"kick": true, "then": {"safety": true}},
+        "L5": {"contain": true}, "R5": {"contain": true},
+        "L4": {"cover_lane": {"x": -15}}, "L3": {"cover_lane": {"x": -9}},
+        "L2": {"cover_lane": {"x": -5}},  "L1": {"cover_lane": {"x": -2}},
+        "R1": {"cover_lane": {"x": 2}},   "R2": {"cover_lane": {"x": 5}},
+        "R3": {"cover_lane": {"x": 9}},   "R4": {"cover_lane": {"x": 15}}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "kickoff_squib",
+      "name": "Kickoff: Squib",
+      "side": "kicking",
+      "type": "kickoff",
+      "formation": "kickoff_std",
+      "kick": {"kind": "squib", "target": {"x": 0, "y": {"from": "goal_line", "offset": -25}}},
+      "assignments": {
+        "K":  {"kick": true, "then": {"safety": true}},
+        "L5": {"contain": true}, "R5": {"contain": true},
+        "L4": {"cover_lane": {"x": -15}}, "L3": {"cover_lane": {"x": -9}},
+        "L2": {"cover_lane": {"x": -5}},  "L1": {"cover_lane": {"x": -2}},
+        "R1": {"cover_lane": {"x": 2}},   "R2": {"cover_lane": {"x": 5}},
+        "R3": {"cover_lane": {"x": 9}},   "R4": {"cover_lane": {"x": 15}}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "kickoff_onside",
+      "name": "Kickoff: Onside Right",
+      "side": "kicking",
+      "type": "kickoff",
+      "formation": "kickoff_std",
+      "kick": {"kind": "onside", "target": {"x": 9, "y": {"from": "restraining_line", "offset": 2}}},
+      "assignments": {
+        "K":  {"kick": true, "then": {"safety": true}},
+        "L5": {"recover": true}, "L4": {"recover": true}, "L3": {"recover": true},
+        "L2": {"recover": true}, "L1": {"recover": true},
+        "R1": {"recover": true}, "R2": {"recover": true}, "R3": {"recover": true},
+        "R4": {"recover": true}, "R5": {"recover": true}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "kr_middle",
+      "name": "Kickoff Return: Middle",
+      "side": "receiving",
+      "type": "kickoff_return",
+      "formation": "kickoff_return_std",
+      "return": {"scheme": "middle", "aim": {"x": 0, "y": {"from": "goal_line", "offset": -30}}, "free_after": "aim"},
+      "assignments": {
+        "KR": {"return": true},
+        "F1": {"return_block": {"rule": "count_from_outside"}},
+        "F2": {"return_block": {"rule": "count_from_outside"}},
+        "F3": {"return_block": {"rule": "count_from_outside"}},
+        "F4": {"return_block": {"rule": "count_from_outside"}},
+        "F5": {"return_block": {"rule": "count_from_outside"}},
+        "M1": {"return_block": {"rule": "wedge"}},
+        "M2": {"return_block": {"rule": "wedge"}},
+        "M3": {"return_block": {"rule": "wedge"}},
+        "U1": {"return_block": {"rule": "first_threat"}},
+        "U2": {"return_block": {"rule": "first_threat"}}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "punt_normal",
+      "name": "Punt",
+      "side": "kicking",
+      "type": "punt",
+      "formation": "punt_spread",
+      "kick": {"kind": "normal", "target": "auto"},
+      "assignments": {
+        "LS": {"long_snap": true, "then": {"protect": true, "then": {"cover_lane": {"x": 0}}}},
+        "LG": {"protect": true, "then": {"cover_lane": {"x": -4}}},
+        "RG": {"protect": true, "then": {"cover_lane": {"x": 4}}},
+        "LT": {"protect": true, "then": {"cover_lane": {"x": -9}}},
+        "RT": {"protect": true, "then": {"cover_lane": {"x": 9}}},
+        "GL": {"gunner": true},
+        "GR": {"gunner": true},
+        "WL": {"protect": true, "then": {"contain": true}},
+        "WR": {"protect": true, "then": {"contain": true}},
+        "PP": {"protect": true, "then": {"safety": true}},
+        "P":  {"punt": true, "then": {"safety": true}}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "pr_middle",
+      "name": "Punt Return: Hold Up Middle",
+      "side": "receiving",
+      "type": "punt_return",
+      "formation": "punt_return_std",
+      "return": {"scheme": "middle", "aim": {"x": 0, "y": 30}, "free_after": "aim"},
+      "assignments": {
+        "PR": {"return": true},
+        "L1": {"hold_up": true, "then": {"return_block": {"rule": "wall"}}},
+        "L2": {"hold_up": true, "then": {"return_block": {"rule": "wall"}}},
+        "L3": {"hold_up": true, "then": {"return_block": {"rule": "wall"}}},
+        "L4": {"hold_up": true, "then": {"return_block": {"rule": "wall"}}},
+        "L5": {"hold_up": true, "then": {"return_block": {"rule": "wall"}}},
+        "L6": {"hold_up": true, "then": {"return_block": {"rule": "wall"}}},
+        "JL": {"jam": true, "then": {"return_block": {"rule": "first_threat"}}},
+        "JR": {"jam": true, "then": {"return_block": {"rule": "first_threat"}}},
+        "M":  {"return_block": {"rule": "first_threat"}},
+        "U":  {"return_block": {"rule": "first_threat"}}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "fg_kick",
+      "name": "Field Goal",
+      "side": "kicking",
+      "type": "field_goal",
+      "formation": "field_goal_std",
+      "kick": {"kind": "field_goal", "target": "auto"},
+      "assignments": {
+        "LS": {"long_snap": true, "then": {"protect": true}},
+        "LG": {"protect": true}, "RG": {"protect": true},
+        "LT": {"protect": true}, "RT": {"protect": true},
+        "LE": {"protect": true}, "RE": {"protect": true},
+        "WL": {"protect": true}, "WR": {"protect": true},
+        "H":  {"hold": true},
+        "K":  {"kick": true}
+      },
+      "tags": ["base"]
+    },
+    {
+      "id": "fg_block",
+      "name": "Field Goal Block",
+      "side": "receiving",
+      "type": "field_goal_block",
+      "formation": "fg_block_std",
+      "assignments": {
+        "E1": {"rush": {"lane": "contain"}}, "E2": {"rush": {"lane": "contain"}},
+        "R1": {"rush": {"gap": "C"}}, "R2": {"rush": {"gap": "B"}}, "R3": {"rush": {"gap": "A"}},
+        "R4": {"rush": {"gap": "A"}}, "R5": {"rush": {"gap": "B"}}, "R6": {"rush": {"gap": "C"}},
+        "B1": {"safety": true}, "B2": {"safety": true}, "S": {"safety": true}
+      },
+      "tags": ["base"]
+    }
+  ]
+}

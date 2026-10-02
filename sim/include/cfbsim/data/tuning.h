@@ -493,14 +493,31 @@ struct GameTuning {
     double personal_aggression = 0.5, personal_dirtiness = 0.5;  // personal fouls x (0.5 + blend/100)
     double grounding = 0.9, tackle_box = 4.5;
 
-    // Kicking stubs.
-    double punt_net = 40.0, punt_seconds = 8.0, fg_seconds = 5.0, safety_kick_to = 30.0;
-    Curve fg_make;         // kick distance (yd) -> make rate
-    Blend kicker;
-    double kicker_effect = 0.004;
-
     // The temporary auto coach.
     double fg_range = 52.0, go_distance = 2.0, late_seconds = 300.0;
+};
+
+// data/tuning/special.json: kicks, returns, coverage (phase 9).
+struct SpecialTuning {
+    // Kickoffs.
+    double ko_approach = 1.0;
+    Curve ko_deep_distance, ko_deep_hang, ko_lateral_sd;
+    double ko_distance_sd = 3.5, ko_squib_hang = 1.0, ko_onside_hang = 0.45, ko_short_sd = 2.0;
+    // Punts.
+    Curve punt_snap_speed, punt_hold, punt_distance, punt_hang, punt_lateral_sd;
+    double punt_distance_sd = 4.5, punt_coffin = 8.0;
+    // Field goals.
+    Curve fg_snap_speed, fg_hold, fg_speed, fg_aim_sd;
+    Blend fg_holder;
+    double fg_speed_sd = 0.03, fg_angle_deg = 33.0, fg_hold_sd = 1.0, fg_composure_sd = 0.8;
+    double post_half_width = 3.08, crossbar = 3.33;
+    double block_window = 3.0, block_height = 2.7, block_chance = 0.5;
+    // Returns.
+    double catch_range = 1.6;
+    Curve muff_punt, muff_kickoff;
+    double fair_catch_kickoff = 1.2, fair_catch_punt = 0.7;
+    double touchback_depth = 1.0, end_zone_return = 0.25, let_bounce = 10.0;
+    double set_depth = 12.0, hold_up = 1.2, jam = 1.5, protect_release = 0.3;
 };
 
 struct Tuning {
@@ -512,6 +529,7 @@ struct Tuning {
     CarrierTuning carrier;
     TacklingTuning tackling;
     GameTuning game;
+    SpecialTuning special;
 };
 
 }  // namespace cfbsim

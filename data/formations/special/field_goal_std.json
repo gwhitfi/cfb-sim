@@ -1,0 +1,21 @@
+{
+  // In the kicking team's frame (see kickoff_std.json).
+  "format_version": 1,
+  "id": "field_goal_std",
+  "name": "Field Goal",
+  "side": "kicking",
+  "unit": "field_goal",
+  "slots": {
+    "LS": {"pos": "LS",  "x": 0,    "y": -1, "stance": "snap", "on_line": true},
+    "LG": {"pos": "any", "x": -1.3, "y": -1, "on_line": true},
+    "RG": {"pos": "any", "x": 1.3,  "y": -1, "on_line": true},
+    "LT": {"pos": "any", "x": -2.6, "y": -1, "on_line": true},
+    "RT": {"pos": "any", "x": 2.6,  "y": -1, "on_line": true},
+    "LE": {"pos": "any", "x": -3.9, "y": -1, "on_line": true},
+    "RE": {"pos": "any", "x": 3.9,  "y": -1, "on_line": true},
+    "WL": {"pos": "any", "x": -5.0, "y": -2},
+    "WR": {"pos": "any", "x": 5.0,  "y": -2},
+    "H":  {"pos": "any", "x": 0,    "y": -7},
+    "K":  {"pos": "K",   "x": -1.5, "y": -9.5}
+  }
+}

@@ -103,6 +103,7 @@ GeneratorTemplates parse_generator_templates(const Json& json, const std::string
     const Reader depth = root.at("depth_chart");
     out.offense_personnel = parse_maps(depth.at("offense_personnel"));
     out.defense_packages = parse_maps(depth.at("defense_packages"));
+    if (auto special = depth.find("special_units")) out.special_units = parse_maps(*special);
     return out;
 }
 
@@ -257,6 +258,7 @@ class Generator {
         }
         t.depth_chart.offense_personnel = templates_.offense_personnel;
         t.depth_chart.defense_packages = templates_.defense_packages;
+        t.depth_chart.special_units = templates_.special_units;
         return t;
     }
 

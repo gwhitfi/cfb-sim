@@ -31,6 +31,7 @@ struct GeneratorTemplates {
     std::vector<std::string> last_names;
     std::map<std::string, SlotMap, std::less<>> offense_personnel;
     std::map<std::string, SlotMap, std::less<>> defense_packages;
+    std::map<std::string, SlotMap, std::less<>> special_units;
 
     const PositionTemplate* find(Position pos) const;
 };

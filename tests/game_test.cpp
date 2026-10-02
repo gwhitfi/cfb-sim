@@ -117,11 +117,13 @@ TEST(Game, InjuredPlayersAreReplaced) {
 }
 
 TEST(Game, OvertimeEndsWithAWinner) {
-    // One-second quarters: regulation ends 0-0, so it goes to overtime.
+    // One-second quarters: regulation usually ends 0-0 (unless a kickoff is
+    // returned for a touchdown), so it goes to overtime.
     DataSet d = data();
     d.rules.quarter_seconds = 1.0;
     GameResult r;
-    const std::string log = game_log(d, 6, &r);
+    std::string log;
+    for (std::uint64_t seed = 6; seed < 16 && r.overtimes == 0; ++seed) log = game_log(d, seed, &r);
     EXPECT_GE(r.overtimes, 1);
     EXPECT_NE(r.score[0], r.score[1]);
     EXPECT_GE(count(log, R"("event":"overtime")"), 1);

@@ -49,6 +49,9 @@ nlohmann::ordered_json box_score_json(const BoxScore& box) {
                               {"penalties", s.penalties},
                               {"penalty_yds", r1(s.penalty_yds)},
                               {"punts", s.punts},
+                              {"punt_yds", r1(s.punt_yds)},
+                              {"kick_returns", {s.kr_att, r1(s.kr_yds)}},
+                              {"punt_returns", {s.pr_att, r1(s.pr_yds)}},
                               {"field_goals", {s.fg_made, s.fg_att}},
                               {"timeouts_used", s.timeouts_used},
                               {"possession", mmss(s.possession_seconds)},
@@ -66,6 +69,9 @@ nlohmann::ordered_json box_score_json(const BoxScore& box) {
         if (p.fumbles) pj["fumbles"] = {{"fumbles", p.fumbles}, {"lost", p.fumbles_lost}};
         if (p.fg_att || p.xp_att) pj["kicking"] = {{"fg", {p.fg_made, p.fg_att}}, {"long", r1(p.fg_long)}, {"xp", {p.xp_made, p.xp_att}}};
         if (p.punts) pj["punting"] = {{"punts", p.punts}, {"yds", r1(p.punt_yds)}};
+        if (p.kickoffs) pj["kickoffs"] = {{"kickoffs", p.kickoffs}, {"touchbacks", p.touchbacks}};
+        if (p.kr_att) pj["kick_returns"] = {{"att", p.kr_att}, {"yds", r1(p.kr_yds)}, {"td", p.kr_td}};
+        if (p.pr_att) pj["punt_returns"] = {{"att", p.pr_att}, {"yds", r1(p.pr_yds)}, {"td", p.pr_td}};
         j["players"].push_back(pj);
     }
     return j;
@@ -123,7 +129,13 @@ std::string box_score_text(const BoxScore& box, const DataSet& data) {
     show("3rd down", [](const TeamStats& s) { return std::to_string(s.third_conv) + "/" + std::to_string(s.third_att); });
     show("4th down", [](const TeamStats& s) { return std::to_string(s.fourth_conv) + "/" + std::to_string(s.fourth_att); });
     show("Penalties (no-yds)", [](const TeamStats& s) { return std::to_string(s.penalties) + "-" + std::to_string(yd(s.penalty_yds)); });
-    show("Punts", [](const TeamStats& s) { return std::to_string(s.punts); });
+    show("Punts (no-avg)", [](const TeamStats& s) {
+        char b[32];
+        std::snprintf(b, sizeof b, "%d-%.1f", s.punts, s.punts ? s.punt_yds / s.punts : 0.0);
+        return std::string(b);
+    });
+    show("Kick returns (no-yds)", [](const TeamStats& s) { return std::to_string(s.kr_att) + "-" + std::to_string(yd(s.kr_yds)); });
+    show("Punt returns (no-yds)", [](const TeamStats& s) { return std::to_string(s.pr_att) + "-" + std::to_string(yd(s.pr_yds)); });
     show("Field goals", [](const TeamStats& s) { return std::to_string(s.fg_made) + "/" + std::to_string(s.fg_att); });
     show("Possession", [](const TeamStats& s) { return mmss(s.possession_seconds); });
     show("Injuries", [](const TeamStats& s) { return std::to_string(s.injuries); });

@@ -1,6 +1,6 @@
 {
   // The game flow's modeled pieces: tempo, fatigue, substitutions, injuries,
-  // foul rates, and the kicking stubs (docs/design/rules-and-flow.md#first-build-phase-8).
+  // and foul rates (kicks are in special.json) (docs/design/rules-and-flow.md#first-build-phase-8).
   "format_version": 1,
 
   "tempo": {
@@ -53,16 +53,6 @@
     "personal": {"aggression": 0.5, "dirtiness": 0.5},  // personal fouls x (0.5 + this/100)
     "grounding": 0.25,              // a throwaway from inside the tackle box
     "tackle_box": 4.5               // yd either side of the ball
-  },
-
-  "kicking": {
-    "punt_net": 40,
-    "punt_seconds": 8,
-    "fg_seconds": 5,
-    "safety_kick_to": 30,           // the receiving team starts at its own 30 (free kick stub)
-    "fg_make": {"curve": "linear", "points": [[20, 0.97], [30, 0.92], [40, 0.80], [50, 0.62], [55, 0.45], [60, 0.25], [65, 0.05], [70, 0.0]]},
-    "kicker": {"kick_power": 0.4, "kick_accuracy": 0.6},
-    "kicker_effect": 0.004          // make rate per point of the kicker blend over 50
   },
 
   // The temporary auto coach (phase 10 replaces it).

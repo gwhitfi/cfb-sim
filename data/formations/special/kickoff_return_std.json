@@ -1,0 +1,21 @@
+{
+  // In the kicking team's frame (see kickoff_std.json): +y is away from the kicker.
+  "format_version": 1,
+  "id": "kickoff_return_std",
+  "name": "Kickoff Return",
+  "side": "receiving",
+  "unit": "kickoff_return",
+  "slots": {
+    "F1": {"pos": "any", "x": -18, "y": {"from": "restraining_line", "offset": 5}},
+    "F2": {"pos": "any", "x": -9,  "y": {"from": "restraining_line", "offset": 5}},
+    "F3": {"pos": "any", "x": 0,   "y": {"from": "restraining_line", "offset": 5}},
+    "F4": {"pos": "any", "x": 9,   "y": {"from": "restraining_line", "offset": 5}},
+    "F5": {"pos": "any", "x": 18,  "y": {"from": "restraining_line", "offset": 5}},
+    "M1": {"pos": "any", "x": -10, "y": {"from": "goal_line", "offset": -28}},
+    "M2": {"pos": "any", "x": 0,   "y": {"from": "goal_line", "offset": -30}},
+    "M3": {"pos": "any", "x": 10,  "y": {"from": "goal_line", "offset": -28}},
+    "U1": {"pos": "any", "x": -5,  "y": {"from": "goal_line", "offset": -15}},
+    "U2": {"pos": "any", "x": 5,   "y": {"from": "goal_line", "offset": -15}},
+    "KR": {"pos": "any", "x": 0,   "y": {"from": "goal_line", "offset": -3}}
+  }
+}

@@ -7,6 +7,26 @@ import type { TrackingEvent } from "./tracking";
 export function describeEvent(ev: TrackingEvent): string {
   const f = ev.fields;
   switch (ev.event) {
+    case "kick":
+      return `kickoff (${f.kind}), ${yd(f.distance)} in the air, ${Number(f.hang).toFixed(1)} s hang`;
+    case "punt":
+      return `punt, ${yd(f.distance)} past the line, ${Number(f.hang).toFixed(1)} s hang`;
+    case "return_plan":
+      return `${f.player} plans to ${text(f.plan).replace(/_/g, " ")}`;
+    case "fielded":
+      return `${f.player} fields it`;
+    case "fair_catch":
+      return `fair catch by ${f.player}`;
+    case "muff":
+      return `MUFFED by ${f.player}, the ball is loose`;
+    case "field_goal_try":
+      return `${yd(f.distance)} field goal try`;
+    case "kick_good":
+      return "the kick is GOOD";
+    case "kick_no_good":
+      return f.short ? "the kick is short" : "the kick is NO GOOD";
+    case "blocked_kick":
+      return `BLOCKED by ${f.player}`;
     case "split":
       return `${f.player}: ${f.yards} yd in ${Number(f.time).toFixed(2)} s`;
     case "throw":

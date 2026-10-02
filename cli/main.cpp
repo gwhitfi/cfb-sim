@@ -18,6 +18,7 @@
 #include "cfbsim/data/load.h"
 #include "cfbsim/drills/drills.h"
 #include "cfbsim/gen/roster_gen.h"
+#include "cfbsim/play/kick_sim.h"
 #include "cfbsim/play/play_sim.h"
 #include "cfbsim/rules/game.h"
 #include "cfbsim/version.h"
@@ -66,6 +67,11 @@ void print_usage() {
            "      --runs N              plays per matchup (default 100), spread over both\n"
            "                            hashes and the middle, flipped and not\n"
            "      --plays a,b  --defs c,d   only these plays\n"
+           "  run-kick                one kicking play: kickoff, punt, or field goal (phase 9)\n"
+           "      --team ID (kicking, default state_u) --vs ID (receiving, default tech)\n"
+           "      --kick ID (default kickoff_deep) --return ID (default by kick type)\n"
+           "      --yard-line N (kicking team's own; default 35 kickoff, 30 punt, 70 FG)\n"
+           "      --seed N  --runs N (summarize)  --out FILE.jsonl\n"
            "  play-game               a full game, both teams on the auto coach\n"
            "      --home ID --away ID   (default state_u vs tech)   --game FILE  a game setup file\n"
            "      --seed N (default 1)  --log FILE.gamelog.jsonl   --box FILE.json\n"
@@ -147,7 +153,7 @@ int cmd_generate_team(const Options& opt) {
     identity.color_secondary = opt.get("secondary", identity.color_secondary);
     identity.offense_playbook = opt.get("offense", "spread_base");
     identity.defense_playbook = opt.get("defense", "43_base");
-    identity.special_playbook = opt.get("special");
+    identity.special_playbook = opt.get("special", "st_default");
 
     int talent = 50;
     std::uint64_t seed = 1;
@@ -756,6 +762,67 @@ std::function<std::unique_ptr<std::ostream>(const std::string&)> tracking_files(
     };
 }
 
+int cmd_run_kick(const Options& opt) {
+    const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
+    if (!report.ok()) {
+        std::cerr << "cfbsim: data errors (run validate)\n";
+        return 1;
+    }
+    cfbsim::KickOptions o;
+    o.kicking_team = opt.get("team", "state_u");
+    o.receiving_team = opt.get("vs", "tech");
+    o.kick_play = opt.get("kick", "kickoff_deep");
+    const bool punt = o.kick_play.starts_with("punt");
+    const bool fg = o.kick_play.starts_with("fg");
+    o.return_play = opt.get("return", punt ? "pr_middle" : fg ? "fg_block" : "kr_middle");
+    o.yard_line = std::stod(opt.get("yard-line", punt ? "30" : fg ? "70" : "35"));
+    o.seed = std::stoull(opt.get("seed", "1"));
+    const int runs = std::stoi(opt.get("runs", "1"));
+    std::map<std::string, int> results;
+    double distance = 0.0, hang = 0.0, ret = 0.0, net = 0.0, seconds = 0.0;
+    int returns = 0;
+    for (int k = 0; k < runs; ++k) {
+        cfbsim::KickOptions ok = o;
+        ok.seed = o.seed + static_cast<std::uint64_t>(k);
+        std::ofstream file;
+        std::unique_ptr<cfbsim::TrackingWriter> writer;
+        if (k == 0 && opt.has("out")) {
+            file.open(opt.get("out"));
+            writer = std::make_unique<cfbsim::TrackingWriter>(file);
+        }
+        cfbsim::KickResult r;
+        try {
+            r = cfbsim::run_kick(report.data, ok, writer.get());
+        } catch (const std::exception& e) {
+            std::cerr << "cfbsim: " << e.what() << "\n";
+            return 1;
+        }
+        if (runs == 1) std::cout << r.summary << "\n";
+        ++results[r.result];
+        distance += r.kick_distance;
+        hang += r.hang;
+        seconds += r.seconds;
+        if (r.result == "returned" || r.result == "touchdown") {
+            ++returns;
+            ret += r.return_yards;
+        }
+        net += r.kick_distance - r.return_yards;
+    }
+    if (runs > 1) {
+        const double n = runs;
+        std::printf("%d kicks: %s at the %s %.0f\n", runs, o.kick_play.c_str(), fg ? "opponent's" : "own",
+                    fg ? 100.0 - o.yard_line : o.yard_line);
+        for (const auto& [name, count] : results) std::printf("  %-20s %5.1f%%\n", name.c_str(), 100.0 * count / n);
+        if (!fg) {
+            std::printf("  kick distance %.1f yd, hang %.2f s, net %.1f yd\n", distance / n, hang / n, net / n);
+            std::printf("  returns: %d, %.1f yd each\n", returns, returns ? ret / returns : 0.0);
+        }
+        std::printf("  play length %.1f s\n", seconds / n);
+    }
+    if (opt.has("out")) std::cout << "wrote " << opt.get("out") << "\n";
+    return 0;
+}
+
 int cmd_play_game(const Options& opt) {
     const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
     if (!report.ok()) {
@@ -814,6 +881,11 @@ int cmd_play_game(const Options& opt) {
                 a.penalties += s.penalties;
                 a.penalty_yds += s.penalty_yds;
                 a.punts += s.punts;
+                a.punt_yds += s.punt_yds;
+                a.kr_att += s.kr_att;
+                a.kr_yds += s.kr_yds;
+                a.pr_att += s.pr_att;
+                a.pr_yds += s.pr_yds;
                 a.fg_att += s.fg_att;
                 a.fg_made += s.fg_made;
                 a.timeouts_used += s.timeouts_used;
@@ -849,6 +921,18 @@ int cmd_play_game(const Options& opt) {
         row("penalties", [](const cfbsim::TeamStats& s) { return double(s.penalties); });
         row("penalty yds", [](const cfbsim::TeamStats& s) { return s.penalty_yds; });
         row("punts", [](const cfbsim::TeamStats& s) { return double(s.punts); });
+        const auto avg = [&](const char* label, auto num, auto den) {
+            std::printf("%-26s %10.1f %10.1f\n", label, den(sum[0]) > 0.0 ? num(sum[0]) / den(sum[0]) : 0.0,
+                        den(sum[1]) > 0.0 ? num(sum[1]) / den(sum[1]) : 0.0);
+        };
+        avg("punt avg (gross)", [](const cfbsim::TeamStats& s) { return s.punt_yds; },
+            [](const cfbsim::TeamStats& s) { return double(s.punts); });
+        row("kick returns", [](const cfbsim::TeamStats& s) { return double(s.kr_att); });
+        avg("kick return avg", [](const cfbsim::TeamStats& s) { return s.kr_yds; },
+            [](const cfbsim::TeamStats& s) { return double(s.kr_att); });
+        row("punt returns", [](const cfbsim::TeamStats& s) { return double(s.pr_att); });
+        avg("punt return avg", [](const cfbsim::TeamStats& s) { return s.pr_yds; },
+            [](const cfbsim::TeamStats& s) { return double(s.pr_att); });
         row("field goals made", [](const cfbsim::TeamStats& s) { return double(s.fg_made); });
         row("field goals tried", [](const cfbsim::TeamStats& s) { return double(s.fg_att); });
         row("timeouts used", [](const cfbsim::TeamStats& s) { return double(s.timeouts_used); });
@@ -952,6 +1036,7 @@ int main(int argc, char* argv[]) {
     if (command == "run-play") return cmd_run_play(opt);
     if (command == "matrix") return cmd_matrix(opt);
     if (command == "play-game") return cmd_play_game(opt);
+    if (command == "run-kick") return cmd_run_kick(opt);
     if (command == "replay") return cmd_replay(drill, opt);
 
     std::cerr << "cfbsim: unknown command '" << command << "'\n\n";

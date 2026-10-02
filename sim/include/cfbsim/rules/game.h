@@ -48,6 +48,9 @@ struct PlayerStats {
     int tackles = 0, sacks = 0, def_int = 0, fumbles = 0, fumbles_lost = 0, fum_rec = 0;
     int fg_att = 0, fg_made = 0, xp_att = 0, xp_made = 0, punts = 0;
     double fg_long = 0.0, punt_yds = 0.0;
+    int kickoffs = 0, touchbacks = 0;
+    int kr_att = 0, kr_td = 0, pr_att = 0, pr_td = 0;
+    double kr_yds = 0.0, pr_yds = 0.0;
 };
 
 struct TeamStats {
@@ -60,6 +63,9 @@ struct TeamStats {
     int penalties = 0;
     double penalty_yds = 0.0;
     int punts = 0, fg_att = 0, fg_made = 0;
+    double punt_yds = 0.0;  // gross
+    int kr_att = 0, pr_att = 0;
+    double kr_yds = 0.0, pr_yds = 0.0;
     int timeouts_used = 0;
     double possession_seconds = 0.0;
     int injuries = 0;

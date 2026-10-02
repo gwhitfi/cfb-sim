@@ -13,6 +13,7 @@
 #include <set>
 #include <sstream>
 
+#include "cfbsim/play/kick_sim.h"
 #include "cfbsim/version.h"
 #include "coach/auto_coach.h"
 #include "rules/clock.h"
@@ -116,7 +117,7 @@ class Game {
 
     // --- the flow ----------------------------------------------------------
     void coin_toss();
-    void kickoff(int kicking, bool free_kick);
+    SnapResult kickoff(int kicking, bool free_kick);
     void end_quarter();
     void overtime();
     void series(int team, int ot);
@@ -135,12 +136,18 @@ class Game {
     void enforce_presnap(const Foul& f);
     SnapResult punt();
     SnapResult field_goal();
-    void injuries(const PlayResult& r);
-    void wear(const PlayResult& r, double seconds);
+    // A play's work and injuries; `offense`: the team whose usage rows say offense.
+    void injuries(const std::vector<PlayerUsage>& usage, int offense);
+    void wear(const std::vector<PlayerUsage>& usage, int offense);
+    // One kicking play (phase 9): `kicking` kicks from its own `yard_line`.
+    KickResult kick_play(int kicking, double yard_line, PlayType type, const std::string& kind, Hash hash,
+                         bool timed = true);
+    // A kickoff or punt is over: who has the ball where, and the stats.
+    SnapResult after_return(const KickResult& k, int kicking, double yard_line);
+    void line_for_kick(const KickResult& k, int kicking, const std::string& before);
     void count_stats(const PlayResult& r, const Situation& before, const Next& standing);
     std::string spot_text(int team, double yl) const;
     std::string situation_text() const;
-    double kicker_skill(int t);
     // A player's box score line (created on first use).
     PlayerStats& stat(const std::string& id);
 
@@ -251,11 +258,6 @@ PlayerStats& Game::stat(const std::string& id) {
     return p;
 }
 
-double Game::kicker_skill(int t) {
-    const std::string k = lineup(t).starter(Position::K);
-    return tuning_.kicker(lineup(t).ratings(k));
-}
-
 // ---------------------------------------------------------------------------
 // The flow
 // ---------------------------------------------------------------------------
@@ -270,16 +272,174 @@ void Game::coin_toss() {
     event("coin_toss", {{"winner", team_key(toss_winner_)}, {"receives", team_key(first_receiver_)}});
 }
 
-void Game::kickoff(int kicking, bool free_kick) {
-    // Stubbed until phase 9: a touchback (or, after a safety, a set spot).
+SnapResult Game::kickoff(int kicking, bool free_kick) {
+    // (rules-and-flow.md#kicks-verify-stubbed-in-phase-8) The kicking team
+    // chooses deep, squib, or onside; the receivers answer with their return.
+    const Json c = ask("coaching_decision", kicking, [&] {
+        return Json{{"decision", "kickoff"}, {"choice", coach(kicking).kickoff_kind(g_)}};
+    });
+    const double from = free_kick ? rules_.safety_kick_from : rules_.kickoff_from;
+    const std::string before = std::string(free_kick ? "Free kick" : "Kickoff") + " from " + spot_text(kicking, from);
+    const KickResult k = kick_play(kicking, from, PlayType::Kickoff, c.value("choice", "deep"), Hash::Middle);
+    PlayerStats& ks = stat(k.kicker_id);
+    ++ks.kickoffs;
+    if (k.result == "touchback") ++ks.touchbacks;
+    const SnapResult out = after_return(k, kicking, from);
+    line_for_kick(k, kicking, before);
+    return out;
+}
+
+KickResult Game::kick_play(int kicking, double yard_line, PlayType type, const std::string& kind, Hash hash,
+                           bool timed) {
     const int receiving = 1 - kicking;
-    g_.offense = receiving;
-    g_.s = first_down_at(free_kick ? tuning_.safety_kick_to : rules_.kickoff_touchback, rules_);
-    g_.hash = Hash::Middle;
+    const Team& kt = team_of(kicking);
+    const Team& rt = team_of(receiving);
+    const auto find_play = [&](const Team& t, PlayType want, const std::string& k) -> const Play* {
+        const auto book = data_.playbooks.find(t.special_playbook);
+        if (book == data_.playbooks.end()) throw GameError(t.id + " has no special teams playbook");
+        const Play* first = nullptr;
+        for (const Play& p : book->second.plays) {
+            if (p.type != want) continue;
+            if (!first) first = &p;
+            if (!k.empty() && p.kick && p.kick->kind == k) return &p;
+        }
+        if (!first) throw GameError(t.id + " has no " + std::string(to_string(want)) + " play");
+        return first;
+    };
+    const PlayType answer = type == PlayType::Kickoff ? PlayType::KickoffReturn
+                            : type == PlayType::Punt  ? PlayType::PuntReturn
+                                                      : PlayType::FieldGoalBlock;
+    const Play* kp = find_play(kt, type, kind);
+    const Play* rp = find_play(rt, answer, "");
+    KickOptions o;
+    o.kicking_team = kt.id;
+    o.receiving_team = rt.id;
+    o.kick_play = kp->id;
+    o.return_play = rp->id;
+    o.yard_line = std::clamp(yard_line, 0.5, 99.5);
+    o.hash = hash;
+    o.kicking_right = (kicking == 0) == (g_.quarter % 2 == 1);
+    o.seed = rng_.next_u64();
+    o.kicking_home = kicking == 0;
+    const auto fill = [&](int team, const Play& play) {
+        const Team& t = team_of(team);
+        const Formation& f = data_.formations.at(play.formation);
+        const auto unit = t.depth_chart.special_units.find(f.special_unit);
+        if (unit == t.depth_chart.special_units.end()) {
+            throw GameError(t.id + " has no '" + f.special_unit + "' special teams unit");
+        }
+        std::vector<std::string> slots;
+        for (const FormationSlot& sl : f.slots) slots.push_back(sl.name);
+        return lineup(team).fill(unit->second, slots);
+    };
+    o.kicking_players = fill(kicking, *kp);
+    o.receiving_players = fill(receiving, *rp);
+    for (const auto& [slot, id] : o.kicking_players) o.modifiers[id] = lineup(kicking).modifiers(id);
+    for (const auto& [slot, id] : o.receiving_players) o.modifiers[id] = lineup(receiving).modifiers(id);
+
+    ++snaps_;
+    KickResult k;
+    try {
+        if (opt_.tracking) {
+            char num[8];
+            std::snprintf(num, sizeof num, "%03d", snaps_);
+            std::string clock = clock_text(g_.clock);
+            std::erase(clock, ':');
+            const std::unique_ptr<std::ostream> out = opt_.tracking(
+                std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + clock + "_" + team_key(kicking) + "_" + kp->id);
+            if (out) {
+                TrackingWriter writer(*out);
+                k = run_kick(data_, o, &writer);
+            } else {
+                k = run_kick(data_, o);
+            }
+        } else {
+            k = run_kick(data_, o);
+        }
+    } catch (const PlayError& e) {
+        throw GameError(std::string("kick ") + kp->id + ": " + e.what());
+    }
+    // The clock runs from the snap (punts, kicks) or the first touch (kickoffs).
+    if (timed && !g_.untimed && !g_.overtime() && g_.clock > 0.0) {
+        const double run = std::min(g_.clock, k.clock_seconds);
+        g_.clock -= run;
+        box_.teams[idx(type == PlayType::Kickoff ? receiving : kicking)].possession_seconds += run;
+    }
+    if (timed) g_.untimed = false;
+    g_.tick += ticks(k.seconds);
+    wear(k.usage, kicking);
+    injuries(k.usage, kicking);
+    return k;
+}
+
+SnapResult Game::after_return(const KickResult& k, int kicking, double yard_line) {
+    const int receiving = 1 - kicking;
+    const bool kickoff = k.type == PlayType::Kickoff;
+    // The receivers' own yard line where the ball is dead.
+    const double theirs = 100.0 - (yard_line + k.end_y);
+    if (!k.returner_id.empty() && (k.result == "returned" || k.result == "touchdown")) {
+        PlayerStats& r = stat(k.returner_id);
+        TeamStats& t = box_.teams[idx(receiving)];
+        if (kickoff) {
+            ++r.kr_att;
+            r.kr_yds += k.return_yards;
+            ++t.kr_att;
+            t.kr_yds += k.return_yards;
+            if (k.result == "touchdown") ++r.kr_td;
+        } else {
+            ++r.pr_att;
+            r.pr_yds += k.return_yards;
+            ++t.pr_att;
+            t.pr_yds += k.return_yards;
+            if (k.result == "touchdown") ++r.pr_td;
+        }
+    }
+    if (!k.tackler_id.empty()) ++stat(k.tackler_id).tackles;
     g_.clock_state = {ClockStart::OnSnap, true};
-    event(free_kick ? "free_kick" : "kickoff",
-          {{"kicking", team_key(kicking)}, {"result", free_kick ? "returned" : "touchback"},
-           {"spot", spot_text(receiving, g_.s.yard_line)}});
+    if (k.result == "touchdown") {
+        g_.score[idx(receiving)] += 6;
+        g_.offense = receiving;
+        return {SnapEnd::Touchdown, receiving};
+    }
+    if (k.kicking_ball) {
+        // An onside kick or a muff the kicking team fell on: its ball, first down.
+        g_.offense = kicking;
+        g_.s = first_down_at(std::clamp(yard_line + k.end_y, 1.0, 99.0), rules_);
+        g_.hash = hash_from(k.end_x);
+        return {};
+    }
+    double yl = theirs;
+    Hash hash = mirrored(hash_from(k.end_x));
+    if (k.result == "touchback") {
+        yl = kickoff ? rules_.kickoff_touchback : rules_.touchback;
+        hash = Hash::Middle;
+    } else if (k.result == "out_of_bounds" && kickoff) {
+        yl = 100.0 - (yard_line + rules_.kickoff_out_of_bounds);
+        hash = Hash::Middle;
+    } else if (k.result == "fair_catch" && kickoff) {
+        yl = std::max(theirs, rules_.kickoff_touchback);
+    }
+    if (yl <= 0.0) {
+        yl = kickoff ? rules_.kickoff_touchback : rules_.touchback;
+        hash = Hash::Middle;
+    }
+    g_.offense = receiving;
+    g_.s = first_down_at(std::min(yl, 99.0), rules_);
+    g_.hash = hash;
+    return {SnapEnd::Turnover, -1};
+}
+
+void Game::line_for_kick(const KickResult& k, int kicking, const std::string& before) {
+    Json pl = {{"type", "play"},  {"tick", g_.tick}, {"quarter", g_.quarter}, {"clock", clock_text(g_.clock)},
+               {"kicking", team_key(kicking)}, {"situation", before}, {"call", k.kind},
+               {"outcome", k.result}, {"summary", k.summary}};
+    if (k.result == "touchdown" || k.result == "made") {
+        pl["home"] = g_.score[0];
+        pl["away"] = g_.score[1];
+    } else {
+        pl["next"] = std::string(team_key(g_.offense)) + " ball, " + situation_text();
+    }
+    line(pl);
 }
 
 void Game::end_quarter() {
@@ -333,13 +493,16 @@ GameResult Game::run() {
             end_quarter();
             continue;
         }
+        SnapResult r;
         if (pending_kickoff_) {
-            kickoff(*pending_kickoff_, pending_free_kick_);
+            const int kicking = *pending_kickoff_;
+            const bool free_kick = pending_free_kick_;
             pending_kickoff_.reset();
             pending_free_kick_ = false;
-            continue;
+            r = kickoff(kicking, free_kick);
+        } else {
+            r = snap();
         }
-        const SnapResult r = snap();
         if (r.end == SnapEnd::Touchdown) {
             attempt_try(r.scorer, 0);
             pending_kickoff_ = r.scorer;
@@ -429,11 +592,15 @@ void Game::attempt_try(int team, int ot) {
         two = c.value("choice", "kick") == "two";
     }
     if (!two) {
-        const double p = std::clamp(tuning_.fg_make(rules_.try_line + 17.0) +
-                                        tuning_.kicker_effect * (kicker_skill(team) - 50.0),
-                                    0.0, 0.995);
-        const bool good = rng_.chance(p);
-        PlayerStats& k = stat(lineup(team).starter(Position::K));
+        const GameState saved = g_;
+        const KickResult kick = kick_play(team, 100.0 - rules_.try_line, PlayType::FieldGoal, "", Hash::Middle, false);
+        const std::array<int, 2> score = g_.score;
+        const std::int64_t tick = g_.tick;
+        g_ = saved;  // the try is untimed and leaves the game state alone
+        g_.score = score;
+        g_.tick = tick;
+        const bool good = kick.result == "made";
+        PlayerStats& k = stat(kick.kicker_id);
         ++k.xp_att;
         if (good) {
             ++k.xp_made;
@@ -459,7 +626,7 @@ bool Game::run_try_play(int team) {
     const PlayOptions o = play_options({call.value("play", ""), call.value("flip", false)}, dcall.value("play", ""));
     ++snaps_;
     const PlayResult r = run_tracked(o, o.play + "_try");
-    wear(r, 0.0);
+    wear(r.usage, g_.offense);
     bool good = false;
     if (r.outcome == "touchdown") {
         if (r.interception || r.fumble_lost) {
@@ -684,76 +851,55 @@ void Game::enforce_presnap(const Foul& f) {
 SnapResult Game::punt() {
     const int off = g_.offense;
     const double yl = g_.s.yard_line;
-    const double land = yl + tuning_.punt_net;
-    double their = 100.0 - land;
-    bool touchback = false;
-    if (their <= 0.0) {
-        their = rules_.touchback;
-        touchback = true;
-    }
-    PlayerStats& p = stat(lineup(off).starter(Position::P));
+    const std::string before = situation_text();
+    const KickResult k = kick_play(off, yl, PlayType::Punt, "", g_.hash);
+    PlayerStats& p = stat(k.kicker_id);
     ++p.punts;
-    p.punt_yds += (100.0 - yl) - their;
+    p.punt_yds += k.kick_distance;
     ++box_.teams[idx(off)].punts;
-    const double live = g_.untimed || g_.overtime() ? 0.0 : std::min(g_.clock, tuning_.punt_seconds);
-    g_.clock -= live;
-    box_.teams[idx(off)].possession_seconds += live;
-    g_.tick += ticks(tuning_.punt_seconds);
-    g_.untimed = false;
-    line({{"type", "play"}, {"tick", g_.tick}, {"quarter", g_.quarter}, {"clock", clock_text(g_.clock)},
-          {"offense", team_key(off)}, {"situation", situation_text()}, {"call", "punt"},
-          {"summary", touchback ? "Punt, touchback" : "Punt, " + std::to_string(static_cast<int>(tuning_.punt_net)) + " yd net"}});
-    g_.offense = 1 - off;
-    g_.s = first_down_at(their, rules_);
-    g_.hash = Hash::Middle;
-    g_.clock_state = {ClockStart::OnSnap, true};
-    return {SnapEnd::Turnover, -1};
+    box_.teams[idx(off)].punt_yds += k.kick_distance;
+    const SnapResult out = after_return(k, off, yl);
+    line_for_kick(k, off, before);
+    return out;
 }
 
 SnapResult Game::field_goal() {
     const int off = g_.offense;
     const double yl = g_.s.yard_line;
+    const std::string before = situation_text();
+    const KickResult k = kick_play(off, yl, PlayType::FieldGoal, "", g_.hash);
     const double distance = 100.0 - yl + 17.0;
-    const double p = std::clamp(tuning_.fg_make(distance) + tuning_.kicker_effect * (kicker_skill(off) - 50.0),
-                                0.0, 0.995);
-    const bool good = rng_.chance(p);
-    PlayerStats& k = stat(lineup(off).starter(Position::K));
-    ++k.fg_att;
+    PlayerStats& ks = stat(k.kicker_id);
+    ++ks.fg_att;
     ++box_.teams[idx(off)].fg_att;
-    const double live = g_.untimed || g_.overtime() ? 0.0 : std::min(g_.clock, tuning_.fg_seconds);
-    g_.clock -= live;
-    box_.teams[idx(off)].possession_seconds += live;
-    g_.tick += ticks(tuning_.fg_seconds);
-    g_.untimed = false;
+    const bool good = k.result == "made";
     if (good) {
-        ++k.fg_made;
+        ++ks.fg_made;
         ++box_.teams[idx(off)].fg_made;
-        k.fg_long = std::max(k.fg_long, std::round(distance));
+        ks.fg_long = std::max(ks.fg_long, std::round(distance));
         g_.score[idx(off)] += 3;
     }
-    line({{"type", "play"}, {"tick", g_.tick}, {"quarter", g_.quarter}, {"clock", clock_text(g_.clock)},
-          {"offense", team_key(off)}, {"situation", situation_text()}, {"call", "field_goal"},
-          {"summary", std::to_string(static_cast<int>(std::round(distance))) + " yd field goal " +
-                          (good ? "is good" : "is no good")},
-          {"home", g_.score[0]}, {"away", g_.score[1]}});
-    if (good) {
-        g_.clock_state = {ClockStart::OnSnap, true};
-        return {SnapEnd::FieldGoal, off};
-    }
-    // A miss: the defense takes over at the previous spot, or the 20.
-    g_.offense = 1 - off;
-    g_.s = first_down_at(std::max(100.0 - yl, rules_.touchback), rules_);
-    g_.hash = mirrored(g_.hash);
     g_.clock_state = {ClockStart::OnSnap, true};
-    return {SnapEnd::MissedKick, -1};
+    SnapResult out{SnapEnd::FieldGoal, off};
+    if (!good) {
+        // A miss: the defense takes over at the previous spot, or the 20; a
+        // block, where the ball was blocked.
+        g_.offense = 1 - off;
+        const double at = k.result == "blocked" ? std::clamp(100.0 - (yl + k.end_y), 1.0, 99.0)
+                                                : std::max(100.0 - yl, rules_.touchback);
+        g_.s = first_down_at(at, rules_);
+        g_.hash = mirrored(g_.hash);
+        out = {SnapEnd::MissedKick, -1};
+    }
+    line_for_kick(k, off, before);
+    return out;
 }
 
-void Game::wear(const PlayResult& r, double seconds) {
-    (void)seconds;
-    lineup(g_.offense).play(r.usage, true);
-    lineup(g_.defense()).play(r.usage, false);
+void Game::wear(const std::vector<PlayerUsage>& usage, int offense) {
+    lineup(offense).play(usage, true);
+    lineup(1 - offense).play(usage, false);
     last_on_field_.clear();
-    for (const PlayerUsage& u : r.usage) last_on_field_.insert(u.id);
+    for (const PlayerUsage& u : usage) last_on_field_.insert(u.id);
     for (int t = 0; t < 2; ++t) {
         for (const auto& [id, resting] : lineup(t).rest_changes()) {
             event(resting ? "sub_out" : "sub_in", {{"team", team_key(t)}, {"player", id},
@@ -762,9 +908,9 @@ void Game::wear(const PlayResult& r, double seconds) {
     }
 }
 
-void Game::injuries(const PlayResult& r) {
-    for (const PlayerUsage& u : r.usage) {
-        const int t = u.offense ? g_.offense : g_.defense();
+void Game::injuries(const std::vector<PlayerUsage>& usage, int offense) {
+    for (const PlayerUsage& u : usage) {
+        const int t = u.offense ? offense : 1 - offense;
         Lineup& l = lineup(t);
         const double prone = 0.5 + l.player(u.id).hidden.injury_proneness / 100.0;
         const double p = (tuning_.injury_snap + tuning_.injury_contact * u.contacts) * prone;
@@ -929,9 +1075,9 @@ SnapResult Game::snap() {
     const bool expired = timed && clock_before > 0.0 && g_.clock <= 0.0;
     const bool was_untimed = g_.untimed;
     g_.untimed = false;
-    wear(r, r.seconds);
+    wear(r.usage, off);
     const int injuries_before = box_.teams[0].injuries + box_.teams[1].injuries;
-    injuries(r);
+    injuries(r.usage, off);
     const bool injury = box_.teams[0].injuries + box_.teams[1].injuries > injuries_before;
 
     // Fouls: flagged, then the offended team accepts or declines.

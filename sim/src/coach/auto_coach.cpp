@@ -106,6 +106,13 @@ bool AutoCoach::go_for_two(const GameState& g) const {
     return m == -2 || m == -5 || m == -10 || m == 1 || m == 5;
 }
 
+std::string AutoCoach::kickoff_kind(const GameState& g) const {
+    // Onside when behind late, within two scores.
+    const int m = g.margin(side_);
+    if (g.quarter == 4 && g.clock <= 180.0 && m < 0 && m >= -16) return "onside";
+    return "deep";
+}
+
 bool AutoCoach::runoff(const GameState& g) const { return g.margin(side_) > 0; }
 
 }  // namespace cfbsim
