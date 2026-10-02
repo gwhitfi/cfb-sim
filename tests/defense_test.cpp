@@ -49,6 +49,23 @@ DataSet with_defense_attribute(Attr attr, double value) {
     return d;
 }
 
+// Takes the pass rush out of a test about coverage: linemen and
+// linebackers (the rushers and blitzers here; the coverage is all DBs) who
+// can't get off blocks and barely move, so the pocket holds past the QB's clock.
+void without_rush(DataSet& d) {
+    for (Player& p : d.rosters.at("tech").players) {
+        const Position pos = p.position;
+        if (pos != Position::DE && pos != Position::DT && pos != Position::OLB &&
+            pos != Position::MLB) {
+            continue;
+        }
+        for (const Attr a : {Attr::BlockShedding, Attr::PowerMoves, Attr::FinesseMoves,
+                             Attr::Speed, Attr::Acceleration}) {
+            p.attributes[a] = 1;
+        }
+    }
+}
+
 }  // namespace
 
 TEST(Defense, EveryPassPlayRunsAgainstEveryDefense) {
@@ -121,6 +138,9 @@ TEST(Defense, ManCoverageSkillMatters) {
     DataSet bad = with_defense_attribute(Attr::ManCoverage, 20);
     for (Player& p : good.rosters.at("tech").players) p.attributes[Attr::Anticipation] = 95;
     for (Player& p : bad.rosters.at("tech").players) p.attributes[Attr::Anticipation] = 20;
+    // Cover 0 brings six: without this the QB throws early against both.
+    without_rush(good);
+    without_rush(bad);
     EXPECT_GT(openness(bad), openness(good) + 0.05);
 }
 
@@ -138,8 +158,10 @@ TEST(Defense, BallSkillsMakeInterceptions) {
 }
 
 TEST(Defense, QbThrowsItAwayWhenNothingOpens) {
-    // A QB who never sees anything open enough throws it away when his time is up.
+    // A QB who never sees anything open enough throws it away when his time
+    // is up (no rush here: under pressure he throws it away sooner).
     DataSet d = data();
+    without_rush(d);
     d.tuning.passing.throw_threshold = Curve::linear({{0.0, 1.5}});
     d.tuning.passing.threshold_floor = 1.5;
     d.tuning.passing.give_up_seconds = 2.5;

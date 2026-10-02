@@ -25,6 +25,7 @@ add_library(cfbsim_core STATIC
     src/log/tracking.cpp
     src/physics/ball_flight.cpp
     src/physics/movement.cpp
+    src/play/engagements.cpp
     src/play/openness.cpp
     src/play/play_sim.cpp
     src/play/routes.cpp

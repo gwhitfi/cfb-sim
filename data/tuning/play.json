@@ -52,7 +52,8 @@
     "catch_range": 0.9        // yd: the QB catches a gun snap this close to his hands
   },
 
-  // Stand-ins until blocking exists (phase 6): linemen set or fire out and hold.
+  // Blockers with nobody to block (always, with no defense): set or fire out and hold.
+  // The back's check for blitzers is real blocking since phase 6 (blocking.json).
   "blocking_standin": {
     "pass_set_depth": 1.5,        // yd back
     "run_fire_out": 1.5,          // yd forward

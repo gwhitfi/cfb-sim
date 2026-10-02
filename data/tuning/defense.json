@@ -46,13 +46,13 @@
     "margin": 2.0            // yd he may leave his zone by
   },
 
-  // Stand-ins until blocking (phase 6) and tackling (phase 7).
+  // Stand-ins until tackling and run fits (phase 7). (The rush is in blocking.json.)
   "standin": {
     "gap_depth": 1.0,         // yd off the ball when filling a gap
     "alley": [3.0, 4.0],      // [yd outside the end of the line, yd deep]
     "force": [5.0, 2.0],
     "deep_fill": 8.0,         // yd deep in the middle
-    "contain_outside": 1.0,   // yd outside the end of the line (rush and run contain)
+    "contain_outside": 1.0,   // yd outside the end of the line (run contain)
     "pursue_lead": 0.4        // s ahead of the carrier pursuers aim
   },
 

@@ -386,3 +386,163 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
 }
 
 }  // namespace cfbsim
+
+namespace cfbsim {
+
+BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source) {
+    using detail::parse_blend;
+    using detail::parse_curve;
+    using detail::Reader;
+
+    const Reader root(json, source);
+    root.allow_only({"format_version", "engagement", "blends", "rush_moves", "rush", "protection",
+                     "run", "pocket"});
+    detail::require_format_version(root);
+    BlockingTuning t;
+
+    const Reader e = root.at("engagement");
+    e.allow_only({"contact_angle_deg", "recover_seconds", "immune_seconds", "control_rate",
+                  "control_noise", "skill_scale", "mass_points", "double_team_points",
+                  "pass_set_fade", "shed_rate", "shed_leverage", "shed_decay", "leverage_width", "push_speed",
+                  "contact_gap", "hold_gain", "shed_turn_deg", "break_distance",
+                  "pancake_run", "pancake_pass", "pancake_control", "down", "hold_at",
+                  "hold_skill", "hold_chance", "hold_setback"});
+    t.contact_angle_deg = e.number("contact_angle_deg");
+    t.recover_seconds = e.number("recover_seconds");
+    t.immune_seconds = e.number("immune_seconds");
+    t.control_rate = e.number("control_rate");
+    t.control_noise = e.number("control_noise");
+    t.skill_scale = e.number("skill_scale");
+    t.mass_points = e.number("mass_points");
+    t.double_team_points = e.number("double_team_points");
+    t.pass_set_fade = e.number("pass_set_fade");
+    t.shed_rate = e.number("shed_rate");
+    t.shed_leverage = e.number("shed_leverage");
+    t.shed_decay = e.number("shed_decay");
+    t.leverage_width = e.number("leverage_width");
+    t.push_speed = e.number("push_speed");
+    t.contact_gap = e.number("contact_gap");
+    t.hold_gain = e.number("hold_gain");
+    t.shed_turn_deg = e.number("shed_turn_deg");
+    t.break_distance = e.number("break_distance");
+    t.pancake_run = e.number("pancake_run");
+    t.pancake_pass = e.number("pancake_pass");
+    t.pancake_control = e.number("pancake_control");
+    std::tie(t.down_min, t.down_max) = parse_range(e.at("down"));
+    t.hold_at = e.number("hold_at");
+    t.hold_skill = parse_blend(e.at("hold_skill"));
+    t.hold_chance = parse_curve(e.at("hold_chance"));
+    t.hold_setback = e.number("hold_setback");
+
+    const Reader b = root.at("blends");
+    b.allow_only({"pass_block", "run_block", "space_block", "shed"});
+    t.pass_block = parse_blend(b.at("pass_block"));
+    t.run_block = parse_blend(b.at("run_block"));
+    t.space_block = parse_blend(b.at("space_block"));
+    t.shed = parse_blend(b.at("shed"));
+
+    const Reader m = root.at("rush_moves");
+    m.allow_only({"first", "interval", "interval_sd", "counter_seconds", "choice_sd", "power",
+                  "finesse", "power_counter", "finesse_counter", "scale", "power_win",
+                  "finesse_win", "failed_control"});
+    std::tie(t.move_first_min, t.move_first_max) = parse_range(m.at("first"));
+    t.move_interval = m.number("interval");
+    t.move_interval_sd = m.number("interval_sd");
+    t.counter_seconds = m.number("counter_seconds");
+    t.move_choice_sd = m.number("choice_sd");
+    t.power_move = parse_blend(m.at("power"));
+    t.finesse_move = parse_blend(m.at("finesse"));
+    t.power_counter = parse_blend(m.at("power_counter"));
+    t.finesse_counter = parse_blend(m.at("finesse_counter"));
+    t.move_scale = m.number("scale");
+    const Reader pw = m.at("power_win");
+    pw.allow_only({"control", "shed"});
+    t.power_control = pw.number("control");
+    t.power_shed = pw.number("shed");
+    const Reader fw = m.at("finesse_win");
+    fw.allow_only({"control", "shed", "leverage"});
+    t.finesse_control = fw.number("control");
+    t.finesse_shed = fw.number("shed");
+    t.finesse_leverage = fw.number("leverage");
+    t.failed_control = m.number("failed_control");
+
+    const Reader r = root.at("rush");
+    r.allow_only({"contain_outside", "lead"});
+    t.contain_outside = r.number("contain_outside");
+    t.rush_lead = r.number("lead");
+
+    const Reader p = root.at("protection");
+    p.allow_only({"skill", "pk_weight", "lag", "pickup_skill", "pickup_pk_weight", "pickup_lag",
+                  "rushing_line", "rushing_speed", "rushing_depth", "project_seconds",
+                  "area_half", "reach_outside", "taken_penalty", "depth_penalty",
+                  "switch_margin", "back_range", "on_him", "help_range", "set_lead", "set_front",
+                  "set_give", "back_front", "set_depth"});
+    t.pro_skill = parse_blend(p.at("skill"));
+    t.pro_pk_weight = p.number("pk_weight");
+    t.pro_lag = parse_curve(p.at("lag"));
+    t.pickup_skill = parse_blend(p.at("pickup_skill"));
+    t.pickup_pk_weight = p.number("pickup_pk_weight");
+    t.pickup_lag = parse_curve(p.at("pickup_lag"));
+    t.rushing_line = p.number("rushing_line");
+    t.rushing_speed = p.number("rushing_speed");
+    t.rushing_depth = p.number("rushing_depth");
+    t.project_seconds = p.number("project_seconds");
+    t.area_half = p.number("area_half");
+    t.reach_outside = p.number("reach_outside");
+    t.taken_penalty = p.number("taken_penalty");
+    t.depth_penalty = p.number("depth_penalty");
+    t.switch_margin = p.number("switch_margin");
+    t.back_range = p.number("back_range");
+    t.on_him = p.number("on_him");
+    t.help_range = p.number("help_range");
+    t.set_lead = p.number("set_lead");
+    t.set_front = p.number("set_front");
+    t.set_give = p.number("set_give");
+    t.back_front = p.number("back_front");
+    std::tie(t.set_depth_min, t.set_depth_range) = parse_range(p.at("set_depth"));
+
+    const Reader rb = root.at("run");
+    rb.allow_only({"down_lineman_depth", "lb_depth_max", "box_width", "reach_offset",
+                   "climb_range", "combo_seconds", "combo_control", "stalk_cushion",
+                   "pull_depth", "dl_gap_depth"});
+    t.down_lineman_depth = rb.number("down_lineman_depth");
+    t.lb_depth_max = rb.number("lb_depth_max");
+    t.box_width = rb.number("box_width");
+    t.reach_offset = rb.number("reach_offset");
+    t.climb_range = rb.number("climb_range");
+    t.combo_seconds = rb.number("combo_seconds");
+    t.combo_control = rb.number("combo_control");
+    t.stalk_cushion = rb.number("stalk_cushion");
+    t.pull_depth = rb.number("pull_depth");
+    t.dl_gap_depth = rb.number("dl_gap_depth");
+
+    const Reader q = root.at("pocket");
+    q.allow_only({"skill", "lag", "blind_deg", "blind_lag", "threat_time", "engaged_threat",
+                  "engaged_distance", "move_at", "step_up", "speed", "width", "front", "back",
+                  "pressure_decay", "hot_time", "hot_window", "hot_floor", "panic", "escape_chance",
+                  "composure_penalty", "pressure_radius"});
+    t.pocket_skill = parse_blend(q.at("skill"));
+    t.pocket_lag = parse_curve(q.at("lag"));
+    t.blind_deg = q.number("blind_deg");
+    t.blind_lag = parse_curve(q.at("blind_lag"));
+    std::tie(t.threat_near, t.threat_far) = parse_range(q.at("threat_time"));
+    t.engaged_threat = q.number("engaged_threat");
+    std::tie(t.engaged_near, t.engaged_far) = parse_range(q.at("engaged_distance"));
+    t.move_at = q.number("move_at");
+    t.step_up = q.number("step_up");
+    t.pocket_speed = q.number("speed");
+    t.pocket_width = q.number("width");
+    t.pocket_front = q.number("front");
+    t.pocket_back = q.number("back");
+    t.pressure_decay = q.number("pressure_decay");
+    t.hot_time = q.number("hot_time");
+    t.hot_window = q.number("hot_window");
+    t.hot_floor = q.number("hot_floor");
+    t.panic = q.number("panic");
+    t.escape_chance = parse_curve(q.at("escape_chance"));
+    t.composure_penalty = parse_curve(q.at("composure_penalty"));
+    t.pressure_radius = q.number("pressure_radius");
+    return t;
+}
+
+}  // namespace cfbsim

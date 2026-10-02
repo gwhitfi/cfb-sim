@@ -70,7 +70,7 @@ struct PlayTuning {
     double gun_snap_speed = 13.0;
     double snap_catch_range = 0.9;
 
-    // Stand-in blocking (until phase 6).
+    // Blockers with nobody to block (always, with no defense), and the back's check time.
     double pass_set_depth = 1.5;
     double run_fire_out = 1.5;
     double run_lean = 0.7;
@@ -218,11 +218,121 @@ struct DefenseTuning {
     double settle_range = 8.0;
 };
 
+// data/tuning/blocking.json: engagements, rush moves, pass protection, run
+// blocks, and the QB under pressure (movement-and-interaction.md#blocking--pass-rush-phase-6).
+struct BlockingTuning {
+    // Engagements.
+    double contact_angle_deg = 75.0;  // the blocker must face within this of the defender
+    double recover_seconds = 0.6;     // a shed blocker can't engage
+    double immune_seconds = 1.0;      // ... and can't re-engage the man who shed him
+    double control_rate = 2.0;        // per second, toward the target
+    double control_noise = 0.6;       // sd per sqrt(second)
+    double skill_scale = 20.0;        // target = tanh((B - D + mass + double) / scale)
+    double mass_points = 25.0;        // x ln(blocker lb / defender lb)
+    double double_team_points = 15.0;
+    double pass_set_fade = 0.25;      // pass sets: per second engaged, off the target's argument
+    double shed_rate = 2.5;           // per second x max(0, -control)
+    double shed_leverage = 0.5;       // shed rate x (1 - this x leverage)
+    double shed_decay = 0.3;          // per second x max(0, control)
+    double leverage_width = 0.8;      // yd of sideways offset for full leverage
+    double push_speed = 3.0;          // yd/s at full control
+    double contact_gap = 0.05;        // yd between the two bodies while engaged
+    double hold_gain = 4.0;           // per second: steering back to the contact spot
+    double shed_turn_deg = 70.0;      // the defender's spot turns this far around the blocker at shed 1
+    double break_distance = 2.2;      // yd: an engagement pulled further apart ends
+    double pancake_run = 0.15;        // per second while control > pancake_control
+    double pancake_pass = 0.05;
+    double pancake_control = 0.85;
+    double down_min = 1.0, down_max = 2.0;  // s on the ground
+    double hold_at = 0.75;            // shed progress where the blocker may grab
+    Blend hold_skill;
+    Curve hold_chance;                // skill -> chance
+    double hold_setback = 0.35;
+    Blend pass_block, run_block, space_block, shed;
+
+    // Rush moves.
+    double move_first_min = 0.3, move_first_max = 0.6;  // s after contact
+    double move_interval = 0.8, move_interval_sd = 0.2;
+    double counter_seconds = 0.4;
+    double move_choice_sd = 10.0;
+    Blend power_move, finesse_move, power_counter, finesse_counter;
+    double move_scale = 12.0;
+    double power_control = 0.6, power_shed = 0.15;
+    double finesse_control = 0.3, finesse_shed = 0.35, finesse_leverage = 0.5;
+    double failed_control = 0.25;
+
+    // Pass rush.
+    double contain_outside = 1.5;  // yd outside the end of the line
+    double rush_lead = 0.3;        // s ahead of the QB a free rusher aims
+
+    // Pass protection.
+    Blend pro_skill;
+    double pro_pk_weight = 0.2;
+    Curve pro_lag;           // skill -> s
+    Blend pickup_skill;      // backs
+    double pickup_pk_weight = 0.5;
+    Curve pickup_lag;
+    double rushing_line = 1.5;      // yd: a defender this close to the line (or past it) is rushing
+    double rushing_speed = 2.0;     // yd/s toward the QB ...
+    double rushing_depth = 6.0;     // ... within this far off the line
+    double project_seconds = 0.4;
+    double area_half = 0.8;         // yd either side of an area's center
+    double reach_outside = 2.5;     // yd outside his area he can still take a rusher
+    double taken_penalty = 3.0;     // yd: a rusher someone else has
+    double depth_penalty = 0.3;     // per yd of rusher depth (linemen)
+    double switch_margin = 1.5;     // yd
+    double back_range = 6.0;        // yd from the QB's x a back looks for a free rusher
+    double on_him = 1.5;            // yd: a blocker this close to a rusher's path can get him
+    double help_range = 1.0;        // yd outside his area he'll help on a double team
+    double set_lead = 0.3;          // s ahead of the rusher he sets to
+    double set_front = 1.0;         // yd in front of the rusher on his path to the QB
+    double set_give = 0.2;          // yd: a lineman's set spot is at least this far behind his stance
+    double back_front = 3.0;        // yd: a back meets a rusher no further than this in front of the QB
+    double set_depth_min = 1.5;     // max set depth = min + Footwork / 100 x range
+    double set_depth_range = 2.0;
+
+    // Run blocking.
+    double down_lineman_depth = 2.5;  // yd off the ball
+    double lb_depth_max = 7.0;
+    double box_width = 8.0;           // yd either side of the snapper
+    double reach_offset = 0.8;        // yd playside of the target he aims at
+    double climb_range = 3.0;         // yd: the linebacker this close
+    double combo_seconds = 1.0;
+    double combo_control = 0.3;
+    double stalk_cushion = 2.0;       // yd short of his man
+    double pull_depth = 1.5;          // yd behind the line on a pull
+    double dl_gap_depth = -0.5;       // yd: where a down lineman aims in his gap (past the line)
+
+    // The QB under pressure.
+    Blend pocket_skill;
+    Curve pocket_lag;          // skill -> s
+    double blind_deg = 100.0;  // defenders further than this off his facing
+    Curve blind_lag;           // Pocket Presence -> extra s on the blind side
+    double threat_near = 0.5, threat_far = 2.0;  // s: time_to_reach for threat 1 and 0
+    double engaged_threat = 0.7;
+    double engaged_near = 0.5, engaged_far = 2.5;  // yd
+    double move_at = 0.25;          // pressure where he starts to slide
+    double step_up = 0.5;           // forward bias when sliding
+    double pocket_speed = 3.0;      // yd/s
+    double pocket_width = 3.0;      // yd either side of the snapper
+    double pocket_front = 2.5;      // yd: never closer to the line
+    double pocket_back = 1.5;       // yd: never deeper than this behind his drop
+    double pressure_decay = 0.6;    // threshold drop per second x pressure
+    double hot_time = 1.6;          // s: an unblocked rusher this close sends him hot ...
+    double hot_window = 1.5;        // ... seen within this long after the snap (a blitz)
+    double hot_floor = 0.3;
+    double panic = 0.85;
+    Curve escape_chance;     // Pocket Presence -> chance he throws it away instead of taking the sack
+    Curve composure_penalty; // Composure -> placement sd x (1 + pressure x this)
+    double pressure_radius = 2.5;   // yd: a defender this close to the QB is pressure (stats)
+};
+
 struct Tuning {
     MovementTuning movement;
     PlayTuning play;
     PassingTuning passing;
     DefenseTuning defense;
+    BlockingTuning blocking;
 };
 
 }  // namespace cfbsim

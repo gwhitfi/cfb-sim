@@ -1,0 +1,126 @@
+{
+  // Blocking and the pass rush: engagements, rush moves, pass protection,
+  // run blocks, and the QB under pressure
+  // (docs/design/movement-and-interaction.md#blocking--pass-rush-phase-6).
+  "format_version": 1,
+
+  "engagement": {
+    "contact_angle_deg": 90,   // the blocker faces within this of the defender
+    "recover_seconds": 0.6,    // a shed blocker can't engage anyone
+    "immune_seconds": 1.0,     // ... nor the man who shed him
+    "control_rate": 2.0,       // per s, toward target = tanh((B - D + mass + double) / scale)
+    "control_noise": 1.1,      // sd per sqrt(s)
+    "skill_scale": 40,
+    "mass_points": 25,         // x ln(blocker lb / defender lb)
+    "double_team_points": 15,
+    "pass_set_fade": 0.6,      // pass sets can't hold forever: per s engaged, off the target's argument
+    "shed_rate": 2.0,          // per s x max(0, -control)
+    "shed_leverage": 0.5,      // x (1 - this x leverage)
+    "shed_decay": 0.3,         // per s x max(0, control)
+    "leverage_width": 0.8,     // yd sideways for full leverage
+    "push_speed": 3.0,         // yd/s at full control
+    "contact_gap": 0.05,       // yd between the bodies
+    "hold_gain": 4.0,          // per s: steering back to the contact spot
+    "shed_turn_deg": 70,       // the defender works this far around the blocker by shed 1
+    "break_distance": 2.2,     // yd: pulled further apart, the engagement ends
+    "pancake_run": 0.15,       // per s while control > pancake_control
+    "pancake_pass": 0.05,
+    "pancake_control": 0.85,
+    "down": [1.0, 2.0],        // s on the ground
+    "hold_at": 0.75,           // shed progress where the blocker may grab
+    "hold_skill": {"discipline": 0.5, "hand_technique": 0.5},
+    "hold_chance": {"curve": "linear", "points": [[0, 0.12], [100, 0.02]]},
+    "hold_setback": 0.35
+  },
+
+  "blends": {
+    "pass_block":  {"pass_blocking": 0.45, "footwork": 0.2, "strength": 0.15, "hand_technique": 0.1, "balance": 0.1},
+    "run_block":   {"run_blocking": 0.45, "strength": 0.25, "hand_technique": 0.15, "balance": 0.1, "footwork": 0.05},
+    "space_block": {"blocking_in_space": 0.5, "run_blocking": 0.2, "agility": 0.15, "strength": 0.15},
+    "shed":        {"block_shedding": 0.45, "strength": 0.25, "hand_technique": 0.2, "agility": 0.1}
+  },
+
+  "rush_moves": {
+    "first": [0.3, 0.6],       // s after contact
+    "interval": 0.8,
+    "interval_sd": 0.2,
+    "counter_seconds": 0.4,    // after a failed move, the other kind
+    "choice_sd": 10,
+    "power":   {"power_moves": 0.6, "strength": 0.4},
+    "finesse": {"finesse_moves": 0.5, "agility": 0.3, "acceleration": 0.2},
+    "power_counter":   {"strength": 0.4, "pass_blocking": 0.3, "balance": 0.3},
+    "finesse_counter": {"footwork": 0.4, "pass_blocking": 0.3, "agility": 0.3},
+    "scale": 12,
+    "power_win":   {"control": 0.5, "shed": 0.3},
+    "finesse_win": {"control": 0.4, "shed": 0.6, "leverage": 0.5},
+    "failed_control": 0.25
+  },
+
+  "rush": {
+    "contain_outside": 1.5,    // yd outside the end of the line
+    "lead": 0.3                // s ahead of the QB a free rusher aims
+  },
+
+  "protection": {
+    "skill": {"anticipation": 0.5, "footwork": 0.3},
+    "pk_weight": 0.2,
+    "lag": {"curve": "linear", "points": [[0, 0.35], [100, 0.1]]},
+    "pickup_skill": {"anticipation": 1.0},
+    "pickup_pk_weight": 0.5,
+    "pickup_lag": {"curve": "linear", "points": [[0, 0.5], [100, 0.15]]},
+    "rushing_line": 1.5,       // yd: this close to the line (or past it) is rushing
+    "rushing_speed": 2.0,      // yd/s toward the QB ...
+    "rushing_depth": 6.0,      // ... within this far off the line
+    "project_seconds": 0.4,
+    "area_half": 0.8,          // yd either side of an area's center
+    "reach_outside": 2.5,      // yd outside his area he can still take a rusher
+    "taken_penalty": 3.0,      // yd: a rusher someone else has
+    "depth_penalty": 0.3,      // per yd of depth (linemen take down linemen first)
+    "switch_margin": 1.5,      // yd
+    "back_range": 6.0,         // yd from the QB a back looks for a free rusher
+    "on_him": 1.5,             // yd: a blocker this close to a rusher's path can get to him
+    "help_range": 1.0,         // yd outside his area he'll help on a double team
+    "set_lead": 0.3,           // s ahead of the rusher
+    "set_front": 1.0,          // yd in front of the rusher
+    "set_give": 0.2,           // yd: a lineman sets at least this far behind his stance
+    "back_front": 3.0,         // yd: a back meets a rusher no further than this in front of the QB
+    "set_depth": [1.5, 2.0]    // max depth = first + Footwork / 100 x second
+  },
+
+  "run": {
+    "down_lineman_depth": 2.5, // yd off the ball
+    "lb_depth_max": 7.0,
+    "box_width": 8.0,          // yd either side of the snapper
+    "reach_offset": 0.8,       // yd playside of the target
+    "climb_range": 3.0,        // yd: the linebacker this close, the combo climbs
+    "combo_seconds": 1.0,      // ... or after this long if the other blocker has control
+    "combo_control": 0.3,
+    "stalk_cushion": 2.0,      // yd short of his man
+    "pull_depth": 1.2,         // yd behind the line
+    "dl_gap_depth": -0.5       // yd: a down lineman's run fit aims this far into his gap
+  },
+
+  "pocket": {
+    "skill": {"pocket_presence": 0.7, "anticipation": 0.3},
+    "lag": {"curve": "linear", "points": [[0, 0.4], [100, 0.1]]},
+    "blind_deg": 100,
+    "blind_lag": {"curve": "linear", "points": [[0, 0.25], [100, 0.0]]},  // Pocket Presence -> extra s
+    "threat_time": [0.5, 2.0], // s to reach the QB for threat 1 and 0
+    "engaged_threat": 0.7,
+    "engaged_distance": [0.5, 2.5],  // yd for threat 1 and 0 (x engaged_threat)
+    "move_at": 0.25,           // pressure where he starts to slide
+    "step_up": 0.5,
+    "speed": 3.0,              // yd/s
+    "width": 3.0,              // yd either side of the snapper
+    "front": 2.5,              // yd: never closer to the line
+    "back": 1.5,               // yd: never deeper behind his drop
+    "pressure_decay": 0.6,     // throw threshold drop per s x pressure
+    "hot_time": 1.6,           // s: an unblocked rusher this close sends him hot ...
+    "hot_window": 1.5,         // ... if he sees it this soon after the snap (a blitz)
+    "hot_floor": 0.3,
+    "panic": 0.85,
+    "escape_chance": {"curve": "linear", "points": [[0, 0.2], [100, 0.8]]},
+    "composure_penalty": {"curve": "linear", "points": [[0, 0.8], [100, 0.2]]},
+    "pressure_radius": 2.5     // yd: stats only (time to pressure)
+  }
+}

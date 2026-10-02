@@ -56,6 +56,7 @@ void print_usage() {
            "      --direction right|left  which way the offense goes (default right)\n"
            "      --seed N              --target SLOT  make the QB throw to SLOT\n"
            "      --no-huddle           start set and snap at once\n"
+           "      --hold                the QB never throws (time the protection)\n"
            "      --runs N              run N seeds (seed, seed+1, ...) and summarize\n"
            "      --out FILE.jsonl      write a tracking file (first run)   --data DIR\n"
            "  matrix                  every pass play against every defensive play\n"
@@ -321,6 +322,14 @@ int cmd_run_drill(const std::string_view drill, const Options& opt) {
     return 0;
 }
 
+// A pass play (the pocket and rush summary only means something for those).
+bool hold_or_pass(const cfbsim::DataSet& data, const cfbsim::PlayOptions& o) {
+    const auto team = data.teams.find(o.team);
+    if (team == data.teams.end()) return false;
+    const cfbsim::Play* play = data.playbooks.at(team->second.offense_playbook).find(o.play);
+    return play && play->type == cfbsim::PlayType::Pass;
+}
+
 int cmd_run_play(const Options& opt) {
     for (const char* required : {"team", "play"}) {
         if (!opt.has(required)) {
@@ -344,6 +353,7 @@ int cmd_run_play(const Options& opt) {
     o.target = opt.get("target");
     o.defense = opt.get("defense");
     o.defense_play = opt.get("def-play");
+    o.hold_ball = opt.has("hold");
     if (!o.defense.empty() && o.defense_play.empty()) {
         std::cerr << "cfbsim run-play: --defense needs --def-play\n";
         return 1;
@@ -379,7 +389,9 @@ int cmd_run_play(const Options& opt) {
 
     const int count = std::max(1, static_cast<int>(*runs));
     int complete = 0, touchdowns = 0, busts = 0, picks = 0;
-    double yards = 0.0;
+    int sacks = 0, pressured = 0, hot = 0, sheds = 0, pancakes = 0, holds = 0, moves = 0;
+    double yards = 0.0, pressure_time = 0.0, held_up = 0.0;
+    std::vector<double> pocket;  // per run: how long the pocket held
     struct TargetStats {
         int thrown = 0, complete = 0, picks = 0;
         double yards = 0.0, time = 0.0;
@@ -401,6 +413,19 @@ int cmd_run_play(const Options& opt) {
             busts += static_cast<int>(r.busts.size());
             picks += r.interception ? 1 : 0;
             yards += r.yards;
+            sacks += r.outcome == "sack" ? 1 : 0;
+            hot += r.hot ? 1 : 0;
+            sheds += r.sheds;
+            pancakes += r.pancakes;
+            holds += static_cast<int>(r.holds.size());
+            moves += r.rush_moves_won;
+            if (r.time_to_pressure >= 0.0) {
+                ++pressured;
+                pressure_time += r.time_to_pressure;
+            }
+            // How long the pocket held: until pressure, or the whole play.
+            held_up += r.time_to_pressure >= 0.0 ? r.time_to_pressure : r.seconds;
+            pocket.push_back(r.time_to_pressure >= 0.0 ? r.time_to_pressure : r.seconds);
             if (!r.target.empty()) {
                 TargetStats& ts = by_target[r.thrown_away ? "(away)" : r.target];
                 ++ts.thrown;
@@ -423,6 +448,18 @@ int cmd_run_play(const Options& opt) {
         std::printf(
             "%d runs: %d complete, %d intercepted, %d touchdowns, %d busts, %.1f yd per play\n",
             count, complete, picks, touchdowns, busts, yards / count);
+        if (!o.defense.empty() && hold_or_pass(report.data, o)) {
+            std::sort(pocket.begin(), pocket.end());
+            const auto pct = [&](double q) {
+                return pocket[std::min(pocket.size() - 1, static_cast<std::size_t>(q * static_cast<double>(pocket.size())))];
+            };
+            std::printf(
+                "  rush: %d sacks, pressure on %d (first at %.2f s avg), pocket held %.2f s avg "
+                "(10/50/90%%: %.2f %.2f %.2f), %d hot\n"
+                "  blocks: %d sheds, %d rush moves won, %d pancakes, %d holds\n",
+                sacks, pressured, pressured > 0 ? pressure_time / pressured : 0.0, held_up / count,
+                pct(0.1), pct(0.5), pct(0.9), hot, sheds, moves, pancakes, holds);
+        }
         for (const auto& [slot, ts] : by_target) {
             std::printf("  %-7s %4d thrown, %3.0f%% complete, %2d intercepted, %5.1f yd, %.2f s\n",
                         slot.c_str(), ts.thrown, 100.0 * ts.complete / ts.thrown, ts.picks,
@@ -503,7 +540,7 @@ int cmd_matrix(const Options& opt) {
     }
 
     struct Cell {
-        int success = 0, complete = 0, picks = 0, sacks = 0;
+        int success = 0, complete = 0, picks = 0, sacks = 0, pressured = 0, thrown = 0;
     };
     std::vector<std::vector<Cell>> cells(plays.size(), std::vector<Cell>(defs.size()));
     try {
@@ -525,6 +562,8 @@ int cmd_matrix(const Options& opt) {
                     c.success += r.complete && r.yards >= 4.0 ? 1 : 0;
                     c.picks += r.interception ? 1 : 0;
                     c.sacks += r.outcome == "sack" ? 1 : 0;
+                    c.pressured += r.time_to_pressure >= 0.0 ? 1 : 0;
+                    c.thrown += !r.target.empty() && !r.thrown_away ? 1 : 0;
                 }
             }
         }
@@ -552,6 +591,28 @@ int cmd_matrix(const Options& opt) {
     table("Success: complete for 4+ yd", [&](const Cell& c) { return pct(c.success); });
     table("Completion", [&](const Cell& c) { return pct(c.complete); });
     table("Interceptions", [&](const Cell& c) { return std::to_string(c.picks); });
+    table("Sacks", [&](const Cell& c) { return std::to_string(c.sacks); });
+    table("Pressured", [&](const Cell& c) { return pct(c.pressured); });
+
+    Cell all;
+    for (const auto& row : cells) {
+        for (const Cell& c : row) {
+            all.success += c.success;
+            all.complete += c.complete;
+            all.picks += c.picks;
+            all.sacks += c.sacks;
+            all.pressured += c.pressured;
+            all.thrown += c.thrown;
+        }
+    }
+    const double total = static_cast<double>(runs) * static_cast<double>(plays.size() * defs.size());
+    std::printf(
+        "\nAll %.0f plays: %.0f%% success, %.0f%% completion (%.0f%% of passes thrown), "
+        "%.1f%% intercepted, %.1f%% sacks, %.0f%% pressured\n",
+        total, 100.0 * all.success / total, 100.0 * all.complete / total,
+        all.thrown > 0 ? 100.0 * all.complete / all.thrown : 0.0,
+        all.thrown > 0 ? 100.0 * all.picks / all.thrown : 0.0, 100.0 * all.sacks / total,
+        100.0 * all.pressured / total);
     return 0;
 }
 

@@ -261,6 +261,70 @@
         "Z":  {"block": {"do": "stalk", "target": "man_over"}}
       },
       "tags": ["base", "inside", "short_yardage"]
+    },
+    {
+      "id": "sb_outside_zone",
+      "name": "Outside Zone",
+      "side": "offense",
+      "type": "run",
+      "formation": "singleback_2x2",
+      "flip": true,
+      "run": {
+        "scheme": "outside_zone",
+        "direction": "right",
+        "carrier": "RB",
+        "qb_action": {"do": "handoff", "then": "boot_fake_left"},
+        "path": [
+          {"x": 1.5, "y": -4.0, "type": "mesh"},
+          {"x": {"from": "gap_D", "side": "right", "offset": 1}, "y": -1, "type": "aim"}
+        ],
+        "free_after": "aim",
+        "reads": ["bounce", "bend", "bang"]
+      },
+      "assignments": {
+        "LT": {"block": {"do": "scheme"}},
+        "LG": {"block": {"do": "scheme"}},
+        "C":  {"block": {"do": "scheme"}},
+        "RG": {"block": {"do": "scheme"}},
+        "RT": {"block": {"do": "scheme"}},
+        "Y":  {"block": {"do": "scheme"}},
+        "X":  {"block": {"do": "stalk", "target": "man_over"}},
+        "H":  {"block": {"do": "stalk", "target": "man_over"}},
+        "Z":  {"block": {"do": "stalk", "target": "man_over"}}
+      },
+      "tags": ["base", "outside", "1st_down"]
+    },
+    {
+      "id": "sb_power",
+      "name": "Power",
+      "side": "offense",
+      "type": "run",
+      "formation": "singleback_2x2",
+      "flip": true,
+      "run": {
+        "scheme": "power",
+        "direction": "right",
+        "carrier": "RB",
+        "qb_action": {"do": "handoff", "then": "boot_fake_left"},
+        "path": [
+          {"x": 0.5, "y": -5.0, "type": "mesh"},
+          {"x": {"from": "gap_C", "side": "right"}, "y": -1, "type": "aim"}
+        ],
+        "free_after": "aim",
+        "reads": ["bang", "bend"]
+      },
+      "assignments": {
+        "LT": {"block": {"do": "cutoff", "target": "backside_gap"}},
+        "LG": {"block": {"do": "pull_kick", "target": "kick_out_man"}},
+        "C":  {"block": {"do": "scheme"}},
+        "RG": {"block": {"do": "scheme"}},
+        "RT": {"block": {"do": "scheme"}},
+        "Y":  {"block": {"do": "scheme"}},
+        "X":  {"block": {"do": "stalk", "target": "man_over"}},
+        "H":  {"block": {"do": "stalk", "target": "man_over"}},
+        "Z":  {"block": {"do": "stalk", "target": "man_over"}}
+      },
+      "tags": ["base", "short_yardage"]
     }
   ]
 }

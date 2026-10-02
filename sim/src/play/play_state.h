@@ -34,8 +34,38 @@ struct Actions {
         int from = -1;
         int to = -1;
     };
+    // A rusher's move against the blocker he's engaged with.
+    struct RushMove {
+        int from = -1;
+        bool power = true;  // power (bull rush, long arm) or finesse (swim, rip, spin)
+    };
     std::optional<Throw> throw_ball;
     std::optional<Handoff> handoff;
+    std::vector<RushMove> rush_moves;  // any number of rushers can try one on the same tick
+};
+
+// How a blocker is blocking, which picks the skill blend for his engagements.
+enum class BlockStyle : std::uint8_t { None, Pass, Run, Space };
+
+// A blocker and a defender locked together
+// (movement-and-interaction.md#blocking--pass-rush-phase-6).
+struct Engagement {
+    int blocker = -1;
+    int defender = -1;
+    int helper = -1;  // a second blocker (double team), or -1
+    BlockStyle style = BlockStyle::Run;
+    double control = 0.0;   // -1..1, positive = the blocker is winning
+    double shed = 0.0;      // 0..1, the defender is free at 1
+    double leverage = 0.0;  // -1..1, positive = the blocker is on the side the defender wants
+    double turn = 1.0;      // +1 / -1: which way the defender works around the blocker
+    Vec2 axis;              // field frame: blocker -> defender at contact
+    std::int64_t start_tick = 0;
+    std::int64_t helper_tick = 0;  // when the helper joined
+    bool hold_checked = false;
+    // The rusher's latest move: when, and whether it worked.
+    double last_move = -1.0;
+    bool last_move_won = false;
+    bool last_move_power = true;
 };
 
 // ---------------------------------------------------------------------------
@@ -93,6 +123,12 @@ class Behavior {
     virtual int covering() const { return -1; }
     // Receivers: seconds after the snap of his latest break.
     virtual double last_break() const { return -std::numeric_limits<double>::infinity(); }
+    // Blockers: the defender he's going for (agent index), or -1, and how
+    // he's blocking (None: he isn't a blocker right now).
+    virtual int block_target() const { return -1; }
+    virtual BlockStyle block_style() const { return BlockStyle::None; }
+    // QB: the pressure he feels (0..1).
+    virtual double pressure() const { return 0.0; }
 };
 
 // One player's place on this play.
@@ -183,6 +219,19 @@ class PlayState {
     // players who aren't running routes).
     std::vector<double> open;
 
+    // Blocking: the engagements in progress, and per agent the time (seconds
+    // after the snap) until which he is knocked down or recovering from a
+    // shed. `immune` pairs: a blocker who can't re-engage the man who shed him.
+    std::vector<Engagement> engagements;
+    std::vector<double> down_until;
+    std::vector<double> recover_until;
+    struct Immunity {
+        int blocker = -1;
+        int defender = -1;
+        double until = 0.0;
+    };
+    std::vector<Immunity> immune;
+
     // Behaviors, one per agent. The vector owns them: std::unique_ptr deletes
     // each behavior when it is replaced or when the PlayState goes away.
     std::vector<std::unique_ptr<Behavior>> behaviors;
@@ -252,6 +301,31 @@ class PlayState {
                                 ? behavior(qb)
                                 : nullptr;
         return b ? b->eyes() : -1;
+    }
+
+    // The engagement player i is in (as blocker, helper, or defender), or nullptr.
+    const Engagement* engagement_of(int i) const {
+        for (const Engagement& e : engagements) {
+            if (e.blocker == i || e.defender == i || e.helper == i) return &e;
+        }
+        return nullptr;
+    }
+    bool engaged(int i) const { return engagement_of(i) != nullptr; }
+    bool knocked_down(int i) const {
+        return !down_until.empty() && since_snap() < down_until[static_cast<std::size_t>(i)];
+    }
+    // Some blocker is engaged with, or going for, defender d.
+    bool blocked(int d) const {
+        for (const Engagement& e : engagements) {
+            if (e.defender == d) return true;
+        }
+        for (int i = 0; i < offense_count; ++i) {
+            if (behaviors[static_cast<std::size_t>(i)] &&
+                behaviors[static_cast<std::size_t>(i)]->block_target() == d) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Where player i was `lag` seconds ago, extended along his velocity then.

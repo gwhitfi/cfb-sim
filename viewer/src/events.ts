@@ -32,6 +32,20 @@ export function describeEvent(ev: TrackingEvent): string {
       return `handoff ${f.from} → ${f.to}`;
     case "bust":
       return `BUST ${f.player}: ${f.detail}`;
+    case "block":
+      return f.double ? `${f.player} doubles ${f.on}` : `${f.player} blocks ${f.on}`;
+    case "shed":
+      return `${f.player} sheds ${f.from}`;
+    case "rush_move":
+      return `${f.player} beats ${f.on} with a ${f.move} move`;
+    case "pancake":
+      return `PANCAKE: ${f.player} puts ${f.on} on the ground`;
+    case "holding":
+      return `HOLDING on ${f.player} (vs ${f.on})`;
+    case "climb":
+      return `${f.player} climbs to ${f.to}`;
+    case "hot":
+      return `${f.player} sees the blitz: hot read`;
     case "touchdown":
       return `touchdown (${yd(f.yards)})`;
     case "out_of_bounds":

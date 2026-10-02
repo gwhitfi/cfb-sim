@@ -55,6 +55,7 @@ MovementTuning parse_movement_tuning(const Json& json, const std::string& source
 PlayTuning parse_play_tuning(const Json& json, const std::string& source);
 PassingTuning parse_passing_tuning(const Json& json, const std::string& source);
 DefenseTuning parse_defense_tuning(const Json& json, const std::string& source);
+BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------
 // Everything in a data directory.

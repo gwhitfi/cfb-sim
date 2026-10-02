@@ -56,25 +56,80 @@ class RouteRunner final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Stand-in blocking until phase 6: move to a spot and hold it.
+// Pass protection (movement-and-interaction.md#pass-protection): own an area,
+// pick the rusher threatening it, set between him and the QB. A back
+// (`check_release`) looks for a free rusher and releases if none comes.
 // ---------------------------------------------------------------------------
-class StandInBlocker final : public Behavior {
+class PassBlocker final : public Behavior {
   public:
-    enum class Kind : std::uint8_t { PassSet, RunBlock, Stalk, CheckRelease };
+    struct Setup {
+        double area_x = 0.0;    // play frame: the center of his area
+        double area_half = 0.8;
+        bool back = false;      // a back checking for a free rusher
+        double release_at = std::numeric_limits<double>::infinity();  // back: s after the snap
+        double lag = 0.2;       // s: how late he sees rushers
+        double max_depth = 2.5; // yd behind his stance he may set
+        Vec2 home;              // field frame: his set spot with nobody to block
+        double start_y = -1.0;  // play frame: his stance
+    };
+    explicit PassBlocker(Setup setup) : s_(setup) {}
 
-    // `spot`: field frame. CheckRelease ends `until` seconds after the snap.
-    StandInBlocker(Kind kind, Vec2 spot, double until = 0.0)
-        : kind_(kind), spot_(spot), until_(until) {}
+    std::string_view name() const override { return s_.back ? "check_release" : "pass_set"; }
+    Intent decide(const PlayState& play, int self, Actions& actions) override;
+    bool done(const PlayState& play, int self) const override;
+    void draw(const PlayState& play, int self, Json& shapes) const override;
+    Key key() const override { return Key::PassSet; }
+    int block_target() const override { return target_; }
+    BlockStyle block_style() const override { return BlockStyle::Pass; }
+
+    // How much a rusher is his: sideways yd from his area (lower is
+    // stronger); kNoClaim if the rusher isn't coming or is out of range.
+    double claim(const PlayState& play, int defender) const;
+
+    static constexpr double kNoClaim = 1e9;
+    static constexpr double kBackClaim = 100.0;
+
+  private:
+    int pick_target(const PlayState& play, int self) const;
+    bool rushing(const PlayState& play, int defender, Vec2& pos, Vec2& vel) const;
+
+    Setup s_;
+    int target_ = -1;
+    bool picked_up_ = false;  // a back who found a rusher stays in to block
+};
+
+// ---------------------------------------------------------------------------
+// Run blocking (movement-and-interaction.md#run-blocking): one behavior set
+// up per action. Targets are resolved at the snap from the scheme's rules.
+// ---------------------------------------------------------------------------
+class RunBlocker final : public Behavior {
+  public:
+    enum class Action : std::uint8_t { Drive, Reach, Down, Combo, PullKick, PullLead, Stalk, Fire };
+    struct Setup {
+        Action action = Action::Fire;
+        int target = -1;         // agent index, or -1 (Fire: block whoever shows up)
+        int climb_to = -1;       // Combo, PullLead: the linebacker
+        double playside = 1.0;   // play-frame x sign of the play side
+        double lag = 0.2;
+        std::vector<Vec2> path;  // field frame: a pull's path before he turns up
+        Vec2 fire_spot;          // field frame: where he fires out with no target
+    };
+    explicit RunBlocker(Setup setup) : s_(std::move(setup)), target_(s_.target) {}
 
     std::string_view name() const override;
     Intent decide(const PlayState& play, int self, Actions& actions) override;
-    bool done(const PlayState& play, int self) const override;
-    Key key() const override;
+    void draw(const PlayState& play, int self, Json& shapes) const override;
+    Key key() const override { return s_.action == Action::Stalk ? Key::None : Key::RunBlock; }
+    int block_target() const override { return target_; }
+    BlockStyle block_style() const override;
 
   private:
-    Kind kind_;
-    Vec2 spot_;
-    double until_;
+    Vec2 drive_direction(const PlayState& play) const;  // field frame
+
+    Setup s_;
+    int target_;
+    bool climbing_ = false;
+    std::size_t path_next_ = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -91,6 +146,12 @@ class PassingQb final : public Behavior {
         double perceive_sd = 0.1;   // sd of his bias on a read's openness
         double threshold = 0.6;     // perceived openness he needs, before it decays
         double peripheral_rate = 1.0;  // per second
+        int hot = -1;                  // agent index of the hot read, or -1
+        double pocket_lag = 0.2;       // s: how late he senses rushers
+        double blind_lag = 0.1;        // s extra on his blind side
+        double escape_chance = 0.5;    // throws it away instead of taking a sack
+        bool hold = false;             // never throws (timing a protection)
+        Vec2 snapper;                  // play frame: the snapper at the snap
     };
 
     // `seed`: his own random stream (perception noise, peripheral vision),
@@ -102,12 +163,18 @@ class PassingQb final : public Behavior {
     void draw(const PlayState& play, int self, Json& shapes) const override;
     Key key() const override { return Key::Drop; }
     int eyes() const override;
+    double pressure() const override { return pressure_; }
+    bool went_hot() const { return went_hot_; }
 
   private:
     enum class Stage : std::uint8_t { WaitForBall, Drop, Set, Read, Deliver, Done };
 
     void look_at(std::size_t read, double now);
     double threshold(const PlayState& play) const;
+    // Senses the rush: sets pressure_, threat_, and unblocked_.
+    void sense(const PlayState& play, int self);
+    // Where to stand in the pocket this tick (field frame).
+    Vec2 pocket_spot(const PlayState& play, int self);
 
     Setup s_;
     Rng rng_;
@@ -122,6 +189,16 @@ class PassingQb final : public Behavior {
     std::vector<double> seen_;  // last perceived openness of each read (-1 = never looked)
     int target_ = -1;           // who he's throwing to
     bool away_ = false;         // throwing it away
+
+    double pressure_ = 0.0;     // sensed this tick
+    double pressure_time_ = 0.0;  // integral of pressure over time (speeds his decay)
+    int threat_ = -1;           // the biggest threat
+    Vec2 escape_;               // field frame: away from the threats, weighted by threat
+    bool unblocked_ = false;    // an unblocked rusher about to get to him
+    bool went_hot_ = false;
+    bool panic_rolled_ = false;
+    bool frozen_ = false;       // he failed to get rid of it: he'll take the sack
+    std::optional<Vec2> pocket_;  // field frame: where he's standing in the pocket
 };
 
 // ---------------------------------------------------------------------------
@@ -289,8 +366,33 @@ class ZoneCoverage final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Go to a spot and hold it: the pass rush (until phase 6), run fits (until
-// phase 7), and spies.
+// Pass rush (movement-and-interaction.md#pass-rush): through his lane, then
+// at the QB; rush moves while he's engaged.
+// ---------------------------------------------------------------------------
+class Rusher final : public Behavior {
+  public:
+    struct Setup {
+        double lane_x = 0.0;     // play frame: his lane at the line
+        double contain = 0.0;    // contain rushers: the sign of his outside, else 0
+        double power = 50.0;     // his power and finesse move skills
+        double finesse = 50.0;
+    };
+    Rusher(Setup setup, std::uint64_t seed) : s_(setup), rng_(seed) {}
+
+    std::string_view name() const override { return "rush"; }
+    Intent decide(const PlayState& play, int self, Actions& actions) override;
+
+  private:
+    Setup s_;
+    Rng rng_;
+    double next_move_ = -1.0;  // s after the snap
+    std::int64_t engaged_tick_ = -1;
+    double answered_ = -1.0;   // the latest move result he has reacted to
+    bool counter_ = false;     // the next move is a counter
+};
+
+// ---------------------------------------------------------------------------
+// Go to a spot and hold it: run fits (until phase 7) and spies.
 // ---------------------------------------------------------------------------
 class HoldSpot final : public Behavior {
   public:

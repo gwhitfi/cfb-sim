@@ -17,6 +17,7 @@
 #include "cfbsim/interaction/catch.h"
 #include "cfbsim/physics/ball_flight.h"
 #include "cfbsim/play/routes.h"
+#include "play/engagements.h"
 #include "play/openness.h"
 #include "play/play_state.h"
 #include "play/shapes.h"
@@ -104,7 +105,10 @@ class PlaySim {
           out_(out),
           world_(data.tuning.movement, opt.seed),
           state_(data, play, formation, book,
-                 PlayFrame(opt.yard_line, opt.hash, opt.offense_right, opt.flip), world_) {
+                 PlayFrame(opt.yard_line, opt.hash, opt.offense_right, opt.flip), world_),
+          blocking_(state_, [this](std::string_view name, Json fields) {
+              event(name, std::move(fields));
+          }) {
         state_.defense_play = defense.play;
         state_.defense_formation = defense.formation;
         state_.defense_book = defense.book;
@@ -116,6 +120,7 @@ class PlaySim {
     const PlayTuning& tuning() const { return state_.tuning().play; }
     const PassingTuning& passing() const { return state_.tuning().passing; }
     const DefenseTuning& defense() const { return state_.tuning().defense; }
+    const BlockingTuning& blocking() const { return state_.tuning().blocking; }
     std::size_t n() const { return state_.slots.size(); }
     Agent& agent(int i) { return world_.agents()[static_cast<std::size_t>(i)]; }
     void event(std::string_view name, Json fields = Json::object()) {
@@ -139,6 +144,13 @@ class PlaySim {
     std::unique_ptr<Behavior> first_behavior(int i);
     std::unique_ptr<Behavior> job_behavior(int i, const Job& job);
     std::unique_ptr<Behavior> route_behavior(int i, const Job& job);
+    std::unique_ptr<Behavior> pass_blocker(int i, const Job& job);
+    std::unique_ptr<Behavior> run_blocker(int i, const Job& job);
+    double playside() const;
+    BlockRule scheme_rule(int i, double side) const;
+    bool block_condition(int i, const std::string& condition, double side) const;
+    int block_target_for(int i, const std::string& target, double side) const;
+    std::vector<int> front(bool down_linemen) const;
     std::unique_ptr<Behavior> qb_behavior();
     std::unique_ptr<Behavior> carrier_behavior();
     Vec2 resolve_path_point(const PathPoint& p) const;
@@ -165,6 +177,7 @@ class PlaySim {
     void catch_ball(int receiver, Vec3 at);
     void intercept(int defender, Vec3 at);
     void check_rules();
+    void track_pressure();
     void whistle(const std::string& outcome);
 
     const PlayOptions& opt_;
@@ -175,6 +188,7 @@ class PlaySim {
     World world_;
     PlayState state_;
     PlayResult result_;
+    Engagements blocking_;
 
     std::vector<std::size_t> job_index_;  // per agent: his current job in the sequence
     std::vector<std::optional<Bust>> busts_;
@@ -283,6 +297,7 @@ void PlaySim::setup() {
     job_index_.assign(n(), 0);
     busts_.assign(n(), std::nullopt);
     tried_.assign(n(), false);
+    blocking_.setup();
 
     Ball& ball = world_.ball();
     ball.state = Ball::State::Spotted;
@@ -392,6 +407,7 @@ void PlaySim::write_frame() {
     Json dbg = Json::array();
     if (state_.snapped()) {
         for (int i = 0; i < state_.count(); ++i) state_.behavior(i)->draw(state_, i, dbg);
+        blocking_.draw(dbg);
         if (state_.gaps) {
             for (const Side side : {Side::Left, Side::Right}) {
                 for (const char letter : {'A', 'B', 'C', 'D'}) {
@@ -621,45 +637,306 @@ std::unique_ptr<Behavior> PlaySim::first_behavior(int i) {
     if (i == state_.run_carrier) return carrier_behavior();
     const SlotInfo& slot = state_.slots[static_cast<std::size_t>(i)];
     if (!slot.assignment || slot.assignment->sequence.empty()) {
-        // No job: stay put.
-        return std::make_unique<StandInBlocker>(StandInBlocker::Kind::RunBlock,
-                                                state_.agent(i).pos);
+        // No job: stay put and block whoever comes.
+        RunBlocker::Setup setup;
+        setup.fire_spot = state_.agent(i).pos;
+        return std::make_unique<RunBlocker>(std::move(setup));
     }
     return job_behavior(i, slot.assignment->sequence.front());
 }
 
 std::unique_ptr<Behavior> PlaySim::job_behavior(int i, const Job& job) {
-    const PlayTuning& t = tuning();
-    const Vec2 at = state_.play_pos(i);
-    const auto field = [&](Vec2 p) { return state_.frame.to_field(p); };
-
     if (job.kind == JobKind::Route) return route_behavior(i, job);
     if (job.kind != JobKind::Block) {
         throw PlayError(state_.slot_name(i) + ": '" + std::string(to_string(job.kind)) +
                         "' jobs aren't supported on offense");
     }
 
-    using Kind = StandInBlocker::Kind;
-    if (job.action == "protect" || job.action == "pass_set") {
-        return std::make_unique<StandInBlocker>(Kind::PassSet,
-                                                field(at + Vec2{0.0, -t.pass_set_depth}));
+    if (job.action == "protect" || job.action == "pass_set" || job.action == "check_release") {
+        return pass_blocker(i, job);
     }
+    return run_blocker(i, job);
+}
+
+double PlaySim::playside() const {
+    if (!state_.play.run) return 1.0;
+    const Side dir = state_.frame.flipped() ? mirrored(state_.play.run->direction)
+                                            : state_.play.run->direction;
+    return dir == Side::Left ? -1.0 : 1.0;
+}
+
+std::unique_ptr<Behavior> PlaySim::pass_blocker(int i, const Job& job) {
+    // (movement-and-interaction.md#pass-protection)
+    const BlockingTuning& t = blocking();
+    const SlotInfo& slot = state_.slots[static_cast<std::size_t>(i)];
+    const Attributes& r = state_.agent(i).ratings;
+    const double pk = effective_playbook_knowledge(slot.scheme_pk, slot.familiarity, tuning());
+    const Vec2 at = state_.play_pos(i);
+
+    PassBlocker::Setup s;
+    s.start_y = at.y;
+    s.max_depth = t.set_depth_min + r[Attr::Footwork] / 100.0 * t.set_depth_range;
     if (job.action == "check_release") {
-        return std::make_unique<StandInBlocker>(Kind::CheckRelease, field(at + Vec2{0.0, -0.5}),
-                                                t.check_release_seconds);
+        s.back = true;
+        s.release_at = tuning().check_release_seconds;
+        s.home = state_.frame.to_field(at + Vec2{0.0, -0.5});
+        s.lag = t.pickup_lag((1.0 - t.pickup_pk_weight) * t.pickup_skill(r) + t.pickup_pk_weight * pk);
+        return std::make_unique<PassBlocker>(s);
     }
-    if (job.action == "stalk") {
-        return std::make_unique<StandInBlocker>(Kind::Stalk, field(at + Vec2{0.0, t.stalk_depth}));
+    s.home = state_.frame.to_field(at + Vec2{0.0, -tuning().pass_set_depth});
+    s.lag = t.pro_lag((1.0 - t.pro_pk_weight) * t.pro_skill(r) + t.pro_pk_weight * pk);
+
+    // His area: with a slide, the snapper and the slide side own the gap
+    // toward the slide; the man side owns their own spot and inside gap.
+    std::vector<double> xs;  // every protector's x
+    for (int j = 0; j < state_.offense_count; ++j) {
+        const Assignment* a = state_.slots[static_cast<std::size_t>(j)].assignment;
+        if (!a || a->sequence.empty()) continue;
+        const Job& first = a->sequence.front();
+        if (first.kind == JobKind::Block && (first.action == "protect" || first.action == "pass_set")) {
+            xs.push_back(state_.play_pos(j).x);
+        }
     }
-    // Run blocks ("scheme", "drive", "reach", ...): fire out toward the play side.
-    double play_side = 0.0;
-    if (state_.play.run) {
-        const Side dir = state_.frame.flipped() ? mirrored(state_.play.run->direction)
-                                                : state_.play.run->direction;
-        play_side = dir == Side::Left ? -1.0 : 1.0;
+    const double cx = state_.play_pos(state_.center).x;
+    const double side = std::abs(at.x - cx) < 0.3 ? 0.0 : (at.x > cx ? 1.0 : -1.0);
+    double slide = 0.0;
+    if (state_.play.pass) {
+        Side dir = state_.play.pass->protection_direction;
+        if (state_.frame.flipped()) dir = mirrored(dir);
+        slide = dir == Side::Left ? -1.0 : dir == Side::Right ? 1.0 : 0.0;
     }
-    return std::make_unique<StandInBlocker>(
-        Kind::RunBlock, field(at + Vec2{play_side * t.run_lean, t.run_fire_out}));
+    s.area_x = at.x;
+    s.area_half = t.area_half;
+    if (slide != 0.0 && (side == 0.0 || side == slide)) {
+        double gap = 0.7;
+        for (const double x : xs) {
+            const double d = (x - at.x) * slide;
+            if (d > 0.3) gap = std::min(gap, d / 2.0);
+        }
+        s.area_x = at.x + slide * gap;
+    } else {
+        s.area_x = at.x - side * 0.35;
+    }
+    // The end man on each side also owns the edge.
+    bool outermost = side != 0.0;
+    for (const double x : xs) {
+        if ((x - at.x) * side > 0.3) outermost = false;
+    }
+    if (outermost) {
+        s.area_x += side * 0.5;
+        s.area_half += 0.5;
+    }
+    return std::make_unique<PassBlocker>(s);
+}
+
+std::vector<int> PlaySim::front(bool down_linemen) const {
+    // The defense as the blocking rules see it at the snap: down linemen
+    // (on the line) or linebackers (off it, in the box).
+    const BlockingTuning& t = blocking();
+    const double cx = state_.play_pos(state_.center).x;
+    std::vector<int> out;
+    for (int d = state_.offense_count; d < state_.count(); ++d) {
+        const Vec2 p = state_.play_pos(d);
+        if (std::abs(p.x - cx) > t.box_width) continue;
+        const bool down = p.y <= t.down_lineman_depth;
+        if (down_linemen ? down : (!down && p.y <= t.lb_depth_max)) out.push_back(d);
+    }
+    return out;
+}
+
+bool PlaySim::block_condition(int i, const std::string& condition, double side) const {
+    const double x = state_.play_pos(i).x;
+    for (const int d : front(true)) {
+        const double dx = state_.play_pos(d).x - x;
+        const double ps = dx * side;  // + toward the play side
+        if (condition == "covered" && std::abs(dx) <= 0.9) return true;
+        if (condition == "covered_playside" && ps >= -0.5 && ps <= 1.0) return true;
+        if (condition == "uncovered" && std::abs(dx) <= 0.9) return false;
+        if (condition == "has_inside_threat" && ps >= -1.6 && ps < -0.5) return true;
+    }
+    return condition == "uncovered";
+}
+
+int PlaySim::block_target_for(int i, const std::string& target, double side) const {
+    const Vec2 me = state_.play_pos(i);
+    const auto nearest = [&](const std::vector<int>& from, auto&& ok) {
+        int best = -1;
+        double best_d = 1e9;
+        for (const int d : from) {
+            const double dx = state_.play_pos(d).x - me.x;
+            if (!ok(dx * side, dx)) continue;
+            // Ties go to the play side.
+            const double score = std::abs(dx) - 0.1 * dx * side;
+            if (score < best_d) {
+                best = d;
+                best_d = score;
+            }
+        }
+        return best;
+    };
+    const std::vector<int> down = front(true);
+    if (target == "man_on" || target == "man_on_or_inside") {
+        return nearest(down, [](double, double dx) { return std::abs(dx) <= 1.2; });
+    }
+    if (target == "playside_gap") {
+        const int d = nearest(down, [](double ps, double) { return ps > 0.3 && ps <= 1.8; });
+        if (d >= 0) return d;
+        // Else the man over his playside neighbor (the combo).
+        return nearest(down, [](double ps, double) { return ps > 0.3 && ps <= 2.8; });
+    }
+    if (target == "backside_gap") {
+        return nearest(down, [](double ps, double) { return ps >= -2.0 && ps <= -0.3; });
+    }
+    if (target == "first_lb_playside") {
+        // The nearest linebacker on his play side; failing that, the nearest.
+        const std::vector<int> lbs = front(false);
+        int best = -1;
+        for (const int d : lbs) {
+            const double ps = (state_.play_pos(d).x - me.x) * side;
+            if (ps >= -0.3 && (best < 0 || ps < (state_.play_pos(best).x - me.x) * side)) best = d;
+        }
+        return best >= 0 ? best : nearest(lbs, [](double, double) { return true; });
+    }
+    if (target == "kick_out_man") {
+        // The first defender in the box outside the end of the offense's
+        // line on the play side (outside the down blocks).
+        double end = state_.play_pos(state_.center).x;
+        for (int j = 0; j < state_.offense_count; ++j) {
+            const SlotInfo& sl = state_.slots[static_cast<std::size_t>(j)];
+            const double x = state_.play_pos(j).x;
+            if (sl.formation_slot->on_line && std::abs(x - end) < 6.0 && x * side > end * side &&
+                std::abs(x - state_.play_pos(state_.center).x) <= 5.0) {
+                end = x;
+            }
+        }
+        int best = -1;
+        for (const int d : front(true)) {
+            const double ps = (state_.play_pos(d).x - end) * side;
+            if (ps >= 0.0 && (best < 0 || ps < (state_.play_pos(best).x - end) * side)) best = d;
+        }
+        for (const int d : front(false)) {
+            const double ps = (state_.play_pos(d).x - end) * side;
+            if (ps >= 0.0 && (best < 0 || ps < (state_.play_pos(best).x - end) * side)) best = d;
+        }
+        return best;
+    }
+    if (target == "emol_playside") {
+        // The end man on the line on the play side; if he isn't outside this
+        // blocker (a TE outside the end), the first defender in the box
+        // outside him.
+        int best = -1;
+        for (const int d : down) {
+            if (best < 0 || state_.play_pos(d).x * side > state_.play_pos(best).x * side) best = d;
+        }
+        if (best >= 0 && (state_.play_pos(best).x - me.x) * side >= 0.5) return best;
+        int outside = -1;
+        for (const int d : front(false)) {
+            const double ps = (state_.play_pos(d).x - me.x) * side;
+            if (ps >= 0.0 && (outside < 0 || ps < (state_.play_pos(outside).x - me.x) * side)) outside = d;
+        }
+        return outside >= 0 ? outside : best;
+    }
+    if (target == "man_over") {
+        int best = -1;
+        double best_d = 10.0;
+        for (int d = state_.offense_count; d < state_.count(); ++d) {
+            const Vec2 p = state_.play_pos(d);
+            if (p.y <= 2.0) continue;
+            const double dist = (p - me).length();
+            if (dist < best_d) {
+                best = d;
+                best_d = dist;
+            }
+        }
+        return best;
+    }
+    return -1;
+}
+
+BlockRule PlaySim::scheme_rule(int i, double side) const {
+    const RunSpec& run = *state_.play.run;
+    const auto scheme = state_.data.blocking.run_schemes.find(run.scheme);
+    if (scheme == state_.data.blocking.run_schemes.end()) {
+        throw PlayError("unknown run scheme '" + run.scheme + "'");
+    }
+    const SlotInfo& slot = state_.slots[static_cast<std::size_t>(i)];
+    auto rules = scheme->second.rules.find(slot.slot);
+    const std::optional<Position> pos = slot.formation_slot->pos;
+    const bool lineman = pos && (*pos == Position::OT || *pos == Position::OG || *pos == Position::C);
+    if (rules == scheme->second.rules.end() && lineman) rules = scheme->second.rules.find("OL");
+    if (rules == scheme->second.rules.end()) return {};
+    for (const BlockRule& rule : rules->second) {
+        if (rule.condition.empty() || block_condition(i, rule.condition, side)) return rule;
+    }
+    return {};
+}
+
+std::unique_ptr<Behavior> PlaySim::run_blocker(int i, const Job& job) {
+    // (movement-and-interaction.md#run-blocking)
+    const BlockingTuning& t = blocking();
+    const PlayTuning& pt = tuning();
+    const SlotInfo& slot = state_.slots[static_cast<std::size_t>(i)];
+    const Attributes& r = state_.agent(i).ratings;
+    const double pk = effective_playbook_knowledge(slot.scheme_pk, slot.familiarity, pt);
+    const Vec2 at = state_.play_pos(i);
+    const auto field = [&](Vec2 p) { return state_.frame.to_field(p); };
+    const double side = playside();
+
+    using Action = RunBlocker::Action;
+    RunBlocker::Setup setup;
+    setup.playside = side;
+    setup.lag = t.pro_lag((1.0 - t.pro_pk_weight) * t.pro_skill(r) + t.pro_pk_weight * pk);
+    // With nobody to block: fire out toward the play side (stalk: downfield).
+    setup.fire_spot = job.action == "stalk" ? field(at + Vec2{0.0, pt.stalk_depth})
+                                            : field(at + Vec2{side * pt.run_lean, pt.run_fire_out});
+    if (!state_.has_defense()) return std::make_unique<RunBlocker>(std::move(setup));
+
+    BlockRule rule;
+    rule.action = job.action;
+    rule.target = job.target;
+    if (job.action == "scheme") {
+        if (!state_.play.run) throw PlayError(slot.slot + ": 'scheme' blocks need a run play");
+        rule = scheme_rule(i, side);
+    }
+    const std::string& a = rule.action;
+    setup.action = a == "drive"                     ? Action::Drive
+                   : a == "reach" || a == "cutoff"  ? Action::Reach
+                   : a == "down"                    ? Action::Down
+                   : a == "combo_climb"             ? Action::Combo
+                   : a == "pull_kick"               ? Action::PullKick
+                   : a == "pull_lead"               ? Action::PullLead
+                   : a == "stalk"                   ? Action::Stalk
+                                                    : Action::Fire;
+    if (setup.action == Action::Fire) return std::make_unique<RunBlocker>(std::move(setup));
+
+    std::string target = rule.target;
+    if (target.empty()) {
+        target = setup.action == Action::PullKick   ? "kick_out_man"
+                 : setup.action == Action::PullLead ? "first_lb_playside"
+                 : setup.action == Action::Stalk    ? "man_over"
+                                                    : "man_on";
+    }
+    setup.target = block_target_for(i, target, side);
+    if (setup.action == Action::Combo) setup.climb_to = block_target_for(i, rule.climb_to, side);
+
+    // A pull: step back, run behind the line to the play side, then up
+    // (inside-out on the man he kicks out, or through the hole he leads).
+    if (setup.action == Action::PullKick || setup.action == Action::PullLead) {
+        const double y = -t.pull_depth;
+        double hole = at.x + side * 3.0;
+        if (state_.play.run) {
+            for (const PathPoint& p : state_.play.run->path) {
+                if (p.type == "aim") hole = resolve_path_point(p).x;
+            }
+        }
+        if (setup.action == Action::PullKick && setup.target >= 0) {
+            setup.path.push_back(field({state_.play_pos(setup.target).x - side * 1.5, y}));
+        } else {
+            setup.path.push_back(field({hole - side * 0.5, y}));
+            setup.path.push_back(field({hole, 0.5}));
+        }
+    }
+    return std::make_unique<RunBlocker>(std::move(setup));
 }
 
 std::unique_ptr<Behavior> PlaySim::route_behavior(int i, const Job& job) {
@@ -746,6 +1023,13 @@ std::unique_ptr<Behavior> PlaySim::qb_behavior() {
         setup.perceive_sd = t.perceive_sd(t.perceive_skill(r));
         setup.threshold = t.throw_threshold(r[Attr::Decisions]);
         setup.peripheral_rate = t.peripheral_rate(r[Attr::Vision]);
+        const BlockingTuning& bt = blocking();
+        if (!pass.hot.empty() && opt_.target.empty()) setup.hot = state_.index_of(pass.hot);
+        setup.pocket_lag = bt.pocket_lag(bt.pocket_skill(r));
+        setup.blind_lag = bt.blind_lag(r[Attr::PocketPresence]);
+        setup.escape_chance = bt.escape_chance(r[Attr::PocketPresence]);
+        setup.hold = opt_.hold_ball;
+        setup.snapper = state_.play_pos(state_.center);
         // His own random stream, seeded from the match RNG.
         return std::make_unique<PassingQb>(std::move(setup), world_.rng().next_u64());
     }
@@ -973,22 +1257,33 @@ std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job*
         case JobKind::Rush:
         case JobKind::Blitz:
         case JobKind::Stunt: {
-            // Stand-in until phase 6: to his lane at the line, and held up there.
+            // Through his lane to the QB (stunts rush their lane for now).
+            const BlockingTuning& bt = blocking();
             const Side side = side_of(job.side);
             const std::string lane = job.gap.empty() ? job.ref : job.gap;
-            const double x = lane == "contain" || lane.empty()
-                                 ? o.end_of_line(side) + outward(side) * t.contain_outside
-                                 : gap_x(side, lane);
-            return std::make_unique<HoldSpot>("rush", field({x, 0.5}), 0.7);
+            Rusher::Setup rs;
+            if (lane == "contain" || lane.empty()) {
+                rs.lane_x = o.end_of_line(side) + outward(side) * bt.contain_outside;
+                rs.contain = outward(side);
+            } else {
+                rs.lane_x = gap_x(side, lane);
+            }
+            const Attributes& r = state_.agent(i).ratings;
+            rs.power = bt.power_move(r);
+            rs.finesse = bt.finesse_move(r);
+            return std::make_unique<Rusher>(rs, world_.rng().next_u64());
         }
         case JobKind::Spy:
             return std::make_unique<HoldSpot>("spy", field({o.center_x, 5.0}), 0.5);
 
         // --- run jobs (stand-ins until phase 7)
         case JobKind::Gap: {
+            // A down lineman attacks his gap (into the blockers); others fill
+            // it off the ball (a stand-in until phase 7).
             const Side side = side_of(job.side);
-            return std::make_unique<HoldSpot>("gap", field({gap_x(side, job.gap), t.gap_depth}),
-                                              1.0);
+            const double depth =
+                at.y <= blocking().down_lineman_depth ? blocking().dl_gap_depth : t.gap_depth;
+            return std::make_unique<HoldSpot>("gap", field({gap_x(side, job.gap), depth}), 1.0);
         }
         case JobKind::Support: {
             // "deep_third": keep playing his deep zone; "alley_strong",
@@ -1077,6 +1372,7 @@ void PlaySim::apply(const Actions& actions) {
     if (actions.throw_ball) {
         throw_ball(actions.throw_ball->from, actions.throw_ball->target, actions.throw_ball->away);
     }
+    if (!actions.rush_moves.empty()) blocking_.resolve_moves(actions.rush_moves, world_.rng());
 }
 
 Projection PlaySim::project_catch(int qb_index, int target, int rounds, double delay) const {
@@ -1160,6 +1456,10 @@ void PlaySim::throw_ball(int qb_index, int target, bool away) {
     double sd = t.accuracy_sd(qb.ratings[accuracy]) * t.distance_scale(distance);
     if (qb.vel.length() > t.on_the_run_speed)
         sd *= t.on_the_run_factor(qb.ratings[Attr::ThrowOnTheRun]);
+    // Hurried: worse with pressure, less so with Composure.
+    const double pressure = state_.behavior(qb_index)->pressure();
+    sd *= 1.0 + pressure * blocking().composure_penalty(qb.ratings[Attr::Composure]);
+    result_.pressure_at_throw = pressure;
     const double ex = rng.normal(0.0, sd);
     const double ey = rng.normal(0.0, sd);
     const double ez = rng.normal(0.0, sd * t.height_sd_factor);
@@ -1433,6 +1733,25 @@ void PlaySim::intercept(int defender, Vec3 at) {
     }
 }
 
+void PlaySim::track_pressure() {
+    // Stats: the first time a defender gets near the QB while he holds the
+    // ball before throwing, and whether he went hot.
+    if (!state_.play.pass || state_.pass || !state_.has_ball(state_.qb)) return;
+    if (const auto* qb = dynamic_cast<const PassingQb*>(state_.behavior(state_.qb));
+        qb && qb->went_hot() && !result_.hot) {
+        result_.hot = true;
+        event("hot", {{"player", state_.slot_name(state_.qb)}});
+    }
+    if (result_.time_to_pressure >= 0.0) return;
+    const Vec2 qb = state_.agent(state_.qb).pos;
+    for (int d = state_.offense_count; d < state_.count(); ++d) {
+        if ((state_.agent(d).pos - qb).length() <= blocking().pressure_radius) {
+            result_.time_to_pressure = state_.since_snap();
+            return;
+        }
+    }
+}
+
 void PlaySim::check_rules() {
     if (state_.phase != PlayPhase::Live) return;
     const int c = state_.carrier();
@@ -1451,6 +1770,8 @@ void PlaySim::check_rules() {
         // Contact is down until tackling exists (phase 7).
         for (int j = 0; j < state_.count(); ++j) {
             if (state_.teammates(j, c)) continue;
+            // A blocked or knocked-down player can't make the tackle.
+            if (state_.engaged(j) || state_.knocked_down(j)) continue;
             const Agent& tackler = state_.agent(j);
             if ((tackler.pos - p).length() <= tackler.body.reach) {
                 const bool sack = c == state_.qb && state_.play.pass && !state_.pass;
@@ -1465,6 +1786,7 @@ void PlaySim::check_rules() {
 
 void PlaySim::whistle(const std::string& outcome) {
     state_.phase = PlayPhase::Dead;
+    state_.engagements.clear();
     dead_tick_ = world_.tick();
     result_.outcome = outcome;
     result_.seconds = state_.since_snap();
@@ -1504,14 +1826,25 @@ PlayResult PlaySim::run() {
                 break;  // everyone pulls up (a zero desired velocity)
         }
         apply(actions);
+        if (state_.phase == PlayPhase::Live) blocking_.steer(intents);
         world_.step(intents);
-        if (state_.phase == PlayPhase::Live) record_history();
+        if (state_.phase == PlayPhase::Live) {
+            blocking_.interact(world_.rng());
+            track_pressure();
+            record_history();
+        }
         ball_phase();
         check_rules();
         if (state_.phase == PlayPhase::PreSnap) check_set();
         write_frame();
         if (state_.phase == PlayPhase::Dead && world_.tick() - dead_tick_ >= post_ticks) break;
     }
+
+    const BlockingStats& bs = blocking_.stats();
+    result_.sheds = bs.sheds;
+    result_.pancakes = bs.pancakes;
+    result_.rush_moves_won = bs.rush_moves_won;
+    result_.holds = bs.holds;
 
     // One readable line.
     std::ostringstream s;

@@ -281,6 +281,65 @@ void ZoneCoverage::draw(const PlayState& play, int self, Json& shapes) const {
 }
 
 // ---------------------------------------------------------------------------
+// Pass rush
+// ---------------------------------------------------------------------------
+
+Intent Rusher::decide(const PlayState& play, int self, Actions& actions) {
+    const Agent& me = play.agent(self);
+    const BlockingTuning& t = play.tuning().blocking;
+    const PlayFrame& f = play.frame;
+    Intent in;
+    in.face = play.downfield_for(self);
+    if (!play.started(self)) return in;
+
+    // Where the QB will be in a moment.
+    Vec2 qb = f.to_field({0.0, -5.0});
+    if (play.qb >= 0) qb = play.agent(play.qb).pos + play.agent(play.qb).vel * t.rush_lead;
+    const double now = play.since_snap();
+
+    if (const Engagement* e = play.engagement_of(self)) {
+        // Engaged: his goal is the QB, and he works his moves.
+        in.velocity = (qb - me.pos).normalized() * me.move.top_speed;
+        const Vec2 to_blocker = play.agent(e->blocker).pos - me.pos;
+        if (to_blocker.length() > 0.05) in.face = to_blocker.normalized();
+        if (engaged_tick_ != e->start_tick) {
+            engaged_tick_ = e->start_tick;
+            next_move_ = now + rng_.uniform(t.move_first_min, t.move_first_max);
+        }
+        if (e->last_move > answered_) {
+            // His last move failed: chain the other kind sooner.
+            answered_ = e->last_move;
+            counter_ = !e->last_move_won;
+            if (counter_) next_move_ = std::min(next_move_, e->last_move + t.counter_seconds);
+        }
+        if (now >= next_move_) {
+            const bool power =
+                counter_ ? !e->last_move_power
+                        : s_.power + rng_.normal(0.0, t.move_choice_sd) >=
+                              s_.finesse + rng_.normal(0.0, t.move_choice_sd);
+            actions.rush_moves.push_back({self, power});
+            counter_ = false;
+            next_move_ = now + std::max(0.3, rng_.normal(t.move_interval, t.move_interval_sd));
+        }
+        return in;
+    }
+    engaged_tick_ = -1;
+
+    const Vec2 p = f.to_play(me.pos);
+    const Vec2 q = f.to_play(qb);
+    Vec2 aim = q;
+    if (p.y > 0.0) {
+        // Through his lane at the line first.
+        aim = {s_.lane_x, -0.5};
+    } else if (s_.contain != 0.0 && (p - q).length() > 2.5) {
+        // Contain: at a spot just outside the QB, so he can't escape that way.
+        aim = q + Vec2{s_.contain * 1.0, 0.0};
+    }
+    in.velocity = steer::seek(me, f.to_field(aim), me.move.top_speed);
+    return in;
+}
+
+// ---------------------------------------------------------------------------
 // Hold a spot
 // ---------------------------------------------------------------------------
 

@@ -27,6 +27,8 @@ struct PlayOptions {
     // empty team means an empty field.
     std::string defense;
     std::string defense_play;
+    // Pass plays: the QB never throws, to time a protection (phase 6).
+    bool hold_ball = false;
 };
 
 struct PlayResult {
@@ -51,6 +53,15 @@ struct PlayResult {
     bool thrown_away = false;
     int breakups = 0;
     int tips = 0;
+    // Blocking and the rush (phase 6).
+    double time_to_pressure = -1.0;  // s until a defender first got within 2.5 yd of the
+                                     // QB while he held the ball (-1: never)
+    double pressure_at_throw = 0.0;  // the pressure the QB felt as he let it go
+    bool hot = false;                // the QB went to his hot read
+    int sheds = 0;
+    int pancakes = 0;
+    int rush_moves_won = 0;
+    std::vector<std::string> holds;  // blockers who held (flags; enforced in phase 8)
 };
 
 // Thrown for a play that can't be run (unknown team or play, a slot the
