@@ -10,7 +10,20 @@ export function describeEvent(ev: TrackingEvent): string {
     case "split":
       return `${f.player}: ${f.yards} yd in ${Number(f.time).toFixed(2)} s`;
     case "throw":
-      return `throw ${f.from} → ${f.to}, ${yd(f.air_yards)} downfield`;
+      return `throw ${f.from} → ${f.to}, ${yd(f.air_yards)} downfield` +
+        (f.openness !== undefined ? ` (open ${Number(f.openness).toFixed(2)})` : "");
+    case "throw_away":
+      return `${f.from} throws it away`;
+    case "interception":
+      return `INTERCEPTED by ${f.player} at ${yd(f.air_yards)}`;
+    case "breakup":
+      return `pass broken up by ${f.player}`;
+    case "tip":
+      return `tipped by ${f.player}, still live`;
+    case "option_read":
+      return `${f.player} reads ${f.read}${f.correct ? "" : " (wrong)"}`;
+    case "contact":
+      return `${f.by} gets to ${f.on}`;
     case "catch":
       return `catch by ${f.player} at ${yd(f.air_yards)}`;
     case "drop":
@@ -23,6 +36,8 @@ export function describeEvent(ev: TrackingEvent): string {
       return `touchdown (${yd(f.yards)})`;
     case "out_of_bounds":
     case "whistle":
+    case "tackled":
+    case "sack":
       return `${ev.event.replaceAll("_", " ")}, gain of ${yd(f.yards)}`;
     default: {
       const rest = Object.entries(f).map(([k, v]) => `${k}=${typeof v === "number" ? round(v) : text(v)}`);

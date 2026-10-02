@@ -35,6 +35,202 @@
       "tags": ["quick_game", "short", "3rd_short", "3rd_medium", "vs_zone"]
     },
     {
+      "id": "slant_flat",
+      "name": "Slant-Flat",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_2x2",
+      "flip": true,
+      "pass": {
+        "drop": "gun_1",
+        "progression": ["H", "X", "Y", "Z", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "X":  {"route": "slant"},
+        "H":  {"route": "flat"},
+        "Z":  {"route": "slant"},
+        "Y":  {"route": "flat"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "swing", "side": "right"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["quick_game", "short", "base", "1st_down", "3rd_short", "vs_zone", "vs_cover3"]
+    },
+    {
+      "id": "smash",
+      "name": "Smash",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_2x2",
+      "flip": true,
+      "pass": {
+        "drop": "gun_3",
+        "progression": ["H", "X", "Y", "Z", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "X":  {"route": "hitch"},
+        "H":  {"route": "corner"},
+        "Z":  {"route": "hitch"},
+        "Y":  {"route": "corner"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "flat", "side": "left"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover2"]
+    },
+    {
+      "id": "four_verts",
+      "name": "Four Verticals",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_2x2",
+      "flip": true,
+      "pass": {
+        "drop": "gun_5",
+        "progression": ["H", "Y", "X", "Z", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "X":  {"route": "go"},
+        "H":  {"route": "seam"},
+        "Z":  {"route": "go"},
+        "Y":  {"route": "seam"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "flat", "side": "left"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["dropback", "deep", "2nd_long", "3rd_long", "two_minute", "vs_cover3"]
+    },
+    {
+      "id": "mesh",
+      "name": "Mesh",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_2x2",
+      "flip": true,
+      "pass": {
+        "drop": "gun_3",
+        "progression": ["H", "Y", "Z", "X", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "X":  {"route": "corner"},
+        "H":  {"route": "drag"},
+        "Z":  {"route": "sit", "depth": 7},
+        "Y":  {"route": "drag", "depth": 2},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "swing", "side": "right"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["dropback", "short", "inside", "3rd_medium", "3rd_short", "vs_man"]
+    },
+    {
+      "id": "trips_curl_flat",
+      "name": "Trips Curl-Flat",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_trips_rt",
+      "flip": true,
+      "pass": {
+        "drop": "gun_5",
+        "progression": ["Z", "H", "Y", "X", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "Z":  {"route": "curl"},
+        "H":  {"route": "flat"},
+        "Y":  {"route": "seam"},
+        "X":  {"route": "curl"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "flat", "side": "left"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+    },
+    {
+      "id": "sb_dagger",
+      "name": "Dagger",
+      "side": "offense",
+      "type": "pass",
+      "formation": "singleback_2x2",
+      "flip": true,
+      "pass": {
+        "drop": "5_step",
+        "progression": ["X", "H", "Z", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "right"}
+      },
+      "assignments": {
+        "X":  {"route": "dig", "depth": 14},
+        "H":  {"route": "seam"},
+        "Z":  {"route": "post"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "flat", "side": "left"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}},
+        "Y":  {"block": {"do": "protect"}}
+      },
+      "tags": ["dropback", "deep", "inside", "2nd_long", "3rd_long", "vs_cover3", "vs_cover4"]
+    },
+    {
+      "id": "all_hitch",
+      "name": "All Hitch",
+      "side": "offense",
+      "type": "pass",
+      "formation": "gun_2x2",
+      "flip": true,
+      "pass": {
+        "drop": "gun_1",
+        "progression": ["X", "Z", "H", "Y", "RB"],
+        "read_type": "progression",
+        "hot": "RB",
+        "protection": {"scheme": "slide", "direction": "left"}
+      },
+      "assignments": {
+        "X":  {"route": "hitch"},
+        "H":  {"route": "hitch"},
+        "Z":  {"route": "hitch"},
+        "Y":  {"route": "hitch"},
+        "RB": {"block": {"do": "check_release"}, "then": {"route": "swing", "side": "right"}},
+        "LT": {"block": {"do": "protect"}},
+        "LG": {"block": {"do": "protect"}},
+        "C":  {"block": {"do": "protect"}},
+        "RG": {"block": {"do": "protect"}},
+        "RT": {"block": {"do": "protect"}}
+      },
+      "tags": ["quick_game", "short", "base", "1st_down", "2nd_short", "vs_zone", "vs_cover3", "vs_cover4"]
+    },
+    {
       "id": "sb_inside_zone",
       "name": "Inside Zone",
       "side": "offense",

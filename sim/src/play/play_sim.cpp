@@ -1342,9 +1342,13 @@ void PlaySim::play_the_ball(Vec3 before) {
         after_touch(off->player, off->c.at, false, "drop");
         return;
     }
-    // A defender alone at the ball.
+    // A defender alone at the ball: does he get a hand on it (a lineman at
+    // the line far less often), and if so, does he hold on?
     const Agent& d = state_.agent(def->player);
-    if (rng.chance(t.int_alone(d.ratings[Attr::BallSkills]) * stretch_factor(*def))) {
+    double touch = t.touch(d.ratings[Attr::BallSkills]) * stretch_factor(*def);
+    if (state_.play_pos(def->player).y < t.line_depth) touch *= t.bat_factor;
+    if (!rng.chance(touch)) return;  // it goes by him
+    if (rng.chance(t.int_alone(d.ratings[Attr::BallSkills]))) {
         intercept(def->player, def->c.at);
         return;
     }

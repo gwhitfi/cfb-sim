@@ -274,7 +274,8 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     const Reader k = root.at("contested");
     k.allow_only({"traffic_range", "traffic_penalty", "traffic_bravery_share", "receiver",
                   "defender", "closer_bonus", "skill_scale", "catch_factor", "int_contested",
-                  "int_alone", "tip_chance", "tip_keep", "tip_up"});
+                  "int_alone", "touch", "bat_factor", "line_depth", "tip_chance", "tip_keep",
+                  "tip_up"});
     t.traffic_range = k.number("traffic_range");
     t.traffic_penalty = parse_curve(k.at("traffic_penalty"));
     t.traffic_bravery_share = k.number("traffic_bravery_share");
@@ -285,6 +286,9 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     t.contested_catch_factor = k.number("catch_factor");
     t.int_contested = parse_curve(k.at("int_contested"));
     t.int_alone = parse_curve(k.at("int_alone"));
+    t.touch = parse_curve(k.at("touch"));
+    t.bat_factor = k.number("bat_factor");
+    t.line_depth = k.number("line_depth");
     t.tip_chance = k.number("tip_chance");
     t.tip_keep = k.number("tip_keep");
     std::tie(t.tip_up_min, t.tip_up_max) = parse_range(k.at("tip_up"));

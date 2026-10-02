@@ -14,6 +14,7 @@ namespace cfbsim {
 namespace {
 
 constexpr double kTurnToBallSeconds = 0.3;
+constexpr double kContestedRange = 5.0;  // yd from the catch spot
 
 }  // namespace
 
@@ -85,8 +86,15 @@ Intent RouteRunner::decide(const PlayState& play, int self, Actions& /*actions*/
             const auto [where, seconds] = *spot;
             const double dist = (where - me.pos).length();
             const double needed = dist / std::max(seconds, kTickSeconds);
+            // With a defender near the spot he attacks the ball (gets there
+            // first and waits); otherwise he times it to catch it in stride.
+            bool contested = false;
+            for (int d = play.offense_count; d < play.count(); ++d) {
+                contested = contested || (play.agent(d).pos - where).length() < kContestedRange;
+            }
             Intent in;
-            in.velocity = steer::seek(me, where, std::min(me.move.top_speed, needed));
+            in.velocity = contested ? steer::arrive(me, where, me.move.top_speed, me.move.decel)
+                                    : steer::seek(me, where, std::min(me.move.top_speed, needed));
             // He runs facing where he's going (looking over his shoulder) and
             // only turns his body to the ball as it arrives.
             const Vec2 to_ball = play.world().ball().pos.ground() - me.pos;

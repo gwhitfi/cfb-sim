@@ -84,7 +84,12 @@
     "skill_scale": 15,
     "catch_factor": 0.75,     // a receiver who wins the contest still has to hold on
     "int_contested": {"curve": "linear", "points": [[0, 0.05], [100, 0.25]]}, // Ball Skills
-    "int_alone": {"curve": "linear", "points": [[0, 0.1], [100, 0.35]]},      // Ball Skills
+    "int_alone": {"curve": "linear", "points": [[0, 0.15], [100, 0.45]]},     // Ball Skills, once he has a hand on it
+    // A defender alone at the ball gets a hand on it (Ball Skills -> chance,
+    // scaled by reach and dive like a catch); otherwise it goes by him.
+    "touch": {"curve": "linear", "points": [[0, 0.35], [100, 0.85]]},
+    "bat_factor": 0.25,       // a lineman at the line has to get his hands up in time
+    "line_depth": 2.5,        // yd: defenders this close to the line are at the line
     "tip_chance": 0.25,       // a breakup or drop stays live
     "tip_keep": 0.3,          // share of its velocity a tipped ball keeps
     "tip_up": [1.0, 3.0]      // yd/s added upward

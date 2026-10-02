@@ -149,7 +149,10 @@ struct PassingTuning {
     double contest_skill_scale = 15.0;
     double contested_catch_factor = 0.75;
     Curve int_contested;  // Ball Skills -> chance a defender who wins the contest intercepts
-    Curve int_alone;      // Ball Skills -> chance a defender alone at the ball intercepts
+    Curve int_alone;      // Ball Skills -> chance a defender alone at the ball who gets a hand on it intercepts
+    Curve touch;          // Ball Skills -> chance a defender at the ball gets a hand on it
+    double bat_factor = 0.25;  // ... times this for a lineman at the line batting it
+    double line_depth = 2.5;   // yd: defenders this close to the line are at the line
     double tip_chance = 0.25;
     double tip_keep = 0.3;
     double tip_up_min = 1.0, tip_up_max = 3.0;

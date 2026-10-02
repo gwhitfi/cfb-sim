@@ -57,7 +57,12 @@ void print_usage() {
            "      --seed N              --target SLOT  make the QB throw to SLOT\n"
            "      --no-huddle           start set and snap at once\n"
            "      --runs N              run N seeds (seed, seed+1, ...) and summarize\n"
-           "      --out FILE.jsonl      write a tracking file (first run)   --data DIR\n";
+           "      --out FILE.jsonl      write a tracking file (first run)   --data DIR\n"
+           "  matrix                  every pass play against every defensive play\n"
+           "      --offense ID --defense ID   (default state_u vs tech)\n"
+           "      --runs N              plays per matchup (default 100), spread over both\n"
+           "                            hashes and the middle, flipped and not\n"
+           "      --plays a,b  --defs c,d   only these plays\n";
 }
 
 // "--key value" pairs and bare "--flag"s. Small on purpose; we'll swap in a
@@ -423,7 +428,7 @@ int cmd_run_play(const Options& opt) {
                         slot.c_str(), ts.thrown, 100.0 * ts.complete / ts.thrown, ts.picks,
                         ts.yards / ts.thrown, ts.time / ts.thrown);
         }
-        if (!o.defense.empty()) {
+        if (!o.defense.empty() && !by_target.empty()) {
             std::printf("  openness at the throw -> completed:");
             for (std::size_t b = 0; b < calibration.size(); ++b) {
                 const auto [thrown, done] = calibration[b];
@@ -435,6 +440,118 @@ int cmd_run_play(const Options& opt) {
         }
     }
     if (tracking) std::cout << "wrote " << opt.get("out") << "\n";
+    return 0;
+}
+
+std::vector<std::string> split_list(const std::string& text) {
+    std::vector<std::string> out;
+    std::string item;
+    for (const char c : text + ",") {
+        if (c == ',') {
+            if (!item.empty()) out.push_back(item);
+            item.clear();
+        } else {
+            item += c;
+        }
+    }
+    return out;
+}
+
+// "43_over_cover3" -> "o.cover3", "nickel_fire_zone" -> "n.fire_zone".
+std::string short_name(std::string id) {
+    for (const auto& [from, to] : {std::pair{"43_over_", "o."}, std::pair{"nickel_", "n."}}) {
+        if (id.starts_with(from)) id = to + id.substr(std::string_view(from).size());
+    }
+    return id;
+}
+
+// Every pass play in the offense's playbook against every play in the
+// defense's: success rate (complete for 4+ yd, the 1st-and-10 standard),
+// completion rate, and interceptions.
+int cmd_matrix(const Options& opt) {
+    const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
+    if (!report.ok()) {
+        std::cerr << "cfbsim matrix: data errors (run `cfbsim validate`)\n";
+        return 1;
+    }
+    const cfbsim::DataSet& data = report.data;
+    const std::string offense = opt.get("offense", "state_u");
+    const std::string defense = opt.get("defense", "tech");
+    const auto runs_opt = number_option(opt, "runs", 100);
+    if (!runs_opt) return 1;
+    const int runs = std::max(1, static_cast<int>(*runs_opt));
+    const auto oteam = data.teams.find(offense);
+    const auto dteam = data.teams.find(defense);
+    if (oteam == data.teams.end() || dteam == data.teams.end()) {
+        std::cerr << "cfbsim matrix: unknown team\n";
+        return 1;
+    }
+    const cfbsim::Playbook& obook = data.playbooks.at(oteam->second.offense_playbook);
+    const cfbsim::Playbook& dbook = data.playbooks.at(dteam->second.defense_playbook);
+    const std::vector<std::string> only_plays = split_list(opt.get("plays"));
+    const std::vector<std::string> only_defs = split_list(opt.get("defs"));
+    const auto wanted = [](const std::vector<std::string>& only, const std::string& id) {
+        return only.empty() || std::find(only.begin(), only.end(), id) != only.end();
+    };
+
+    std::vector<const cfbsim::Play*> plays, defs;
+    for (const cfbsim::Play& p : obook.plays) {
+        if (p.type == cfbsim::PlayType::Pass && wanted(only_plays, p.id)) plays.push_back(&p);
+    }
+    for (const cfbsim::Play& p : dbook.plays) {
+        if (wanted(only_defs, p.id)) defs.push_back(&p);
+    }
+
+    struct Cell {
+        int success = 0, complete = 0, picks = 0, sacks = 0;
+    };
+    std::vector<std::vector<Cell>> cells(plays.size(), std::vector<Cell>(defs.size()));
+    try {
+        for (std::size_t a = 0; a < plays.size(); ++a) {
+            for (std::size_t b = 0; b < defs.size(); ++b) {
+                for (int k = 0; k < runs; ++k) {
+                    cfbsim::PlayOptions o;
+                    o.team = offense;
+                    o.play = plays[a]->id;
+                    o.defense = defense;
+                    o.defense_play = defs[b]->id;
+                    o.seed = static_cast<std::uint64_t>(k + 1);
+                    o.huddle = false;
+                    o.hash = static_cast<cfbsim::Hash>(k % 3);
+                    o.flip = plays[a]->flip && (k / 3) % 2 == 1;
+                    const cfbsim::PlayResult r = cfbsim::run_play(data, o);
+                    Cell& c = cells[a][b];
+                    c.complete += r.complete ? 1 : 0;
+                    c.success += r.complete && r.yards >= 4.0 ? 1 : 0;
+                    c.picks += r.interception ? 1 : 0;
+                    c.sacks += r.outcome == "sack" ? 1 : 0;
+                }
+            }
+        }
+    } catch (const cfbsim::PlayError& e) {
+        std::cerr << "cfbsim matrix: " << e.what() << "\n";
+        return 1;
+    }
+
+    const auto table = [&](const char* title, auto value) {
+        std::printf("\n%s (%d plays per cell)\n%-16s", title, runs, "");
+        for (const cfbsim::Play* d : defs) std::printf(" %11.11s", short_name(d->id).c_str());
+        std::printf("\n");
+        for (std::size_t a = 0; a < plays.size(); ++a) {
+            std::printf("%-16.16s", plays[a]->id.c_str());
+            for (std::size_t b = 0; b < defs.size(); ++b) std::printf(" %11s", value(cells[a][b]).c_str());
+            std::printf("\n");
+        }
+    };
+    const auto pct = [&](int n) {
+        char buf[16];
+        std::snprintf(buf, sizeof buf, "%.0f%%", 100.0 * n / runs);
+        return std::string(buf);
+    };
+    std::printf("%s offense vs %s defense\n", offense.c_str(), defense.c_str());
+    table("Success: complete for 4+ yd", [&](const Cell& c) { return pct(c.success); });
+    table("Completion", [&](const Cell& c) { return pct(c.complete); });
+    table("Interceptions", [&](const Cell& c) { return std::to_string(c.picks); });
     return 0;
 }
 
@@ -474,6 +591,7 @@ int main(int argc, char* argv[]) {
     if (command == "generate-team") return cmd_generate_team(opt);
     if (command == "run-drill") return cmd_run_drill(drill, opt);
     if (command == "run-play") return cmd_run_play(opt);
+    if (command == "matrix") return cmd_matrix(opt);
 
     std::cerr << "cfbsim: unknown command '" << command << "'\n\n";
     print_usage();
