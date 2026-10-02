@@ -1,10 +1,11 @@
 {
   // The game flow's modeled pieces: tempo, fatigue, substitutions, injuries,
-  // and foul rates (kicks are in special.json) (docs/design/rules-and-flow.md#first-build-phase-8).
+  // and foul rates (kicks are in special.json, the coach in coach.json) (docs/design/rules-and-flow.md#first-build-phase-8).
   "format_version": 1,
 
   "tempo": {
-    "normal": [6, 16],             // play clock reading (s) at the snap
+    "normal": [6, 16],             // play clock reading (s) at the snap (tactics tempo "huddle")
+    "no_huddle": [14, 22],
     "hurry": [26, 33],
     "milk": [-0.2, 4],              // under 0: delay of game
     "ready_delay": 7                // s after the whistle the ready signal comes (40-s clock)
@@ -53,12 +54,5 @@
     "personal": {"aggression": 0.5, "dirtiness": 0.5},  // personal fouls x (0.5 + this/100)
     "grounding": 0.25,              // a throwaway from inside the tackle box
     "tackle_box": 4.5               // yd either side of the ball
-  },
-
-  // The temporary auto coach (phase 10 replaces it).
-  "coach": {
-    "fg_range": 52,                 // yd kick
-    "go_distance": 2,               // 4th and this or less past midfield: go
-    "late_seconds": 300             // trailing with this little left in the 4th: go
   }
 }

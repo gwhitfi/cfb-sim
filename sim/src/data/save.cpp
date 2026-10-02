@@ -30,6 +30,27 @@ Json slot_maps_to_json(const std::map<std::string, SlotMap, std::less<>>& maps) 
     return out;
 }
 
+Json tactics_to_json(const Tactics& t) {
+    static constexpr const char* kTempo[] = {"huddle", "no_huddle", "hurry"};
+    Json formations = Json::object();
+    for (const auto& [id, w] : t.offense.formations) formations[id] = number(w);
+    Json offense = {{"run_pass", number(t.offense.run_pass)},
+                    {"aggression", number(t.offense.aggression)},
+                    {"tempo", kTempo[static_cast<int>(t.offense.tempo)]},
+                    {"formations", std::move(formations)},
+                    {"featured", t.offense.featured},
+                    {"fourth_down", number(t.offense.fourth_down)},
+                    {"clock", number(t.offense.clock)}};
+    return Json{{"offense", std::move(offense)},
+                {"defense",
+                 {{"blitz", number(t.defense.blitz)},
+                  {"man_zone", number(t.defense.man_zone)},
+                  {"aggression", number(t.defense.aggression)},
+                  {"tendency", number(t.defense.tendency)}}},
+                {"special",
+                 {{"return_aggression", number(t.special.return_aggression)}, {"kickoff", t.special.kickoff}}}};
+}
+
 }  // namespace
 
 Json to_json(const Roster& roster) {
@@ -104,7 +125,7 @@ Json to_json(const Team& team) {
         {"roster", team.roster_file},
         {"playbooks", std::move(playbooks)},
         {"depth_chart", std::move(depth)},
-        {"tactics", Json::object()},
+        {"tactics", tactics_to_json(team.tactics)},
     };
 }
 

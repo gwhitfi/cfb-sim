@@ -1,11 +1,12 @@
-// The rules table (data/rules/*.json) and the game flow tuning
-// (data/tuning/game.json).
+// The rules table (data/rules/*.json), the game flow tuning
+// (data/tuning/game.json), and the auto coach (tuning/coach.json, tactics/situations.json).
 
 #include <stdexcept>
 
 #include "cfbsim/data/load.h"
 #include "data/json_reader.h"
 #include "data/parse_curve.h"
+#include "data/vocab.h"
 
 namespace cfbsim {
 
@@ -88,13 +89,14 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     using detail::parse_curve;
     using detail::Reader;
     const Reader root(json, source);
-    root.allow_only({"format_version", "tempo", "fatigue", "subs", "injuries", "fouls", "coach"});
+    root.allow_only({"format_version", "tempo", "fatigue", "subs", "injuries", "fouls"});
     detail::require_format_version(root);
     GameTuning t;
 
     const Reader te = root.at("tempo");
-    te.allow_only({"normal", "hurry", "milk", "ready_delay"});
+    te.allow_only({"normal", "no_huddle", "hurry", "milk", "ready_delay"});
     t.tempo_normal = pair_of(te.at("normal"));
+    t.tempo_no_huddle = pair_of(te.at("no_huddle"));
     t.tempo_hurry = pair_of(te.at("hurry"));
     t.tempo_milk = pair_of(te.at("milk"));
     t.ready_delay = te.number("ready_delay");
@@ -147,12 +149,6 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.personal_dirtiness = pe.number("dirtiness");
     t.grounding = fo.number("grounding");
     t.tackle_box = fo.number("tackle_box");
-
-    const Reader c = root.at("coach");
-    c.allow_only({"fg_range", "go_distance", "late_seconds"});
-    t.fg_range = c.number("fg_range");
-    t.go_distance = c.number("go_distance");
-    t.late_seconds = c.number("late_seconds");
     return t;
 }
 
@@ -209,7 +205,7 @@ SpecialTuning parse_special_tuning(const Json& json, const std::string& source) 
     const Reader r = root.at("returns");
     r.allow_only({"catch_range", "muff_punt", "muff_kickoff", "fair_catch_kickoff", "fair_catch_punt",
                   "touchback_depth", "end_zone_return", "let_bounce", "set_depth", "hold_up", "jam",
-                  "protect_release"});
+                  "protect_release", "aggression_margin", "aggression_depth"});
     t.catch_range = r.number("catch_range");
     t.muff_punt = parse_curve(r.at("muff_punt"));
     t.muff_kickoff = parse_curve(r.at("muff_kickoff"));
@@ -222,7 +218,79 @@ SpecialTuning parse_special_tuning(const Json& json, const std::string& source) 
     t.hold_up = r.number("hold_up");
     t.jam = r.number("jam");
     t.protect_release = r.number("protect_release");
+    t.aggression_margin = r.number("aggression_margin");
+    t.aggression_depth = r.number("aggression_depth");
     return t;
+}
+
+}  // namespace cfbsim
+
+namespace cfbsim {
+
+CoachTuning parse_coach_tuning(const Json& json, const std::string& source) {
+    using detail::parse_curve;
+    using detail::Reader;
+    const Reader root(json, source);
+    root.allow_only({"format_version", "calls", "fourth_down", "tries"});
+    detail::require_format_version(root);
+    CoachTuning t;
+
+    const Reader c = root.at("calls");
+    c.allow_only({"repeat", "repeat_window", "featured_weight", "personnel", "tendency_min", "tendency_gain"});
+    t.repeat = c.number("repeat");
+    t.repeat_window = c.integer("repeat_window");
+    t.featured_weight = c.number("featured_weight");
+    c.at("personnel").for_each_member([&](const std::string& group, const Reader& packages) {
+        packages.for_each_member([&](const std::string& package, const Reader& w) {
+            t.personnel[group][package] = w.as_number();
+        });
+    });
+    t.tendency_min = c.integer("tendency_min");
+    t.tendency_gain = c.number("tendency_gain");
+
+    const Reader f = root.at("fourth_down");
+    f.allow_only({"convert", "fg_make", "accuracy_yards", "fg_range", "net_punt", "go_bias", "late_seconds"});
+    t.convert = parse_curve(f.at("convert"));
+    t.fg_make = parse_curve(f.at("fg_make"));
+    t.accuracy_yards = f.number("accuracy_yards");
+    t.fg_range = parse_curve(f.at("fg_range"));
+    t.net_punt = parse_curve(f.at("net_punt"));
+    t.go_bias = f.number("go_bias");
+    t.late_seconds = f.number("late_seconds");
+
+    const Reader tr = root.at("tries");
+    tr.allow_only({"two_point", "max_deficit", "two_minute", "clock_scale"});
+    tr.at("two_point").for_each([&](const Reader& m) { t.two_point.push_back(m.as_int()); });
+    t.max_deficit = tr.integer("max_deficit");
+    t.two_minute = tr.number("two_minute");
+    t.clock_scale = tr.number("clock_scale");
+    return t;
+}
+
+std::pair<SituationTable, SituationTable> parse_situations(const Json& json, const std::string& source) {
+    using detail::Reader;
+    const Reader root(json, source);
+    root.allow_only({"format_version", "offense", "defense"});
+    detail::require_format_version(root);
+    static constexpr std::array<std::string_view, 13> kBuckets{
+        "1st_down", "2nd_short",  "2nd_medium", "2nd_long", "3rd_short",  "3rd_medium",  "3rd_long",
+        "short_yardage", "backed_up", "red_zone", "goal_line", "two_minute", "four_minute"};
+    const auto table = [&](const Reader& r, bool offense) {
+        SituationTable out;
+        r.for_each_member([&](const std::string& bucket, const Reader& tags) {
+            if (!detail::contains(kBuckets, bucket)) r.at(bucket).fail("unknown situation bucket '" + bucket + "'");
+            tags.for_each_member([&](const std::string& tag, const Reader& w) {
+                const bool known = tag == "run" || tag == "pass" ||
+                                   (offense ? detail::contains(detail::kOffenseTags, tag)
+                                            : detail::contains(detail::kDefenseTags, tag));
+                if (!known) tags.at(tag).fail("unknown tag '" + tag + "'");
+                if (w.as_number() < 0.0) w.fail("must be 0 or more");
+                out.buckets[bucket][tag] = w.as_number();
+            });
+        });
+        return out;
+    };
+    return {table(root.at("offense"), true), table(root.at("defense"), false)};
 }
 
 }  // namespace cfbsim

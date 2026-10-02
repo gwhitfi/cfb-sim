@@ -249,5 +249,10 @@
       }
     }
   },
-  "tactics": {}
+  "tactics": {
+    "offense": {"run_pass": 50, "aggression": 45, "tempo": "no_huddle", "formations": {"singleback_2x2": 1.3},
+                "fourth_down": 45, "clock": 50},
+    "defense": {"blitz": 35, "man_zone": 70, "aggression": 45, "tendency": 40},
+    "special": {"return_aggression": 45, "kickoff": "deep"}
+  }
 }

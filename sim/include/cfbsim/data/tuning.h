@@ -7,7 +7,10 @@
 #include "cfbsim/data/enums.h"
 
 #include <map>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace cfbsim {
 
@@ -467,7 +470,8 @@ struct TacklingTuning {
 // (docs/design/rules-and-flow.md#first-build-phase-8).
 struct GameTuning {
     // Tempo: play clock reading (s) at the snap.
-    std::pair<double, double> tempo_normal{12.0, 22.0}, tempo_hurry{26.0, 33.0}, tempo_milk{0.5, 3.0};
+    std::pair<double, double> tempo_normal{12.0, 22.0}, tempo_no_huddle{20.0, 28.0}, tempo_hurry{26.0, 33.0},
+        tempo_milk{0.5, 3.0};
     double ready_delay = 7.0;
 
     // Fatigue.
@@ -492,9 +496,6 @@ struct GameTuning {
     double facemask = 0.004;
     double personal_aggression = 0.5, personal_dirtiness = 0.5;  // personal fouls x (0.5 + blend/100)
     double grounding = 0.9, tackle_box = 4.5;
-
-    // The temporary auto coach.
-    double fg_range = 52.0, go_distance = 2.0, late_seconds = 300.0;
 };
 
 // data/tuning/special.json: kicks, returns, coverage (phase 9).
@@ -518,6 +519,49 @@ struct SpecialTuning {
     double fair_catch_kickoff = 1.2, fair_catch_punt = 0.7;
     double touchback_depth = 1.0, end_zone_return = 0.25, let_bounce = 10.0;
     double set_depth = 12.0, hold_up = 1.2, jam = 1.5, protect_release = 0.3;
+    double aggression_margin = 0.4, aggression_depth = 2.0;  // return_aggression at 100
+};
+
+// Situation weights for auto play calling (data/tactics/situations.json):
+// bucket ("3rd_long", "red_zone", ...) -> tag (or "run"/"pass") -> multiplier.
+struct SituationTable {
+    std::map<std::string, std::map<std::string, double, std::less<>>, std::less<>> buckets;
+    // 1 when the bucket or the tag isn't listed.
+    double weight(std::string_view bucket, std::string_view tag) const {
+        const auto b = buckets.find(bucket);
+        if (b == buckets.end()) return 1.0;
+        const auto t = b->second.find(tag);
+        return t == b->second.end() ? 1.0 : t->second;
+    }
+};
+
+// data/tuning/coach.json: the auto coach (phase 10; rules-and-flow.md#auto-coach-phase-10).
+struct CoachTuning {
+    SituationTable offense, defense;  // from data/tactics/situations.json
+
+    // Play calls.
+    double repeat = 0.5;  // x per call of the same play in the last `repeat_window`
+    int repeat_window = 6;
+    double featured_weight = 1.5;
+    // Offensive personnel group -> defensive package -> weight.
+    std::map<std::string, std::map<std::string, double>> personnel;
+    int tendency_min = 8;
+    double tendency_gain = 1.0;
+
+    // 4th down.
+    Curve convert;         // yards to go -> conversion chance
+    Curve fg_make;         // kick distance -> make chance (Kick Accuracy 50)
+    double accuracy_yards = 0.15;  // effective yards closer per Kick Accuracy point over 50
+    Curve fg_range;        // Kick Power -> longest kick tried
+    Curve net_punt;        // Punt Power -> net punt yards
+    double go_bias = 1.0;  // expected points added to Go at fourth_down 100 (minus at 0)
+    double late_seconds = 300.0;  // 4th quarter: trailing by more than a kick with this little left, go
+
+    // Tries, timeouts, the clock.
+    std::vector<int> two_point;   // margins after the touchdown (before the try) to go for two
+    int max_deficit = 16;         // defensive timeouts only while trailing by this or less
+    double two_minute = 120.0;    // the two-minute offense starts here at clock 50 ...
+    double clock_scale = 60.0;    // ... +/- this at clock 100 / 0
 };
 
 struct Tuning {
@@ -530,6 +574,7 @@ struct Tuning {
     TacklingTuning tackling;
     GameTuning game;
     SpecialTuning special;
+    CoachTuning coach;
 };
 
 }  // namespace cfbsim

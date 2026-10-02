@@ -22,6 +22,8 @@ struct GameState {
     bool untimed = false;       // the next down is untimed (the period was extended)
     bool two_minute_done = false;  // this half's two-minute timeout
     std::int64_t tick = 0;      // game ticks (0.05 s) since the opening kickoff
+    // Scrimmage calls this game by the team on offense (the defense's tendency response).
+    std::array<int, 2> runs{}, passes{};
 
     int defense() const { return 1 - offense; }
     bool overtime() const { return quarter > 4; }

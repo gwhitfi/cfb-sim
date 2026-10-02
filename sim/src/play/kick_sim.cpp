@@ -548,16 +548,21 @@ void KickSim::plan_return() {
         const Agent& a = state_.agent(i);
         margin = std::min(margin, quick_reach_time(a.pos, a.vel, a.move.top_speed, a.move.decel, 1.0, landing_) - hang_);
     }
+    // The return_aggression tactic: -1 (conservative) .. +1 (aggressive).
+    const double aggr = std::clamp((opt_.return_aggression - 50.0) / 50.0, -1.0, 1.0);
+    margin += aggr * t.aggression_margin;
+    const double touchback_depth = t.touchback_depth + aggr * t.aggression_depth;
+    const double end_zone_return = std::clamp(t.end_zone_return * (1.0 + aggr), 0.0, 1.0);
     Returner::Plan plan = Returner::Plan::Field;
     if (k_.play->type == PlayType::Kickoff) {
         if (result_.kind != "deep") {
             plan = Returner::Plan::Avoid;  // squibs and onsides: whoever is near plays the bounce
         } else if (depth > 10.0) {
             plan = Returner::Plan::Avoid;  // out the back: a touchback
-        } else if (depth > t.touchback_depth) {
+        } else if (depth > touchback_depth) {
             plan = Returner::Plan::Touchback;
         } else if (depth > 0.0) {
-            plan = world_.rng().chance(t.end_zone_return) ? Returner::Plan::Field : Returner::Plan::Touchback;
+            plan = world_.rng().chance(end_zone_return) ? Returner::Plan::Field : Returner::Plan::Touchback;
         } else if (own_yl < data_.rules.kickoff_touchback && margin < t.fair_catch_kickoff) {
             plan = Returner::Plan::FairCatch;
         }

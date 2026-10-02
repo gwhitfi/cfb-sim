@@ -147,6 +147,59 @@ std::map<std::string, SlotMap, std::less<>> parse_slot_maps(const Reader& r) {
     return maps;
 }
 
+// rules-and-flow.md#tactics-team-file-tactics. Every setting is optional.
+Tactics parse_tactics(const Reader& r) {
+    r.allow_only({"offense", "defense", "special"});
+    Tactics t;
+    const auto setting = [](const Reader& from, std::string_view key, double fallback) {
+        const double v = from.number_or(key, fallback);
+        if (v < 0.0 || v > 100.0) from.at(key).fail("must be 0-100");
+        return v;
+    };
+    if (auto o = r.find("offense")) {
+        o->allow_only({"run_pass", "aggression", "tempo", "formations", "featured", "fourth_down", "clock"});
+        Tactics::Offense& to = t.offense;
+        to.run_pass = setting(*o, "run_pass", to.run_pass);
+        to.aggression = setting(*o, "aggression", to.aggression);
+        to.fourth_down = setting(*o, "fourth_down", to.fourth_down);
+        to.clock = setting(*o, "clock", to.clock);
+        const std::string tempo = o->string_or("tempo", "huddle");
+        if (tempo == "huddle") {
+            to.tempo = Tempo::Huddle;
+        } else if (tempo == "no_huddle") {
+            to.tempo = Tempo::NoHuddle;
+        } else if (tempo == "hurry") {
+            to.tempo = Tempo::Hurry;
+        } else {
+            o->at("tempo").fail("expected huddle, no_huddle, or hurry");
+        }
+        if (auto f = o->find("formations")) {
+            f->for_each_member([&](const std::string& id, const Reader& w) {
+                if (w.as_number() < 0.0) w.fail("must be 0 or more");
+                to.formations[id] = w.as_number();
+            });
+        }
+        to.featured = o->string_or("featured", "");
+    }
+    if (auto d = r.find("defense")) {
+        d->allow_only({"blitz", "man_zone", "aggression", "tendency"});
+        Tactics::Defense& td = t.defense;
+        td.blitz = setting(*d, "blitz", td.blitz);
+        td.man_zone = setting(*d, "man_zone", td.man_zone);
+        td.aggression = setting(*d, "aggression", td.aggression);
+        td.tendency = setting(*d, "tendency", td.tendency);
+    }
+    if (auto sp = r.find("special")) {
+        sp->allow_only({"return_aggression", "kickoff"});
+        t.special.return_aggression = setting(*sp, "return_aggression", t.special.return_aggression);
+        t.special.kickoff = sp->string_or("kickoff", t.special.kickoff);
+        if (t.special.kickoff != "deep" && t.special.kickoff != "squib") {
+            sp->at("kickoff").fail("expected deep or squib");
+        }
+    }
+    return t;
+}
+
 }  // namespace
 
 Team parse_team(const Json& json, const std::string& source) {
@@ -185,7 +238,7 @@ Team parse_team(const Json& json, const std::string& source) {
     if (auto units = depth.find("special_units")) {
         t.depth_chart.special_units = parse_slot_maps(*units);
     }
-    // "tactics" is accepted but not read yet (defined in rules-and-flow.md, built in phase 10).
+    if (auto tactics = root.find("tactics")) t.tactics = parse_tactics(*tactics);
     return t;
 }
 

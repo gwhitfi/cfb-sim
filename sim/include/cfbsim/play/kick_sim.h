@@ -33,6 +33,7 @@ struct KickOptions {
     std::map<std::string, std::string> receiving_players;
     std::map<std::string, RatingModifiers> modifiers;
     bool kicking_home = true;
+    double return_aggression = 50.0;  // the receiving team's tactic (0-100)
 };
 
 struct KickResult {

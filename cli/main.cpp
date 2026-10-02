@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -13,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "cfbsim/data/load.h"
@@ -72,11 +74,15 @@ void print_usage() {
            "      --kick ID (default kickoff_deep) --return ID (default by kick type)\n"
            "      --yard-line N (kicking team's own; default 35 kickoff, 30 punt, 70 FG)\n"
            "      --seed N  --runs N (summarize)  --out FILE.jsonl\n"
+           "      --return-aggression N  the receiving team's tactic, 0-100 (default 50)\n"
            "  play-game               a full game, both teams on the auto coach\n"
            "      --home ID --away ID   (default state_u vs tech)   --game FILE  a game setup file\n"
            "      --seed N (default 1)  --log FILE.gamelog.jsonl   --box FILE.json\n"
            "      --games N             play N seeds and print averages instead\n"
            "      --tracking DIR        write a tracking file per snap (for the viewer)\n"
+           "  batch                   many games on all cores, vs. the calibration targets (phase 10)\n"
+           "      --home ID --away ID   (default state_u vs tech; alternated home and away)\n"
+           "      --games N (default 1000)  --seed N (first seed)  --threads N (default: all cores)\n"
            "  replay FILE             re-run a game log and check it reproduces exactly\n"
            "      --tracking DIR        also write a tracking file per snap\n";
 }
@@ -777,6 +783,7 @@ int cmd_run_kick(const Options& opt) {
     o.return_play = opt.get("return", punt ? "pr_middle" : fg ? "fg_block" : "kr_middle");
     o.yard_line = std::stod(opt.get("yard-line", punt ? "30" : fg ? "70" : "35"));
     o.seed = std::stoull(opt.get("seed", "1"));
+    o.return_aggression = std::stod(opt.get("return-aggression", "50"));
     const int runs = std::stoi(opt.get("runs", "1"));
     std::map<std::string, int> results;
     double distance = 0.0, hang = 0.0, ret = 0.0, net = 0.0, seconds = 0.0;
@@ -823,6 +830,38 @@ int cmd_run_kick(const Options& opt) {
     return 0;
 }
 
+// Adds one game's team stats to a running total.
+void add_stats(cfbsim::TeamStats& a, const cfbsim::TeamStats& s) {
+    a.points += s.points;
+    a.plays += s.plays;
+    a.rush_att += s.rush_att;
+    a.rush_yds += s.rush_yds;
+    a.pass_att += s.pass_att;
+    a.pass_cmp += s.pass_cmp;
+    a.pass_yds += s.pass_yds;
+    a.sacks_taken += s.sacks_taken;
+    a.ints += s.ints;
+    a.fumbles_lost += s.fumbles_lost;
+    a.first_downs += s.first_downs;
+    a.third_att += s.third_att;
+    a.third_conv += s.third_conv;
+    a.fourth_att += s.fourth_att;
+    a.fourth_conv += s.fourth_conv;
+    a.penalties += s.penalties;
+    a.penalty_yds += s.penalty_yds;
+    a.punts += s.punts;
+    a.punt_yds += s.punt_yds;
+    a.kr_att += s.kr_att;
+    a.kr_yds += s.kr_yds;
+    a.pr_att += s.pr_att;
+    a.pr_yds += s.pr_yds;
+    a.fg_att += s.fg_att;
+    a.fg_made += s.fg_made;
+    a.timeouts_used += s.timeouts_used;
+    a.possession_seconds += s.possession_seconds;
+    a.injuries += s.injuries;
+}
+
 int cmd_play_game(const Options& opt) {
     const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
     if (!report.ok()) {
@@ -862,36 +901,7 @@ int cmd_play_game(const Options& opt) {
                 std::cerr << "cfbsim: seed " << og.seed << ": " << e.what() << "\n";
                 return 1;
             }
-            for (std::size_t t = 0; t < 2; ++t) {
-                const cfbsim::TeamStats& s = r.box.teams[t];
-                cfbsim::TeamStats& a = sum[t];
-                a.points += s.points;
-                a.plays += s.plays;
-                a.rush_att += s.rush_att;
-                a.rush_yds += s.rush_yds;
-                a.pass_att += s.pass_att;
-                a.pass_cmp += s.pass_cmp;
-                a.pass_yds += s.pass_yds;
-                a.sacks_taken += s.sacks_taken;
-                a.ints += s.ints;
-                a.fumbles_lost += s.fumbles_lost;
-                a.first_downs += s.first_downs;
-                a.third_att += s.third_att;
-                a.third_conv += s.third_conv;
-                a.penalties += s.penalties;
-                a.penalty_yds += s.penalty_yds;
-                a.punts += s.punts;
-                a.punt_yds += s.punt_yds;
-                a.kr_att += s.kr_att;
-                a.kr_yds += s.kr_yds;
-                a.pr_att += s.pr_att;
-                a.pr_yds += s.pr_yds;
-                a.fg_att += s.fg_att;
-                a.fg_made += s.fg_made;
-                a.timeouts_used += s.timeouts_used;
-                a.possession_seconds += s.possession_seconds;
-                a.injuries += s.injuries;
-            }
+            for (std::size_t t = 0; t < 2; ++t) add_stats(sum[t], r.box.teams[t]);
             home_wins += r.score[0] > r.score[1] ? 1 : 0;
             overtimes += r.overtimes > 0 ? 1 : 0;
             snaps += r.snaps;
@@ -971,6 +981,133 @@ int cmd_play_game(const Options& opt) {
     return 0;
 }
 
+// Many games on all cores, against the calibration targets
+// (rules-and-flow.md#batch-calibration). Game g plays seed + g, and odd games
+// swap home and away. Each game is independent and deterministic, so the
+// totals don't depend on how many threads run them.
+int cmd_batch(const Options& opt) {
+    const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
+    if (!report.ok()) {
+        std::cerr << "cfbsim: data errors (run validate)\n";
+        return 1;
+    }
+    const cfbsim::DataSet& data = report.data;
+    const std::string a = opt.get("home", "state_u"), b = opt.get("away", "tech");
+    const std::uint64_t seed = std::stoull(opt.get("seed", "1"));
+    const int games = std::stoi(opt.get("games", "1000"));
+    const unsigned hw = std::max(1u, std::thread::hardware_concurrency());
+    const int threads = std::max(1, std::min(games, std::stoi(opt.get("threads", std::to_string(hw)))));
+
+    // One slot per game. Each thread takes the next unplayed game number from
+    // an atomic counter (a lock-free "take a ticket"), plays it, and writes
+    // only its own slot, so the threads never touch the same memory.
+    std::vector<cfbsim::GameResult> results(static_cast<std::size_t>(games));
+    std::vector<std::string> errors(static_cast<std::size_t>(games));
+    std::atomic<int> next{0};
+    const auto worker = [&] {
+        for (int g = next++; g < games; g = next++) {
+            cfbsim::GameOptions o;
+            const bool swap = g % 2 == 1;
+            o.home = swap ? b : a;
+            o.away = swap ? a : b;
+            o.seed = seed + static_cast<std::uint64_t>(g);
+            try {
+                results[static_cast<std::size_t>(g)] = cfbsim::play_game(data, o);
+            } catch (const std::exception& e) {
+                errors[static_cast<std::size_t>(g)] = e.what();
+            }
+        }
+    };
+    std::vector<std::thread> pool;
+    for (int t = 0; t < threads; ++t) pool.emplace_back(worker);
+    for (std::thread& t : pool) t.join();  // wait for every thread to finish
+
+    // Totals by team (index 0: `a`, 1: `b`), in game order.
+    std::array<cfbsim::TeamStats, 2> sum{};
+    std::array<int, 2> wins{};
+    int overtimes = 0, snaps = 0, failed = 0;
+    double margin = 0.0;
+    for (int g = 0; g < games; ++g) {
+        const std::size_t gi = static_cast<std::size_t>(g);
+        if (!errors[gi].empty()) {
+            std::cerr << "cfbsim: seed " << seed + static_cast<std::uint64_t>(g) << ": " << errors[gi] << "\n";
+            ++failed;
+            continue;
+        }
+        const cfbsim::GameResult& r = results[gi];
+        const std::size_t ia = g % 2 == 1 ? 1 : 0;  // a's side in this game
+        add_stats(sum[0], r.box.teams[ia]);
+        add_stats(sum[1], r.box.teams[1 - ia]);
+        const int sa = r.score[ia], sb = r.score[1 - ia];
+        if (sa > sb) ++wins[0];
+        if (sb > sa) ++wins[1];
+        overtimes += r.overtimes > 0 ? 1 : 0;
+        snaps += r.snaps;
+        margin += sa - sb;
+    }
+    if (failed == games) return 1;
+    const double n = games - failed;
+    std::printf("%d games (%d threads), %s vs %s, home and away alternating\n", games - failed, threads, a.c_str(),
+                b.c_str());
+    std::printf("  %s wins %.1f%%, %s wins %.1f%%, avg margin %+.1f, overtime %.1f%%, snaps/game %.0f\n\n", a.c_str(),
+                100.0 * wins[0] / n, b.c_str(), 100.0 * wins[1] / n, margin / n, 100.0 * overtimes / n, snaps / n);
+
+    cfbsim::TeamStats both{};
+    add_stats(both, sum[0]);
+    add_stats(both, sum[1]);
+    const auto ratio = [](double num, double den) { return den > 0.0 ? num / den : 0.0; };
+    struct Row {
+        const char* label;
+        const char* target;
+        double (*f)(const cfbsim::TeamStats&, double games);
+    };
+    // Per team per game; `games` is the number of team-games in the total.
+    const Row rows[] = {
+        {"points per team per game", "~28", [](const cfbsim::TeamStats& s, double g) { return s.points / g; }},
+        {"yards per play", "~5.8",
+         [](const cfbsim::TeamStats& s, double) { return s.plays > 0 ? s.total_yds() / s.plays : 0.0; }},
+        {"yards per carry", "~4.5",
+         [](const cfbsim::TeamStats& s, double) { return s.rush_att > 0 ? s.rush_yds / s.rush_att : 0.0; }},
+        {"completion %", "~61",
+         [](const cfbsim::TeamStats& s, double) { return s.pass_att > 0 ? 100.0 * s.pass_cmp / s.pass_att : 0.0; }},
+        {"yards per completion", "~12",
+         [](const cfbsim::TeamStats& s, double) { return s.pass_cmp > 0 ? s.pass_yds / s.pass_cmp : 0.0; }},
+        {"sack % of dropbacks", "~6-7",
+         [](const cfbsim::TeamStats& s, double) {
+             const int drop = s.pass_att + s.sacks_taken;
+             return drop > 0 ? 100.0 * s.sacks_taken / drop : 0.0;
+         }},
+        {"interception % of att", "~2.3",
+         [](const cfbsim::TeamStats& s, double) { return s.pass_att > 0 ? 100.0 * s.ints / s.pass_att : 0.0; }},
+        {"fumbles lost per game", "~0.6", [](const cfbsim::TeamStats& s, double g) { return s.fumbles_lost / g; }},
+        {"plays per team per game", "~70", [](const cfbsim::TeamStats& s, double g) { return s.plays / g; }},
+    };
+    std::printf("%-26s %8s %8s %10s %10s\n", "calibration", "target", "all", a.c_str(), b.c_str());
+    for (const Row& row : rows) {
+        std::printf("%-26s %8s %8.2f %10.2f %10.2f\n", row.label, row.target, row.f(both, 2.0 * n), row.f(sum[0], n),
+                    row.f(sum[1], n));
+    }
+    std::printf("\n%-26s %8s %8s %10s %10s\n", "per team per game", "", "all", a.c_str(), b.c_str());
+    const auto line = [&](const char* label, auto f) {
+        std::printf("%-26s %8s %8.1f %10.1f %10.1f\n", label, "", f(both) / (2.0 * n), f(sum[0]) / n, f(sum[1]) / n);
+    };
+    line("rush att", [](const cfbsim::TeamStats& s) { return double(s.rush_att); });
+    line("rush yds", [](const cfbsim::TeamStats& s) { return s.rush_yds; });
+    line("pass att", [](const cfbsim::TeamStats& s) { return double(s.pass_att); });
+    line("pass yds", [](const cfbsim::TeamStats& s) { return s.pass_yds; });
+    line("first downs", [](const cfbsim::TeamStats& s) { return double(s.first_downs); });
+    line("3rd down att", [](const cfbsim::TeamStats& s) { return double(s.third_att); });
+    line("4th down att", [](const cfbsim::TeamStats& s) { return double(s.fourth_att); });
+    line("punts", [](const cfbsim::TeamStats& s) { return double(s.punts); });
+    line("field goals tried", [](const cfbsim::TeamStats& s) { return double(s.fg_att); });
+    line("penalties", [](const cfbsim::TeamStats& s) { return double(s.penalties); });
+    line("turnovers", [](const cfbsim::TeamStats& s) { return double(s.turnovers()); });
+    line("timeouts used", [](const cfbsim::TeamStats& s) { return double(s.timeouts_used); });
+    std::printf("%-26s %8s %8.1f %10.1f %10.1f\n", "3rd down conv %", "", 100.0 * ratio(both.third_conv, both.third_att),
+                100.0 * ratio(sum[0].third_conv, sum[0].third_att), 100.0 * ratio(sum[1].third_conv, sum[1].third_att));
+    return failed > 0 ? 1 : 0;
+}
+
 int cmd_replay(std::string_view file, const Options& opt) {
     const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
     if (!report.ok()) {
@@ -1036,6 +1173,7 @@ int main(int argc, char* argv[]) {
     if (command == "run-play") return cmd_run_play(opt);
     if (command == "matrix") return cmd_matrix(opt);
     if (command == "play-game") return cmd_play_game(opt);
+    if (command == "batch") return cmd_batch(opt);
     if (command == "run-kick") return cmd_run_kick(opt);
     if (command == "replay") return cmd_replay(drill, opt);
 

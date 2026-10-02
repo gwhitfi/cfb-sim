@@ -93,6 +93,13 @@ LoadReport load_data_dir(const fs::path& root) {
     load_tuning("tackling.json", parse_tackling_tuning, data.tuning.tackling);
     load_tuning("game.json", parse_game_tuning, data.tuning.game);
     load_tuning("special.json", parse_special_tuning, data.tuning.special);
+    load_tuning("coach.json", parse_coach_tuning, data.tuning.coach);
+    if (const fs::path file = root / "tactics" / "situations.json"; !fs::exists(file)) {
+        report.errors.push_back("tactics/situations.json: file not found");
+    } else if (auto s = load(file, parse_situations)) {
+        data.tuning.coach.offense = std::move(s->first);
+        data.tuning.coach.defense = std::move(s->second);
+    }
     if (const fs::path rules = root / "rules" / "ncaa_fbs.json"; !fs::exists(rules)) {
         report.errors.push_back("rules/ncaa_fbs.json: file not found");
     } else if (auto r = load(rules, parse_rules)) {
@@ -349,6 +356,16 @@ class Validator {
         check_book(team.defense_playbook, PlaybookSide::Defense, dc.defense_packages,
                    "defense_packages");
         check_book(team.special_playbook, PlaybookSide::Special, dc.special_units, "special_units");
+
+        // Tactics name formations in the offensive playbook.
+        if (const auto book = data_.playbooks.find(team.offense_playbook); book != data_.playbooks.end()) {
+            const std::vector<std::string>& fs = book->second.formations;
+            for (const auto& [fid, w] : team.tactics.offense.formations) {
+                if (std::find(fs.begin(), fs.end(), fid) == fs.end()) {
+                    error(where, "tactics: formation '" + fid + "' is not in playbook '" + team.offense_playbook + "'");
+                }
+            }
+        }
 
         // Every rank must exist on the depth chart; every player id must be on the roster.
         const auto check_fills = [&](const std::map<std::string, SlotMap, std::less<>>& maps,

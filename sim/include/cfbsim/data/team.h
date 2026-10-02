@@ -34,6 +34,32 @@ struct DepthChart {
     std::map<std::string, SlotMap, std::less<>> special_units;      // "kickoff" -> slots
 };
 
+// The auto coach's settings (rules-and-flow.md#tactics-team-file-tactics).
+// 0-100 unless noted; 50 is neutral.
+enum class Tempo : std::uint8_t { Huddle, NoHuddle, Hurry };
+
+struct Tactics {
+    struct Offense {
+        double run_pass = 50.0;    // run share preference
+        double aggression = 50.0;  // deep shots, 4th downs, two-point tries
+        Tempo tempo = Tempo::Huddle;
+        std::map<std::string, double> formations;  // formation id -> weight (default 1)
+        std::string featured;                      // a slot ("Z", "RB"); empty: none
+        double fourth_down = 50.0;
+        double clock = 50.0;  // how early the two-minute offense starts
+    } offense;
+    struct Defense {
+        double blitz = 50.0;
+        double man_zone = 50.0;  // 0 all man, 100 all zone
+        double aggression = 50.0;
+        double tendency = 50.0;  // response to the offense's run/pass share
+    } defense;
+    struct Special {
+        double return_aggression = 50.0;
+        std::string kickoff = "deep";  // deep or squib
+    } special;
+};
+
 struct Team {
     std::string id;
     std::string name;
@@ -46,6 +72,7 @@ struct Team {
     std::string defense_playbook;
     std::string special_playbook;  // may be empty until special teams exist
     DepthChart depth_chart;
+    Tactics tactics;
 };
 
 enum class Controller : std::uint8_t { User, Ai };

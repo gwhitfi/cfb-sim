@@ -1,0 +1,39 @@
+{
+  // The auto coach (phase 10; docs/design/rules-and-flow.md#auto-coach-phase-10).
+  // The situation tables for play calls are in data/tactics/situations.json.
+  "format_version": 1,
+
+  "calls": {
+    "repeat": 0.5,                  // x per call of the same play in the team's last repeat_window calls
+    "repeat_window": 6,
+    "featured_weight": 1.5,         // plays whose first read or ball carrier is the featured slot
+    // The defense's package by the offense's personnel group (missing: 1).
+    "personnel": {
+      "10": {"base": 0.3, "nickel": 2.0},
+      "11": {"base": 0.8, "nickel": 1.3},
+      "12": {"base": 1.5, "nickel": 0.6},
+      "21": {"base": 1.8, "nickel": 0.4},
+      "22": {"base": 2.5, "nickel": 0.2}
+    },
+    "tendency_min": 8,              // offensive snaps seen before the defense leans
+    "tendency_gain": 1.0            // vs_run x (1 + gain x tendency/100 x (2 x run share - 1))
+  },
+
+  "fourth_down": {
+    "convert": {"curve": "linear", "points": [[1, 0.68], [2, 0.6], [3, 0.53], [5, 0.43], [10, 0.25], [15, 0.15], [25, 0.05]]},
+    "fg_make": {"curve": "linear", "points": [[17, 0.99], [30, 0.9], [40, 0.78], [50, 0.6], [55, 0.45], [60, 0.25], [65, 0.1]]},
+    "accuracy_yards": 0.15,         // effective yards shorter per Kick Accuracy point over 50
+    "fg_range": {"curve": "linear", "points": [[0, 40], [50, 50], [100, 60]]},   // Kick Power -> longest try
+    "net_punt": {"curve": "linear", "points": [[0, 32], [100, 42]]},             // Punt Power -> net yards
+    "go_bias": 1.0,                 // expected points added to Go at fourth_down 100 (taken away at 0)
+    "late_seconds": 300             // 4th quarter, trailing by more than a field goal: go
+  },
+
+  "tries": {
+    // Margin after the touchdown, before the try: go for two (4th quarter).
+    "two_point": [-2, -5, -9, -10, -13, -16, -17, 1, 4, 5, 12, 15, 19],
+    "max_deficit": 16,              // defensive timeouts late only while trailing by this or less
+    "two_minute": 120,              // the two-minute offense starts here (s) at clock 50 ...
+    "clock_scale": 60               // ... +60 s at clock 100, -60 s at clock 0
+  }
+}

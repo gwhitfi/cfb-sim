@@ -1,0 +1,36 @@
+{
+  // Situation weights for auto play calling (docs/design/rules-and-flow.md#play-calls).
+  // bucket -> tag -> multiplier. "run" and "pass" match the play's type. A tag a
+  // bucket doesn't list counts 1. Several buckets can be active on one call.
+  "format_version": 1,
+
+  "offense": {
+    "1st_down":      {"1st_down": 1.6, "base": 1.3, "run": 1.2},
+    "2nd_short":     {"2nd_short": 1.6, "run": 1.4, "short_yardage": 1.3, "deep": 1.2},
+    "2nd_medium":    {"base": 1.2},
+    "2nd_long":      {"2nd_long": 1.8, "pass": 1.4, "run": 0.7},
+    "3rd_short":     {"3rd_short": 1.8, "run": 1.4, "short_yardage": 1.5, "deep": 0.3},
+    "3rd_medium":    {"3rd_medium": 2.0, "pass": 2.0, "run": 0.4, "deep": 0.6},
+    "3rd_long":      {"3rd_long": 2.5, "pass": 3.0, "run": 0.2, "quick_game": 0.6},
+    "short_yardage": {"short_yardage": 2.0, "inside": 1.3},
+    "backed_up":     {"backed_up": 2.0, "run": 1.3, "deep": 0.5},
+    "red_zone":      {"red_zone": 2.0, "deep": 0.4, "short": 1.3},
+    "goal_line":     {"goal_line": 3.0, "run": 1.5, "short_yardage": 1.5, "deep": 0.1},
+    "two_minute":    {"two_minute": 2.5, "pass": 2.5, "run": 0.3, "outside": 1.6},
+    "four_minute":   {"run": 2.5, "pass": 0.5, "clock_kill": 2.0, "inside": 1.3}
+  },
+
+  "defense": {
+    "1st_down":      {"1st_down": 1.6, "base": 1.3, "vs_run": 1.3},
+    "2nd_short":     {"vs_run": 1.4, "short_yardage": 1.3},
+    "2nd_long":      {"2nd_long": 1.8, "vs_pass": 1.3},
+    "3rd_short":     {"3rd_short": 1.8, "short_yardage": 1.5, "pressure": 1.3},
+    "3rd_medium":    {"3rd_medium": 2.0, "vs_pass": 1.4, "vs_run": 0.6},
+    "3rd_long":      {"3rd_long": 2.5, "vs_pass": 1.6, "vs_run": 0.4, "prevent": 1.3},
+    "short_yardage": {"short_yardage": 2.0, "vs_run": 1.5},
+    "red_zone":      {"red_zone": 2.0, "man": 1.2},
+    "goal_line":     {"goal_line": 3.0, "vs_run": 1.5, "prevent": 0.1},
+    "two_minute":    {"two_minute": 2.5, "vs_pass": 1.5, "vs_run": 0.4, "prevent": 1.5},
+    "four_minute":   {"vs_run": 2.0, "pressure": 1.2}
+  }
+}

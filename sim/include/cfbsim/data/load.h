@@ -61,6 +61,9 @@ CarrierTuning parse_carrier_tuning(const Json& json, const std::string& source);
 TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source);
 GameTuning parse_game_tuning(const Json& json, const std::string& source);
 SpecialTuning parse_special_tuning(const Json& json, const std::string& source);
+CoachTuning parse_coach_tuning(const Json& json, const std::string& source);
+// data/tactics/situations.json: the offense's and the defense's tables.
+std::pair<SituationTable, SituationTable> parse_situations(const Json& json, const std::string& source);
 RulesTable parse_rules(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------

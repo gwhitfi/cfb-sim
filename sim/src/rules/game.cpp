@@ -100,6 +100,23 @@ class Game {
     Lineup& lineup(int t) { return lineups_[static_cast<std::size_t>(t)]; }
     AutoCoach& coach(int t) { return coaches_[static_cast<std::size_t>(t)]; }
     const Team& team_of(int t) const { return *teams_[static_cast<std::size_t>(t)]; }
+    // A play in `t`'s offensive playbook (null for kneel, spike, or an unknown id).
+    const Play* offense_play(int t, const std::string& id) const {
+        const auto book = data_.playbooks.find(team_of(t).offense_playbook);
+        return book == data_.playbooks.end() ? nullptr : book->second.find(id);
+    }
+    // `t`'s kicker and punter, for the coach's 4th-down decisions.
+    Specialists specialists(int t) const {
+        Specialists sp;
+        const Lineup& l = lineups_[idx(t)];
+        if (const std::string k = l.starter(Position::K); !k.empty()) {
+            const Attributes a = l.ratings(k);
+            sp.kick_power = a[Attr::KickPower];
+            sp.kick_accuracy = a[Attr::KickAccuracy];
+        }
+        if (const std::string p = l.starter(Position::P); !p.empty()) sp.punt_power = l.ratings(p)[Attr::PuntPower];
+        return sp;
+    }
     std::size_t idx(int t) const { return static_cast<std::size_t>(t); }
 
     // --- the log and inputs ------------------------------------------------
@@ -321,6 +338,7 @@ KickResult Game::kick_play(int kicking, double yard_line, PlayType type, const s
     o.kicking_right = (kicking == 0) == (g_.quarter % 2 == 1);
     o.seed = rng_.next_u64();
     o.kicking_home = kicking == 0;
+    o.return_aggression = rt.tactics.special.return_aggression;
     const auto fill = [&](int team, const Play& play) {
         const Team& t = team_of(team);
         const Formation& f = data_.formations.at(play.formation);
@@ -622,7 +640,9 @@ bool Game::run_try_play(int team) {
         const PlayCall c = coach(team).offense_call(g_, true);
         return Json{{"play", c.play}, {"flip", c.flip}, {"try", true}};
     });
-    const Json dcall = ask("call_play", 1 - team, [&] { return Json{{"play", coach(1 - team).defense_call(g_)}}; });
+    const Json dcall = ask("call_play", 1 - team, [&] {
+        return Json{{"play", coach(1 - team).defense_call(g_, offense_play(team, call.value("play", "")))}};
+    });
     const PlayOptions o = play_options({call.value("play", ""), call.value("flip", false)}, dcall.value("play", ""));
     ++snaps_;
     const PlayResult r = run_tracked(o, o.play + "_try");
@@ -1000,11 +1020,13 @@ SnapResult Game::snap() {
 
     // A kick on 4th down (or a last-chance field goal at the end of a half).
     const double kick_distance = 100.0 - g_.s.yard_line + 17.0;
-    const bool last_chance = g_.second_or_fourth() && g_.clock <= 8.0 && kick_distance <= tuning_.fg_range;
+    const Specialists sp = specialists(g_.offense);
+    const bool last_chance =
+        g_.second_or_fourth() && g_.clock <= 8.0 && kick_distance <= coach(g_.offense).fg_range(sp);
     KickChoice kick = KickChoice::Go;
     if (g_.s.down == 4 || last_chance) {
         const Json c = ask("coaching_decision", g_.offense, [&] {
-            const KickChoice k = coach(g_.offense).fourth_down(g_, kick_distance);
+            const KickChoice k = coach(g_.offense).fourth_down(g_, sp);
             return Json{{"decision", "fourth_down"},
                         {"choice", k == KickChoice::Punt ? "punt" : k == KickChoice::FieldGoal ? "field_goal" : "go"}};
         });
@@ -1021,7 +1043,9 @@ SnapResult Game::snap() {
         });
         call = {oc.value("play", ""), oc.value("flip", false)};
         if (call.play != "kneel" && call.play != "spike") {
-            const Json dc = ask("call_play", g_.defense(), [&] { return Json{{"play", coach(g_.defense()).defense_call(g_)}}; });
+            const Json dc = ask("call_play", g_.defense(), [&] {
+                return Json{{"play", coach(g_.defense()).defense_call(g_, offense_play(g_.offense, call.play))}};
+            });
             defense_play = dc.value("play", "");
         }
     }
@@ -1063,6 +1087,9 @@ SnapResult Game::snap() {
     }
 
     const int off = g_.offense, def = g_.defense();
+    if (const Play* called = clock_play ? nullptr : offense_play(off, call.play)) {
+        ++(called->type == PlayType::Run ? g_.runs : g_.passes)[idx(off)];
+    }
     const Situation before = g_.s;
     const std::string before_text = situation_text();
     const double clock_before = g_.clock;
@@ -1103,17 +1130,12 @@ SnapResult Game::snap() {
     } else if (!flagged.empty()) {
         const int offended = off_fouled ? def : off;
         const double sign = offended == off ? 1.0 : -1.0;  // the offended team maximizes this
-        int best = -1;
-        double best_value = sign * value_for_offense(standing, rules_);
-        for (std::size_t k = 0; k < flagged.size(); ++k) {
-            const Next n = enforce(before, r, flagged[k], rules_.penalty(flagged[k].type), rules_);
-            const double v = sign * value_for_offense(n, rules_);
-            if (v > best_value + 1e-9) {
-                best_value = v;
-                best = static_cast<int>(k);
-            }
-        }
         const Json d = ask("penalty_decision", offended, [&] {
+            std::vector<double> values;
+            for (const Foul& f : flagged) {
+                values.push_back(sign * value_for_offense(enforce(before, r, f, rules_.penalty(f.type), rules_), rules_));
+            }
+            const int best = coach(offended).penalty_choice(sign * value_for_offense(standing, rules_), values);
             Json j = {{"accept", best >= 0}};
             j["foul"] = best >= 0 ? flagged[static_cast<std::size_t>(best)].type : flagged.front().type;
             return j;

@@ -52,6 +52,9 @@
     "set_depth": 12,                // yd in front of the catch the blockers set up
     "hold_up": 1.2,                 // s the punt return line holds up
     "jam": 2.5,                     // s the jammers stay on the gunners
-    "protect_release": 0.3          // s after the punt the protection releases into coverage
+    "protect_release": 0.3,         // s after the punt the protection releases into coverage
+    // The receiving team's return_aggression tactic (0-100, 50 neutral), at 100 (minus at 0):
+    "aggression_margin": 0.4,       // s taken off both fair catch margins
+    "aggression_depth": 2.0         // yd added to touchback_depth; end_zone_return x (aggression / 50)
   }
 }
