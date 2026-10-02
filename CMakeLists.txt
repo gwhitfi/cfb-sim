@@ -12,6 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)           # -std=c++20, not -std=gnu++20
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)   # compile_commands.json for editors/clangd
 
 option(CFBSIM_BUILD_TESTS "Build the GoogleTest suites" ON)
+option(CFBSIM_BUILD_SERVER "Build the WebSocket server for the viewer" ON)
 
 # ---------------------------------------------------------------------------
 # Third-party dependencies, downloaded at configure time by FetchContent.
@@ -23,6 +24,21 @@ FetchContent_Declare(nlohmann_json
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SYSTEM)   # treat their headers as system headers: no warnings from them in our code
 FetchContent_MakeAvailable(nlohmann_json)
+
+if(CFBSIM_BUILD_SERVER)
+    # The WebSocket library for server/. Local plain ws:// only: no TLS, no
+    # compression, so it needs no other libraries.
+    FetchContent_Declare(ixwebsocket
+        URL https://github.com/machinezone/IXWebSocket/archive/refs/tags/v11.4.6.tar.gz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        SYSTEM)
+    set(USE_TLS OFF CACHE BOOL "" FORCE)
+    set(USE_ZLIB OFF CACHE BOOL "" FORCE)
+    set(IXWEBSOCKET_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(ixwebsocket)
+    # Its own sources warn with our flags (unused parameters with zlib off); not our code.
+    target_compile_options(ixwebsocket PRIVATE -w)
+endif()
 
 if(CFBSIM_BUILD_TESTS)
     FetchContent_Declare(googletest
@@ -51,6 +67,9 @@ target_compile_options(cfbsim_options INTERFACE
 
 add_subdirectory(sim)
 add_subdirectory(cli)
+if(CFBSIM_BUILD_SERVER)
+    add_subdirectory(server)
+endif()
 
 if(CFBSIM_BUILD_TESTS)
     enable_testing()

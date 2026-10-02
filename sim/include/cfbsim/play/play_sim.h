@@ -38,6 +38,9 @@ struct PlayOptions {
     std::map<std::string, std::string> defense_players;
     std::map<std::string, RatingModifiers> modifiers;
     bool offense_home = true;
+    // Pre-snap hot routes (phase 11): slot -> a route id from the route
+    // library. Replaces the slot's first route job (and its coverage options).
+    std::map<std::string, std::string> hot_routes;
 };
 
 // A foul that happened on the play. The rules layer decides whether it's
@@ -125,6 +128,10 @@ class PlayError : public std::runtime_error {
   public:
     using std::runtime_error::runtime_error;
 };
+
+// `play` with hot routes applied (slot -> route id). Throws PlayError for an
+// unknown route, or a slot that runs no route on this play.
+Play with_hot_routes(const DataSet& data, const Play& play, const std::map<std::string, std::string>& hot_routes);
 
 // Runs one play. Writes a tracking file when `out` is given.
 PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWriter* out = nullptr);

@@ -2185,6 +2185,23 @@ PlayResult PlaySim::run() {
 
 }  // namespace
 
+Play with_hot_routes(const DataSet& data, const Play& play, const std::map<std::string, std::string>& hot_routes) {
+    Play out = play;
+    for (const auto& [slot, route] : hot_routes) {
+        if (!data.routes.contains(route)) throw PlayError("hot route: unknown route '" + route + "'");
+        const auto a = out.assignments.find(slot);
+        if (a == out.assignments.end()) throw PlayError("hot route: play " + play.id + " has no slot " + slot);
+        const auto job = std::find_if(a->second.sequence.begin(), a->second.sequence.end(),
+                                      [](const Job& j) { return j.kind == JobKind::Route; });
+        if (job == a->second.sequence.end()) {
+            throw PlayError("hot route: " + slot + " runs no route on " + play.id);
+        }
+        job->route = RouteRef{route, std::nullopt, job->route.side};
+        job->options.clear();
+    }
+    return out;
+}
+
 PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWriter* out) {
     const auto team = data.teams.find(options.team);
     if (team == data.teams.end()) throw PlayError("unknown team '" + options.team + "'");
@@ -2202,6 +2219,11 @@ PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWri
         throw PlayError("only pass and run plays can be run so far");
     }
     if (options.flip && !play->flip) throw PlayError("play " + play->id + " can't be flipped");
+    Play hot;  // the play with its hot routes, when there are any
+    if (!options.hot_routes.empty()) {
+        hot = with_hot_routes(data, *play, options.hot_routes);
+        play = &hot;
+    }
     if (options.yard_line <= 0.0 || options.yard_line >= 100.0) {
         throw PlayError("yard line must be between 0 and 100");
     }

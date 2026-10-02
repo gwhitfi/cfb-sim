@@ -19,6 +19,23 @@
 
 namespace cfbsim {
 
+// A decision the game needs from a coach (phase 11;
+// rules-and-flow.md#interactive-games-phase-11). Every one of them is also
+// answered by the auto coach (`suggestion`), so an outside decider can let
+// it stand.
+struct Prompt {
+    std::string input;   // "call_play", "hike", "coaching_decision", "penalty_decision", "runoff", "timeout"
+    int team = 0;        // 0 home, 1 away
+    bool optional = false;  // may go unanswered (timeouts between plays)
+    Json suggestion;     // the auto coach's answer (null: none, on an optional prompt)
+    Json options;        // what an answer may say (plays, choices, fouls, ...)
+    Json state;          // the game state (score, clock, down and distance, ...)
+};
+
+// Checks an outside answer against its prompt and keeps only the fields the
+// input uses. Returns an error message, or nullopt when it's fine.
+std::optional<std::string> check_answer(const Prompt& prompt, Json& answer);
+
 struct GameOptions {
     std::string home;
     std::string away;
@@ -29,6 +46,13 @@ struct GameOptions {
     // "001_q1_1500_home_trips_stick"; return a stream to write it to (or
     // nullptr to skip that snap). The caller decides where files go.
     std::function<std::unique_ptr<std::ostream>(const std::string& name)> tracking;
+    // Optional (phase 11): an outside decider, asked after the auto coach.
+    // Return an answer to replace the coach's, or nullopt to keep it (for an
+    // optional prompt with no suggestion: to pass). Answers are checked with
+    // check_answer, and a bad one throws GameError.
+    std::function<std::optional<Json>(const Prompt&)> decide;
+    // Optional: every game log line as it's written, with the game state after it.
+    std::function<void(const Json& line, const Json& state)> observe;
 };
 
 // GameSetup (a data/games/*.json file) -> options. A setup without a seed
@@ -110,6 +134,12 @@ struct ReplayReport {
 // `tracking`: as in GameOptions, to write tracking files for the replayed game.
 ReplayReport replay_game(const DataSet& data, std::istream& log,
                          std::function<std::unique_ptr<std::ostream>(const std::string& name)> tracking = {});
+
+// Re-runs a logged game with `options` (its hooks: tracking, observe); the
+// teams, seed, and setup come from the log's header, and the decisions from
+// its inputs (`decide` is ignored). Throws GameError on a log that doesn't
+// replay. Returns the result; doesn't compare lines (replay_game does).
+GameResult rerun_game(const DataSet& data, std::istream& log, GameOptions options);
 
 // The box score as JSON, and as a readable text summary.
 nlohmann::ordered_json box_score_json(const BoxScore& box);

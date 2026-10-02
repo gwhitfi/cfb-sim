@@ -254,3 +254,180 @@ canvas.panning {
   min-width: 34px;
   height: 28px;
 }
+
+/* ------------------------------------------------------------------------
+   Live games (phase 11): the game panel, scoreboard, prompts, and feed
+   ------------------------------------------------------------------------ */
+.game label {
+  display: block;
+  margin: 4px 0;
+}
+.game .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  flex-wrap: wrap;
+}
+.game .row label {
+  display: inline;
+}
+.game input:not([type="checkbox"]) {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
+}
+#game-status.bad,
+.feed .bad {
+  color: #ff6b6b;
+}
+.feed {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 45vh;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.feed li {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.feed .event,
+.feed .note {
+  color: var(--muted);
+}
+.feed .score {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.scoreboard {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  background: rgba(10, 12, 15, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  font-size: 14px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.scoreboard > div {
+  padding: 2px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sb-team {
+  border-radius: 4px;
+}
+.sb-team.ball .sb-abbr::before {
+  content: "▸ ";
+  color: var(--accent);
+}
+.sb-team.mine .sb-abbr {
+  text-decoration: underline;
+}
+.sb-score {
+  font-size: 20px;
+  font-weight: 700;
+  min-width: 26px;
+  text-align: right;
+}
+.sb-to {
+  font-size: 9px;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+.sb-clock strong {
+  font-variant-numeric: tabular-nums;
+}
+.sb-down {
+  color: var(--accent);
+}
+.sb-play-clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.sb-play-clock:empty {
+  display: none;
+}
+.sb-play-clock.low {
+  color: #ff6b6b;
+}
+
+.prompt {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-height: 55%;
+  overflow-y: auto;
+  background: rgba(20, 23, 28, 0.95);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.prompt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.prompt-head .coach {
+  margin-left: auto;
+}
+.prompt-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+.prompt-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+}
+.prompt-error {
+  color: #ff6b6b;
+  margin-bottom: 6px;
+}
+.prompt button.suggested {
+  border-color: var(--accent);
+}
+.prompt button.hike {
+  background: var(--accent);
+  color: #111;
+  font-weight: 700;
+}
+.play-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-basis: 100%;
+}
+.play-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 130px;
+}
+.group-name {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.play-group button {
+  text-align: left;
+}

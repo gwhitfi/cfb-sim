@@ -146,7 +146,8 @@ function drawTrails(ctx: CanvasRenderingContext2D, cam: Camera, rec: Recording, 
 function drawBall(ctx: CanvasRenderingContext2D, cam: Camera, rec: Recording, frame: number): void {
   const ball = ballAt(rec, frame);
   if (!ball) return;
-  const [x, y, z] = ball;
+  const [x, y, rawZ] = ball;
+  const z = Math.max(0, rawZ); // a ball below the ground (e.g. on the tee) draws on it
   const [sx, sy] = cam.toScreen(x, y);
   const size = Math.max(cam.scale * 0.35, 4);
 

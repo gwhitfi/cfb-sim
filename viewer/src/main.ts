@@ -6,6 +6,7 @@ import { Playback, SPEEDS } from "./playback";
 import { drawScene, layerColor, playerAtPoint, type ViewOptions } from "./render";
 import { describeEvent, text as valueText } from "./events";
 import { parseTracking, TrackingError, X, Y, STRIDE, type Recording } from "./tracking";
+import { Live } from "./live";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -40,13 +41,13 @@ const opts: ViewOptions = {
 // Loading
 // ---------------------------------------------------------------------------
 
-function load(text: string, name: string, repoPath?: string): void {
+function load(text: string, name: string, repoPath?: string): boolean {
   let rec: Recording;
   try {
     rec = parseTracking(text);
   } catch (e) {
     showError(e instanceof TrackingError ? `${name}: ${e.message}` : String(e));
-    return;
+    return false;
   }
   // Reloading the same file keeps the view and the moment you were looking at.
   const sameFile = source?.name === name && pb !== null;
@@ -71,7 +72,19 @@ function load(text: string, name: string, repoPath?: string): void {
   buildLayers(rec);
   buildEvents(rec);
   updatePanel();
+  return true;
 }
+
+// Live games and full-game playback (live.ts): each snap is loaded like a file.
+const live = new Live({
+  show(text, name) {
+    if (!load(text, name)) return false;
+    pb!.speed = Number(speedSelect.value);
+    pb!.playing = true;
+    return true;
+  },
+  playback: () => pb,
+});
 
 function showError(message: string): void {
   const el = $("error");
@@ -297,6 +310,10 @@ labelsSelect.addEventListener("change", () => (opts.labelMode = labelsSelect.val
 window.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement && e.target.type !== "range" && e.target.type !== "checkbox") return;
   if (e.target instanceof HTMLSelectElement) return;
+  if (live.key(e)) {
+    e.preventDefault();
+    return;
+  }
   const key = e.key;
   let handled = true;
   if (key === " ") pb?.togglePlay();
@@ -432,6 +449,7 @@ function loop(now: number): void {
   } else {
     drawEmptyField();
   }
+  live.tick(dt);
   requestAnimationFrame(loop);
 }
 

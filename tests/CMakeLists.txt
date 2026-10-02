@@ -19,6 +19,7 @@ add_executable(cfbsim_tests
     rules_test.cpp
     game_test.cpp
     coach_test.cpp
+    match_test.cpp
     special_teams_test.cpp
     version_test.cpp)
 

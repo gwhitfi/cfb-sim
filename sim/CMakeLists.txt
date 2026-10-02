@@ -38,6 +38,8 @@ add_library(cfbsim_core STATIC
     src/rules/game.cpp
     src/rules/box_score.cpp
     src/coach/auto_coach.cpp
+    src/api/match.cpp
+    src/api/sim_api.cpp
     src/play/openness.cpp
     src/play/play_sim.cpp
     src/play/routes.cpp
@@ -57,3 +59,7 @@ target_link_libraries(cfbsim_core
 
 # Bake the project version from CMakeLists.txt into the code.
 target_compile_definitions(cfbsim_core PRIVATE CFBSIM_VERSION="${PROJECT_VERSION}")
+
+# A Match runs the game on its own thread (cfbsim/api/match.h).
+find_package(Threads REQUIRED)
+target_link_libraries(cfbsim_core PUBLIC Threads::Threads)

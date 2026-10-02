@@ -15,6 +15,7 @@
       </label>
       <select id="repo-files" title="Tracking files in the repo (dev server only)" hidden></select>
       <button id="reload" title="Reload this file from disk (R)" disabled>Reload</button>
+      <button id="game-toggle" title="Play or watch a full game (needs cfbsim-server)">Game…</button>
       <span id="title" class="title">Drop a tracking file anywhere</span>
     </header>
 
@@ -27,9 +28,44 @@
         </div>
         <div id="error" class="error" hidden></div>
         <div id="tooltip" class="tooltip" hidden></div>
+        <div id="scoreboard" class="scoreboard" hidden></div>
+        <div id="prompt" class="prompt" hidden></div>
       </div>
 
       <aside class="side">
+        <section id="game" class="game" hidden>
+          <h2>Game</h2>
+          <div class="row"><input id="game-server" size="22" /> <button id="game-connect">Connect</button></div>
+          <div id="game-status" class="muted"></div>
+          <div id="game-setup">
+            <label>Home <select id="game-home"></select></label>
+            <label>Away <select id="game-away"></select></label>
+            <label>You coach
+              <select id="game-side">
+                <option value="home">Home</option>
+                <option value="away">Away</option>
+                <option value="both">Both</option>
+                <option value="none">Neither (watch)</option>
+              </select>
+            </label>
+            <label>Seed <input id="game-seed" size="8" placeholder="random" /></label>
+            <button id="game-start">Kick off</button>
+            <h2>Watch a game log</h2>
+            <select id="game-logs"></select>
+            <button id="game-watch">Watch</button>
+          </div>
+          <div id="game-live" hidden>
+            <div id="game-mine" class="row">
+              <label><input type="checkbox" id="game-auto" /> Coach calls my plays</label>
+              <button id="game-timeout" title="At the line: right away. Otherwise at the next dead ball.">Timeout</button>
+            </div>
+            <div class="row">
+              <label><input type="checkbox" id="game-skip" /> Skip animations</label>
+              <button id="game-stop">End</button>
+            </div>
+            <ol id="feed" class="feed"></ol>
+          </div>
+        </section>
         <section>
           <h2>Recording</h2>
           <dl id="info" class="info"></dl>
