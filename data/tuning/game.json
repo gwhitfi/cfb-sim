@@ -1,0 +1,74 @@
+{
+  // The game flow's modeled pieces: tempo, fatigue, substitutions, injuries,
+  // foul rates, and the kicking stubs (docs/design/rules-and-flow.md#first-build-phase-8).
+  "format_version": 1,
+
+  "tempo": {
+    "normal": [6, 16],             // play clock reading (s) at the snap
+    "hurry": [26, 33],
+    "milk": [-0.2, 4],              // under 0: delay of game
+    "ready_delay": 7                // s after the whistle the ready signal comes (40-s clock)
+  },
+
+  "fatigue": {
+    "drain_base": 0.02,            // energy per snap
+    "drain_per_yard": 0.001,
+    "drain_per_engaged": 0.015,     // per second engaged in a block
+    "drain_per_contact": 0.02,      // per tackle try he was part of
+    "stamina": {"curve": "linear", "points": [[0, 1.6], [100, 0.6]]},   // drain multiplier
+    "recover_field": 0.0005,        // per s of game time between plays
+    "recover_sideline": 0.002,
+    "fitness": {"curve": "linear", "points": [[0, 0.5], [100, 1.5]]},   // Natural Fitness -> recovery multiplier
+    "halftime": 0.5,
+    "modifier": {"curve": "linear", "points": [[0, 0.8], [70, 1.0], [100, 1.0]]}  // energy x 100 -> rating multiplier
+  },
+
+  // [sub out below, back in above] energy, by depth chart position.
+  "subs": {
+    "QB": [0, 0], "RB": [0.6, 0.85], "FB": [0.55, 0.8], "WR": [0.55, 0.8], "TE": [0.55, 0.8],
+    "OT": [0.25, 0.6], "OG": [0.25, 0.6], "C": [0.25, 0.6],
+    "DE": [0.65, 0.85], "DT": [0.65, 0.85], "OLB": [0.55, 0.8], "MLB": [0.55, 0.8],
+    "CB": [0.55, 0.8], "FS": [0.5, 0.8], "SS": [0.5, 0.8],
+    "K": [0, 0], "P": [0, 0], "LS": [0, 0]
+  },
+
+  "injuries": {
+    "contact": 0.002,               // per tackle try, carrier and tackler, x (0.5 + Injury Proneness/100)
+    "snap": 0.00003                 // per player on the field per snap
+  },
+
+  "fouls": {
+    "skill": {"discipline": 0.7, "concentration": 0.3},
+    "false_start": 0.0014,          // per offensive player per snap, x (1.5 - skill/100)
+    "crowd": 0.6,                   // the away offense: x (1 + crowd x this)
+    "offside": 0.0009,              // per defender per snap
+    "defensive_holding": 0.04,      // per beaten-in-coverage pair
+    "hold_range": 1.0,              // yd
+    "pass_interference": 0.35,      // the defender on the target, pass not caught
+    "pi_range": 1.5,
+    "offensive_pi": 0.02,           // the target in a contested catch
+    "roughing": 0.02,               // per defender reaching the QB late
+    "late_after": 0.35, "late_until": 1.0,   // s after the release
+    "facemask": 0.004,              // per tackle try
+    "personal": {"aggression": 0.5, "dirtiness": 0.5},  // personal fouls x (0.5 + this/100)
+    "grounding": 0.25,              // a throwaway from inside the tackle box
+    "tackle_box": 4.5               // yd either side of the ball
+  },
+
+  "kicking": {
+    "punt_net": 40,
+    "punt_seconds": 8,
+    "fg_seconds": 5,
+    "safety_kick_to": 30,           // the receiving team starts at its own 30 (free kick stub)
+    "fg_make": {"curve": "linear", "points": [[20, 0.97], [30, 0.92], [40, 0.80], [50, 0.62], [55, 0.45], [60, 0.25], [65, 0.05], [70, 0.0]]},
+    "kicker": {"kick_power": 0.4, "kick_accuracy": 0.6},
+    "kicker_effect": 0.004          // make rate per point of the kicker blend over 50
+  },
+
+  // The temporary auto coach (phase 10 replaces it).
+  "coach": {
+    "fg_range": 52,                 // yd kick
+    "go_distance": 2,               // 4th and this or less past midfield: go
+    "late_seconds": 300             // trailing with this little left in the 4th: go
+  }
+}

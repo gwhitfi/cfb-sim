@@ -193,6 +193,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
     Agent& c = play_.world().agents()[static_cast<std::size_t>(carrier)];
     const Agent& k = play_.agent(tackler);
     ++stats_.tries;
+    stats_.contacts.emplace_back(carrier, tackler);
     if (!stats_.first_contact_y) stats_.first_contact_y = play_.frame.to_play(c.pos).y;
 
     // The tackle score.
@@ -245,6 +246,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
             return out;
         }
         stats_.tackler = play_.slot_name(tackler);
+        stats_.tackler_index = tackler;
         out.down = true;
         out.spot = spot_ahead(carrier, fall);
         return out;
@@ -306,6 +308,7 @@ TackleResult Tackles::finish_drag(Rng& rng) {
         return out;
     }
     stats_.tackler = play_.slot_name(d.tackler);
+    stats_.tackler_index = d.tackler;
     out.down = true;
     // Forward progress: the furthest he got.
     out.spot = spot_ahead(d.carrier, d.best_y - forward_y(play_.agent(d.carrier).pos, d.carrier));

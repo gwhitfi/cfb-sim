@@ -70,6 +70,14 @@ struct EvasionResult {
 };
 
 // A drag-down in progress: the tackler is wrapped up on the carrier.
+// A foul that happened on the field (flagged or not, the rules layer decides).
+struct CommittedFoul {
+    std::string type;  // a penalty type in the rules table ("offensive_holding")
+    int player = -1;
+    Vec2 at;           // field frame
+    double time = 0.0; // s after the snap
+};
+
 struct DragDown {
     int carrier = -1;
     int tackler = -1;
@@ -276,6 +284,8 @@ class PlayState {
     std::vector<double> stumble_share;
     std::vector<EvasionResult> evasions;
     std::optional<DragDown> drag;
+    // Fouls committed on this play (phase 8).
+    std::vector<CommittedFoul> fouls;
 
     // Behaviors, one per agent. The vector owns them: std::unique_ptr deletes
     // each behavior when it is replaced or when the PlayState goes away.

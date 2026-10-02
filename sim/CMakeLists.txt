@@ -17,6 +17,7 @@ add_library(cfbsim_core STATIC
     src/data/parse_play.cpp
     src/data/parse_team.cpp
     src/data/parse_tuning.cpp
+    src/data/parse_rules.cpp
     src/data/save.cpp
     src/drills/drills.cpp
     src/field/geometry.cpp
@@ -28,6 +29,13 @@ add_library(cfbsim_core STATIC
     src/play/engagements.cpp
     src/play/lanes.cpp
     src/play/tackles.cpp
+    src/play/fouls.cpp
+    src/rules/enforce.cpp
+    src/rules/clock.cpp
+    src/rules/lineup.cpp
+    src/rules/game.cpp
+    src/rules/box_score.cpp
+    src/coach/auto_coach.cpp
     src/play/openness.cpp
     src/play/play_sim.cpp
     src/play/routes.cpp

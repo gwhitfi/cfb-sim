@@ -46,6 +46,7 @@ Agent make_agent(const Player& player, TeamSide team, std::string label,
     a.jersey = player.jersey;
     a.position = player.position;
     a.ratings = effective_attributes(player.attributes, mods);
+    a.dirtiness = player.hidden.dirtiness;
     a.body = make_body(player.measurables, tuning);
     a.move = make_movement_profile(a.ratings, tuning);
     return a;

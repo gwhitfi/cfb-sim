@@ -16,6 +16,8 @@ add_executable(cfbsim_tests
     play_test.cpp
     rng_test.cpp
     route_test.cpp
+    rules_test.cpp
+    game_test.cpp
     version_test.cpp)
 
 target_link_libraries(cfbsim_tests PRIVATE

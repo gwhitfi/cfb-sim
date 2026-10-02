@@ -13,6 +13,7 @@
 #include "cfbsim/data/library.h"
 #include "cfbsim/data/play.h"
 #include "cfbsim/data/player.h"
+#include "cfbsim/data/rules.h"
 #include "cfbsim/data/team.h"
 #include "cfbsim/data/tuning.h"
 
@@ -58,6 +59,8 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source);
 BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source);
 CarrierTuning parse_carrier_tuning(const Json& json, const std::string& source);
 TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source);
+GameTuning parse_game_tuning(const Json& json, const std::string& source);
+RulesTable parse_rules(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------
 // Everything in a data directory.
@@ -75,6 +78,7 @@ struct DataSet {
     ById<Team> teams;
     ById<Roster> rosters;  // keyed by team id
     Tuning tuning;
+    RulesTable rules;  // data/rules/ncaa_fbs.json
 };
 
 struct LoadReport {

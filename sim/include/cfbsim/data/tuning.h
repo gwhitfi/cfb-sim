@@ -4,6 +4,10 @@
 
 #include "cfbsim/core/curve.h"
 #include "cfbsim/core/vec.h"
+#include "cfbsim/data/enums.h"
+
+#include <map>
+#include <utility>
 
 namespace cfbsim {
 
@@ -459,6 +463,46 @@ struct TacklingTuning {
     double loose_lead = 0.3;        // s ahead of the ball players run at
 };
 
+// data/tuning/game.json: the game flow's modeled pieces
+// (docs/design/rules-and-flow.md#first-build-phase-8).
+struct GameTuning {
+    // Tempo: play clock reading (s) at the snap.
+    std::pair<double, double> tempo_normal{12.0, 22.0}, tempo_hurry{26.0, 33.0}, tempo_milk{0.5, 3.0};
+    double ready_delay = 7.0;
+
+    // Fatigue.
+    double drain_base = 0.012, drain_per_yard = 0.0006, drain_per_engaged = 0.008,
+           drain_per_contact = 0.01;
+    Curve stamina;         // Stamina -> drain multiplier
+    double recover_field = 0.0006, recover_sideline = 0.0025;  // per s
+    Curve fitness;         // Natural Fitness -> recovery multiplier
+    double halftime = 0.5;
+    Curve fatigue;         // energy x 100 -> rating multiplier
+    std::map<Position, std::pair<double, double>> subs;  // [out below, back in above]
+
+    // Injuries.
+    double injury_contact = 0.002, injury_snap = 0.00003;
+
+    // Fouls.
+    Blend foul_skill;      // Discipline, Concentration
+    double false_start = 0.0018, crowd = 0.6, offside = 0.0013;
+    double defensive_holding = 0.03, hold_range = 1.0;
+    double pass_interference = 0.06, pi_range = 1.0, offensive_pi = 0.02;
+    double roughing = 0.06, late_after = 0.35, late_until = 1.0;
+    double facemask = 0.004;
+    double personal_aggression = 0.5, personal_dirtiness = 0.5;  // personal fouls x (0.5 + blend/100)
+    double grounding = 0.9, tackle_box = 4.5;
+
+    // Kicking stubs.
+    double punt_net = 40.0, punt_seconds = 8.0, fg_seconds = 5.0, safety_kick_to = 30.0;
+    Curve fg_make;         // kick distance (yd) -> make rate
+    Blend kicker;
+    double kicker_effect = 0.004;
+
+    // The temporary auto coach.
+    double fg_range = 52.0, go_distance = 2.0, late_seconds = 300.0;
+};
+
 struct Tuning {
     MovementTuning movement;
     PlayTuning play;
@@ -467,6 +511,7 @@ struct Tuning {
     BlockingTuning blocking;
     CarrierTuning carrier;
     TacklingTuning tackling;
+    GameTuning game;
 };
 
 }  // namespace cfbsim

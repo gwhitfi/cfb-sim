@@ -1,0 +1,44 @@
+{
+  // NCAA FBS rules for the game flow (docs/design/rules-and-flow.md), checked
+  // against the 2025 rules in phase 8. Fouls are committed by the play sim
+  // (or pre-snap by the rules layer); this table says how often officials
+  // flag them and how they're enforced.
+  "format_version": 1,
+  "id": "ncaa_fbs",
+
+  "game": {
+    "quarters": 4,
+    "quarter_seconds": 900,
+    "timeouts_per_half": 3,
+    "overtime_timeouts": [1, 1, 1],  // OT1, OT2, then one in total for OT3 on (2025)
+    "play_clock": 40,               // s after a play ends
+    "admin_play_clock": 25,         // s after a timeout, penalty, change of possession, period start, injury
+    "two_minute": 120,              // s: the two-minute timeout and the late-half clock rules
+    "last_minute": 60,              // s: the 10-second runoff option
+    "runoff": 10,
+    "first_down": 10
+  },
+
+  "spots": {
+    "kickoff_touchback": 25,        // own yard line
+    "touchback": 20,                // punts, interceptions, fumbles
+    "try": 3,                       // yd from the goal line, kick or two
+    "overtime_start": 25,           // the opponent's 25
+    "safety_kick_from": 20
+  },
+
+  // yards: 0 = none. spot: previous | dead_ball | spot_of_foul |
+  // previous_or_foul_beyond (holding) | spot_capped (DPI) | end_of_play.
+  "penalties": {
+    "false_start":       {"name": "False start", "yards": 5, "spot": "dead_ball", "flag": 1.0},
+    "offside":           {"name": "Offside", "yards": 5, "spot": "dead_ball", "flag": 1.0},
+    "delay_of_game":     {"name": "Delay of game", "yards": 5, "spot": "dead_ball", "flag": 1.0},
+    "offensive_holding": {"name": "Holding", "yards": 10, "spot": "previous_or_foul_beyond", "safety_in_end_zone": true, "flag": 0.12},
+    "defensive_holding": {"name": "Defensive holding", "yards": 10, "spot": "previous", "first_down": true, "flag": 0.6},
+    "defensive_pass_interference": {"name": "Pass interference", "yards": 15, "spot": "spot_capped", "first_down": true, "flag": 0.75},
+    "offensive_pass_interference": {"name": "Offensive pass interference", "yards": 15, "spot": "previous", "flag": 0.6},
+    "roughing_the_passer": {"name": "Roughing the passer", "yards": 15, "spot": "end_of_play", "first_down": true, "flag": 0.85},
+    "facemask":          {"name": "Facemask", "yards": 15, "spot": "end_of_play", "first_down": true, "flag": 0.8},
+    "intentional_grounding": {"name": "Intentional grounding", "yards": 0, "spot": "spot_of_foul", "loss_of_down": true, "safety_in_end_zone": true, "flag": 0.9}
+  }
+}

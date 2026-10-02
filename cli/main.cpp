@@ -18,6 +18,7 @@
 #include "cfbsim/drills/drills.h"
 #include "cfbsim/gen/roster_gen.h"
 #include "cfbsim/play/play_sim.h"
+#include "cfbsim/rules/game.h"
 #include "cfbsim/version.h"
 
 namespace fs = std::filesystem;
@@ -63,7 +64,12 @@ void print_usage() {
            "      --offense ID --defense ID   (default state_u vs tech)\n"
            "      --runs N              plays per matchup (default 100), spread over both\n"
            "                            hashes and the middle, flipped and not\n"
-           "      --plays a,b  --defs c,d   only these plays\n";
+           "      --plays a,b  --defs c,d   only these plays\n"
+           "  play-game               a full game, both teams on the auto coach\n"
+           "      --home ID --away ID   (default state_u vs tech)   --game FILE  a game setup file\n"
+           "      --seed N (default 1)  --log FILE.gamelog.jsonl   --box FILE.json\n"
+           "      --games N             play N seeds and print averages instead\n"
+           "  replay FILE             re-run a game log and check it reproduces exactly\n";
 }
 
 // "--key value" pairs and bare "--flag"s. Small on purpose; we'll swap in a
@@ -735,6 +741,160 @@ int cmd_matrix(const Options& opt) {
     return 0;
 }
 
+int cmd_play_game(const Options& opt) {
+    const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
+    if (!report.ok()) {
+        std::cerr << "cfbsim: data errors (run validate)\n";
+        return 1;
+    }
+    const cfbsim::DataSet& data = report.data;
+    cfbsim::GameOptions o;
+    o.home = opt.get("home", "state_u");
+    o.away = opt.get("away", "tech");
+    o.seed = std::stoull(opt.get("seed", "1"));
+    if (opt.has("game")) {
+        try {
+            const std::string file = opt.get("game");
+            const auto setup = cfbsim::parse_game_setup(cfbsim::read_json_file(file, file), file);
+            o = cfbsim::game_options(setup, o.seed);
+            if (opt.has("seed")) o.seed = std::stoull(opt.get("seed"));
+        } catch (const std::exception& e) {
+            std::cerr << "cfbsim: " << e.what() << "\n";
+            return 1;
+        }
+    }
+
+    const int games = std::stoi(opt.get("games", "0"));
+    if (games > 0) {
+        // Averages over N games (seed, seed+1, ...).
+        std::array<cfbsim::TeamStats, 2> sum{};
+        int home_wins = 0, overtimes = 0, snaps = 0;
+        double margin = 0.0;
+        for (int g = 0; g < games; ++g) {
+            cfbsim::GameOptions og = o;
+            og.seed = o.seed + static_cast<std::uint64_t>(g);
+            cfbsim::GameResult r;
+            try {
+                r = cfbsim::play_game(data, og);
+            } catch (const std::exception& e) {
+                std::cerr << "cfbsim: seed " << og.seed << ": " << e.what() << "\n";
+                return 1;
+            }
+            for (std::size_t t = 0; t < 2; ++t) {
+                const cfbsim::TeamStats& s = r.box.teams[t];
+                cfbsim::TeamStats& a = sum[t];
+                a.points += s.points;
+                a.plays += s.plays;
+                a.rush_att += s.rush_att;
+                a.rush_yds += s.rush_yds;
+                a.pass_att += s.pass_att;
+                a.pass_cmp += s.pass_cmp;
+                a.pass_yds += s.pass_yds;
+                a.sacks_taken += s.sacks_taken;
+                a.ints += s.ints;
+                a.fumbles_lost += s.fumbles_lost;
+                a.first_downs += s.first_downs;
+                a.third_att += s.third_att;
+                a.third_conv += s.third_conv;
+                a.penalties += s.penalties;
+                a.penalty_yds += s.penalty_yds;
+                a.punts += s.punts;
+                a.fg_att += s.fg_att;
+                a.fg_made += s.fg_made;
+                a.timeouts_used += s.timeouts_used;
+                a.possession_seconds += s.possession_seconds;
+                a.injuries += s.injuries;
+            }
+            home_wins += r.score[0] > r.score[1] ? 1 : 0;
+            overtimes += r.overtimes > 0 ? 1 : 0;
+            snaps += r.snaps;
+            margin += r.score[0] - r.score[1];
+        }
+        const double n = games;
+        std::printf("%d games, %s (home) vs %s: home wins %.0f%%, avg margin %+.1f, overtime %.0f%%, snaps/game %.0f\n\n",
+                    games, o.home.c_str(), o.away.c_str(), 100.0 * home_wins / n, margin / n, 100.0 * overtimes / n,
+                    snaps / n);
+        std::printf("%-26s %10s %10s\n", "per game", o.home.c_str(), o.away.c_str());
+        const auto row = [&](const char* label, auto f) {
+            std::printf("%-26s %10.1f %10.1f\n", label, f(sum[0]) / n, f(sum[1]) / n);
+        };
+        row("points", [](const cfbsim::TeamStats& s) { return double(s.points); });
+        row("plays", [](const cfbsim::TeamStats& s) { return double(s.plays); });
+        row("first downs", [](const cfbsim::TeamStats& s) { return double(s.first_downs); });
+        row("rush att", [](const cfbsim::TeamStats& s) { return double(s.rush_att); });
+        row("rush yds", [](const cfbsim::TeamStats& s) { return s.rush_yds; });
+        row("pass att", [](const cfbsim::TeamStats& s) { return double(s.pass_att); });
+        row("pass cmp", [](const cfbsim::TeamStats& s) { return double(s.pass_cmp); });
+        row("pass yds", [](const cfbsim::TeamStats& s) { return s.pass_yds; });
+        row("sacks taken", [](const cfbsim::TeamStats& s) { return double(s.sacks_taken); });
+        row("interceptions", [](const cfbsim::TeamStats& s) { return double(s.ints); });
+        row("fumbles lost", [](const cfbsim::TeamStats& s) { return double(s.fumbles_lost); });
+        row("3rd down att", [](const cfbsim::TeamStats& s) { return double(s.third_att); });
+        row("3rd down conv", [](const cfbsim::TeamStats& s) { return double(s.third_conv); });
+        row("penalties", [](const cfbsim::TeamStats& s) { return double(s.penalties); });
+        row("penalty yds", [](const cfbsim::TeamStats& s) { return s.penalty_yds; });
+        row("punts", [](const cfbsim::TeamStats& s) { return double(s.punts); });
+        row("field goals made", [](const cfbsim::TeamStats& s) { return double(s.fg_made); });
+        row("field goals tried", [](const cfbsim::TeamStats& s) { return double(s.fg_att); });
+        row("timeouts used", [](const cfbsim::TeamStats& s) { return double(s.timeouts_used); });
+        row("possession (min)", [](const cfbsim::TeamStats& s) { return s.possession_seconds / 60.0; });
+        row("injuries", [](const cfbsim::TeamStats& s) { return double(s.injuries); });
+        return 0;
+    }
+
+    std::ofstream log_file;
+    if (opt.has("log")) {
+        log_file.open(opt.get("log"));
+        if (!log_file) {
+            std::cerr << "cfbsim: can't write " << opt.get("log") << "\n";
+            return 1;
+        }
+    }
+    cfbsim::GameResult r;
+    try {
+        r = cfbsim::play_game(data, o, opt.has("log") ? &log_file : nullptr);
+    } catch (const std::exception& e) {
+        std::cerr << "cfbsim: " << e.what() << "\n";
+        return 1;
+    }
+    std::cout << "seed " << o.seed << ": " << o.home << " " << r.score[0] << ", " << o.away << " " << r.score[1]
+              << (r.overtimes ? " (" + std::to_string(r.overtimes) + " OT)" : std::string()) << ", " << r.snaps
+              << " snaps\n\n"
+              << cfbsim::box_score_text(r.box, data);
+    if (opt.has("log")) std::cout << "\nwrote " << opt.get("log") << "\n";
+    if (opt.has("box")) {
+        std::ofstream box(opt.get("box"));
+        box << cfbsim::box_score_json(r.box).dump(2) << "\n";
+        std::cout << "wrote " << opt.get("box") << "\n";
+    }
+    return 0;
+}
+
+int cmd_replay(std::string_view file, const Options& opt) {
+    const cfbsim::LoadReport report = cfbsim::load_data_dir(opt.get("data", "data"));
+    if (!report.ok()) {
+        std::cerr << "cfbsim: data errors (run validate)\n";
+        return 1;
+    }
+    std::ifstream in{std::string(file)};
+    if (!in) {
+        std::cerr << "cfbsim: can't read " << file << "\n";
+        return 1;
+    }
+    const cfbsim::ReplayReport r = cfbsim::replay_game(report.data, in);
+    if (r.ok) {
+        std::cout << "replay OK: " << r.lines << " lines match (" << r.result.score[0] << "-" << r.result.score[1]
+                  << ")\n";
+        return 0;
+    }
+    if (!r.error.empty()) std::cout << "replay failed: " << r.error << "\n";
+    if (r.line > 0) {
+        std::cout << "first difference at line " << r.line << ":\n  log:    " << r.expected
+                  << "\n  replay: " << r.got << "\n";
+    }
+    return 1;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -755,9 +915,10 @@ int main(int argc, char* argv[]) {
     // run-drill takes the drill name before its options.
     std::string_view drill;
     auto first_option = args.begin() + 1;
-    if (command == "run-drill") {
+    if (command == "run-drill" || command == "replay") {
         if (args.size() < 2 || args[1].starts_with("--")) {
-            std::cerr << "cfbsim run-drill: which drill? (forty, scramble)\n";
+            std::cerr << (command == "replay" ? "cfbsim replay: which log file?\n"
+                                              : "cfbsim run-drill: which drill? (forty, scramble)\n");
             return 1;
         }
         drill = args[1];
@@ -772,6 +933,8 @@ int main(int argc, char* argv[]) {
     if (command == "run-drill") return cmd_run_drill(drill, opt);
     if (command == "run-play") return cmd_run_play(opt);
     if (command == "matrix") return cmd_matrix(opt);
+    if (command == "play-game") return cmd_play_game(opt);
+    if (command == "replay") return cmd_replay(drill, opt);
 
     std::cerr << "cfbsim: unknown command '" << command << "'\n\n";
     print_usage();

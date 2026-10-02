@@ -9,6 +9,8 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "cfbsim/core/rng.h"
 #include "play/play_state.h"
@@ -22,6 +24,8 @@ struct TackleStats {
     int evasions_won = 0;
     std::optional<double> first_contact_y;  // play frame: where the first try was made
     std::string tackler;                    // slot of the man who brought him down
+    int tackler_index = -1;
+    std::vector<std::pair<int, int>> contacts;  // every try: (carrier, tackler)
 };
 
 // What a tackle try did to the play.

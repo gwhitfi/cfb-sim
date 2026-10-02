@@ -254,6 +254,7 @@ void Engagements::fight(Rng& rng) {
             if (rng.chance(t.hold_chance(t.hold_skill(b.ratings)))) {
                 e.shed = std::max(0.0, e.shed - t.hold_setback);
                 stats_.holds.push_back(play_.slot_name(e.blocker));
+                play_.fouls.push_back({"offensive_holding", e.blocker, b.pos, play_.since_snap()});
                 event_("holding", {{"player", play_.slot_name(e.blocker)},
                                    {"on", play_.slot_name(e.defender)}});
             }

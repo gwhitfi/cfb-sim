@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -10,6 +11,7 @@
 #include "cfbsim/data/load.h"
 #include "cfbsim/field/geometry.h"
 #include "cfbsim/log/tracking.h"
+#include "cfbsim/world/agent.h"
 
 namespace cfbsim {
 
@@ -29,6 +31,33 @@ struct PlayOptions {
     std::string defense_play;
     // Pass plays: the QB never throws, to time a protection (phase 6).
     bool hold_ball = false;
+    // Set by a game (phase 8): who plays each slot (slot -> player id; empty:
+    // the depth chart's starters), each player's rating modifiers (by player
+    // id: fatigue, injury), and which side is the home team.
+    std::map<std::string, std::string> offense_players;
+    std::map<std::string, std::string> defense_players;
+    std::map<std::string, RatingModifiers> modifiers;
+    bool offense_home = true;
+};
+
+// A foul that happened on the play. The rules layer decides whether it's
+// flagged, accepted, and how it's enforced (rules-and-flow.md#penalties).
+struct Foul {
+    std::string type;  // penalty type in the rules table ("offensive_holding")
+    bool by_offense = true;
+    std::string slot;
+    std::string player_id;
+    double x = 0.0, y = 0.0;  // play frame: where it happened (y: yd past the line)
+    double seconds = 0.0;     // after the snap
+};
+
+// One player's work on the play (fatigue, phase 8).
+struct PlayerUsage {
+    std::string id;
+    bool offense = true;
+    double distance = 0.0;  // yd run after the snap
+    double engaged = 0.0;   // s in a block
+    int contacts = 0;       // tackle tries he was part of
 };
 
 struct PlayResult {
@@ -75,6 +104,19 @@ struct PlayResult {
     bool fumble = false;
     bool fumble_lost = false;        // the other team recovered it
     std::string recovered_by;        // slot
+    // The game layer (phase 8).
+    double spot_x = 0.0, spot_y = 0.0;  // play frame: where the ball is dead (incomplete: 0, 0)
+    std::vector<Foul> fouls;            // committed, flagged or not
+    std::vector<PlayerUsage> usage;     // every player on the field
+    // Player ids for the box score (empty when nobody did it).
+    std::string passer_id;       // threw a pass
+    std::string target_id;
+    std::string rusher_id;       // took a handoff, or the QB ran (scramble, sack)
+    std::string carrier_id;      // had the ball at the whistle
+    std::string tackler_id;
+    std::string interceptor_id;
+    std::string fumbled_by_id;
+    std::string recovered_by_id;
 };
 
 // Thrown for a play that can't be run (unknown team or play, a slot the

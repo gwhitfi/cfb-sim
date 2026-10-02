@@ -67,6 +67,7 @@ struct Agent {
     Position position = Position::WR;
 
     Attributes ratings;  // effective ratings for this play
+    double dirtiness = 50.0;  // hidden: late hits and personal fouls
     Body body;
     MovementProfile move;
 

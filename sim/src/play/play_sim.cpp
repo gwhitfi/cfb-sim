@@ -18,6 +18,7 @@
 #include "cfbsim/physics/ball_flight.h"
 #include "cfbsim/play/routes.h"
 #include "play/engagements.h"
+#include "play/fouls.h"
 #include "play/lanes.h"
 #include "play/openness.h"
 #include "play/play_state.h"
@@ -113,7 +114,8 @@ class PlaySim {
           }),
           tackles_(state_, [this](std::string_view name, Json fields) {
               event(name, std::move(fields));
-          }) {
+          }),
+          fouls_(state_, opt.seed ^ 0x9E3779B97F4A7C15ULL) {
         state_.defense_play = defense.play;
         state_.defense_formation = defense.formation;
         state_.defense_book = defense.book;
@@ -135,7 +137,9 @@ class PlaySim {
 
     void setup();
     const Player& fill_slot(const Team& team, const Roster& roster, const SlotMap& map,
-                            const std::string& slot) const;
+                            const std::string& slot,
+                            const std::map<std::string, std::string>& chosen) const;
+    RatingModifiers modifiers(const Player& player) const;
     void setup_defense();
     OffenseRead read_offense_set(bool actual) const;
     void write_header();
@@ -205,6 +209,7 @@ class PlaySim {
     PlayResult result_;
     Engagements blocking_;
     Tackles tackles_;
+    FoulWatch fouls_;
 
     std::vector<std::size_t> job_index_;  // per agent: his current job in the sequence
     std::vector<std::optional<Bust>> busts_;
@@ -219,14 +224,29 @@ class PlaySim {
     std::optional<Vec2> fumble_spot_;
     bool fumbled_by_offense_ = true;
     std::optional<double> catch_y_;  // play frame: where the catch was made (YAC)
+    // For the game layer: each player's work, and who did what.
+    std::vector<double> distance_, engaged_;
+    int passer_ = -1;
 };
+
 
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
+RatingModifiers PlaySim::modifiers(const Player& player) const {
+    const auto it = opt_.modifiers.find(player.id);
+    return it == opt_.modifiers.end() ? RatingModifiers{} : it->second;
+}
+
 const Player& PlaySim::fill_slot(const Team& team, const Roster& roster, const SlotMap& map,
-                                 const std::string& slot) const {
+                                 const std::string& slot,
+                                 const std::map<std::string, std::string>& chosen) const {
+    if (const auto c = chosen.find(slot); c != chosen.end()) {
+        const Player* player = roster.find(c->second);
+        if (!player) throw PlayError("player '" + c->second + "' isn't on the roster");
+        return *player;
+    }
     const auto fill = map.find(slot);
     if (fill == map.end()) throw PlayError(team.id + "'s depth chart doesn't fill slot " + slot);
     std::string player_id = fill->second.player_id;
@@ -267,7 +287,7 @@ void PlaySim::setup() {
 
     for (std::size_t k = 0; k < f.slots.size(); ++k) {
         const FormationSlot& slot = f.slots[k];
-        const Player& player = fill_slot(team_, roster_, personnel->second, slot.name);
+        const Player& player = fill_slot(team_, roster_, personnel->second, slot.name, opt_.offense_players);
 
         SlotInfo info;
         info.slot = slot.name;
@@ -281,7 +301,8 @@ void PlaySim::setup() {
         info.familiarity = slot.pos ? player.familiarity_at(*slot.pos) : 100.0;
         state_.slots.push_back(info);
 
-        Agent a = make_agent(player, TeamSide::Home, slot.name, {}, state_.tuning().movement);
+        Agent a = make_agent(player, opt_.offense_home ? TeamSide::Home : TeamSide::Away, slot.name,
+                             modifiers(player), state_.tuning().movement);
         const Vec2 down = state_.downfield();
         if (opt_.huddle) {
             // A ring around the huddle's center, everyone facing in.
@@ -319,6 +340,9 @@ void PlaySim::setup() {
     tried_.assign(n(), false);
     blocking_.setup();
     tackles_.setup();
+    fouls_.setup();
+    distance_.assign(n(), 0.0);
+    engaged_.assign(n(), 0.0);
 
     Ball& ball = world_.ball();
     ball.state = Ball::State::Spotted;
@@ -366,7 +390,7 @@ void PlaySim::setup_defense() {
     const Vec2 huddle{0.0, tuning().huddle_depth + 1.0};
     for (std::size_t k = 0; k < f.slots.size(); ++k) {
         const FormationSlot& slot = f.slots[k];
-        const Player& player = fill_slot(team, *defense_.roster, package->second, slot.name);
+        const Player& player = fill_slot(team, *defense_.roster, package->second, slot.name, opt_.defense_players);
 
         SlotInfo info;
         info.slot = slot.name;
@@ -380,7 +404,8 @@ void PlaySim::setup_defense() {
         info.familiarity = slot.pos ? player.familiarity_at(*slot.pos) : 100.0;
         state_.slots.push_back(info);
 
-        Agent a = make_agent(player, TeamSide::Away, slot.name, {}, state_.tuning().movement);
+        Agent a = make_agent(player, opt_.offense_home ? TeamSide::Away : TeamSide::Home, slot.name,
+                             modifiers(player), state_.tuning().movement);
         if (opt_.huddle) {
             const double angle = 2.0 * std::numbers::pi * static_cast<double>(k) / count;
             const Vec2 spot = huddle + Vec2{std::cos(angle), std::sin(angle)} * radius;
@@ -1573,6 +1598,10 @@ void PlaySim::throw_ball(int qb_index, int target, bool away) {
     }
 
     result_.target = state_.slot_name(target);
+    passer_ = qb_index;
+    result_.passer_id = qb.id;
+    result_.target_id = state_.agent(target).id;
+    if (away) fouls_.throw_away(qb_index);
     result_.time_to_throw = state_.since_snap();
     result_.air_yards = state_.frame.to_play(aim.ground()).y;
     result_.thrown_away = away;
@@ -1673,6 +1702,7 @@ void PlaySim::play_the_ball(Vec3 before) {
         if (state_.is_offense(tr.player) && !off) off = &tr;
         if (!state_.is_offense(tr.player) && !def) def = &tr;
     }
+    if (off && off->player == state_.pass->target) fouls_.arrival(off->player, def != nullptr);
     if (off) tried_[static_cast<std::size_t>(off->player)] = true;
     if (def) tried_[static_cast<std::size_t>(def->player)] = true;
 
@@ -1771,7 +1801,7 @@ void PlaySim::catch_ball(int receiver, Vec3 at) {
     // A catch with a foot out of bounds is no catch. (The full rule, one foot
     // in bounds with control, comes with the rules layer in phase 8.)
     const Vec2 feet = state_.agent(receiver).pos;
-    if (feet.y < 0.0 || feet.y > kFieldWidth) {
+    if (feet.y < 0.0 || feet.y > kFieldWidth || feet.x < 0.0 || feet.x > kFieldLength) {
         event("out_of_bounds_catch", {{"player", state_.slot_name(receiver)}});
         ball.state = Ball::State::Dead;
         ball.pos = at;
@@ -1795,7 +1825,7 @@ void PlaySim::catch_ball(int receiver, Vec3 at) {
 void PlaySim::intercept(int defender, Vec3 at) {
     Ball& ball = world_.ball();
     const Vec2 feet = state_.agent(defender).pos;
-    if (feet.y < 0.0 || feet.y > kFieldWidth) {
+    if (feet.y < 0.0 || feet.y > kFieldWidth || feet.x < 0.0 || feet.x > kFieldLength) {
         event("out_of_bounds_catch", {{"player", state_.slot_name(defender)}});
         ball.state = Ball::State::Dead;
         ball.pos = at;
@@ -1808,6 +1838,7 @@ void PlaySim::intercept(int defender, Vec3 at) {
     ball.pos = at;
     result_.interception = true;
     result_.intercepted_by = state_.slot_name(defender);
+    result_.interceptor_id = state_.agent(defender).id;
     event("interception", {{"player", result_.intercepted_by},
                            {"air_yards", state_.frame.to_play(at.ground()).y}});
     new_possession(defender);
@@ -1858,15 +1889,18 @@ void PlaySim::check_rules() {
     };
     const int c = state_.carrier();
     if (c >= 0) {
+        // In the end zone between the sidelines is a touchdown (past the end
+        // line he must have crossed the goal line in bounds first).
         const Vec2 p = state_.agent(c).pos;
-        if (out_of_bounds(p)) {
-            whistle("out_of_bounds");
+        const double y = state_.frame.to_play(p).y;
+        const bool in_end_zone = state_.is_offense(c) ? y >= state_.frame.goal_line_y()
+                                                      : y <= state_.frame.own_goal_line_y();
+        if (in_end_zone && p.y >= 0.0 && p.y <= kFieldWidth) {
+            whistle("touchdown");
             return;
         }
-        const double y = state_.frame.to_play(p).y;
-        if (state_.is_offense(c) ? y >= state_.frame.goal_line_y()
-                                 : y <= state_.frame.own_goal_line_y()) {
-            whistle("touchdown");
+        if (out_of_bounds(p)) {
+            whistle("out_of_bounds");
             return;
         }
     }
@@ -1916,6 +1950,7 @@ void PlaySim::fumble(int carrier) {
     const Vec2 out = a.vel * 0.5 + Vec2{std::cos(angle), std::sin(angle)} * speed;
     ball.vel = {out.x, out.y, rng.uniform(t.out_up_min, t.out_up_max)};
     event("fumble", {{"player", state_.slot_name(carrier)}});
+    result_.fumbled_by_id = a.id;
 
     state_.engagements.clear();
     tackles_.reset_carrier();
@@ -1975,6 +2010,7 @@ void PlaySim::recover(int player) {
     ball.carrier = player;
     ball.vel = {};
     result_.recovered_by = state_.slot_name(player);
+    result_.recovered_by_id = state_.agent(player).id;
     result_.fumble_lost = !state_.is_offense(player) && !result_.interception;
     event("recovery", {{"player", result_.recovered_by}});
     // He falls on it, unless he scoops it up on the run.
@@ -1995,9 +2031,20 @@ void PlaySim::whistle(const std::string& outcome, std::optional<Vec2> spot) {
     result_.seconds = state_.since_snap();
 
     const int c = state_.carrier();
-    if (c >= 0) result_.carrier = state_.slot_name(c);
+    if (c >= 0) {
+        result_.carrier = state_.slot_name(c);
+        result_.carrier_id = state_.agent(c).id;
+    }
     const Vec2 at = spot ? *spot : (c >= 0 ? state_.agent(c).pos : world_.ball().pos.ground());
     const double y = state_.frame.to_play(at).y;
+    if (outcome != "incomplete") {
+        const Vec2 pp = state_.frame.to_play(at);
+        result_.spot_x = pp.x;
+        result_.spot_y = pp.y;
+        if (outcome == "touchdown") {
+            result_.spot_y = state_.is_offense(c) ? state_.frame.goal_line_y() : state_.frame.own_goal_line_y();
+        }
+    }
     if (result_.interception || result_.fumble_lost) {
         result_.defense_touchdown = outcome == "touchdown";
         if (result_.fumble_lost && fumble_spot_) result_.yards = state_.frame.to_play(*fumble_spot_).y;
@@ -2044,9 +2091,15 @@ PlayResult PlaySim::run() {
         }
         world_.step(intents);
         if (state_.phase == PlayPhase::Live) {
+            for (int i = 0; i < state_.count(); ++i) {
+                const auto idx = static_cast<std::size_t>(i);
+                distance_[idx] += state_.agent(i).vel.length() * kTickSeconds;
+                if (state_.engaged(i)) engaged_[idx] += kTickSeconds;
+            }
             blocking_.interact(world_.rng());
             track_pressure();
             handle_tackle(tackles_.interact(world_.rng()));
+            fouls_.tick();
             record_history();
         }
         ball_phase();
@@ -2067,6 +2120,39 @@ PlayResult PlaySim::run() {
     result_.missed_tackles = ts.missed;
     result_.evasions_won = ts.evasions_won;
     result_.tackler = ts.tackler;
+    if (ts.tackler_index >= 0) result_.tackler_id = state_.agent(ts.tackler_index).id;
+    if (result_.handoff && state_.run_carrier >= 0) {
+        result_.rusher_id = state_.agent(state_.run_carrier).id;
+    } else if (passer_ < 0 && !result_.interception) {
+        result_.rusher_id = state_.agent(state_.qb).id;  // a scramble, a sack, a keeper
+    }
+
+    // Fouls and each player's work, for the game layer.
+    fouls_.finish(result_.complete, ts.contacts);
+    for (const CommittedFoul& f : state_.fouls) {
+        Foul out;
+        out.type = f.type;
+        out.by_offense = state_.is_offense(f.player);
+        out.slot = state_.slot_name(f.player);
+        out.player_id = state_.agent(f.player).id;
+        const Vec2 pp = state_.frame.to_play(f.at);
+        out.x = pp.x;
+        out.y = pp.y;
+        out.seconds = f.time;
+        result_.fouls.push_back(out);
+    }
+    for (int i = 0; i < state_.count(); ++i) {
+        const auto idx = static_cast<std::size_t>(i);
+        PlayerUsage u;
+        u.id = state_.agent(i).id;
+        u.offense = state_.is_offense(i);
+        u.distance = distance_[idx];
+        u.engaged = engaged_[idx];
+        for (const auto& [carrier, tackler] : ts.contacts) {
+            if (carrier == i || tackler == i) ++u.contacts;
+        }
+        result_.usage.push_back(u);
+    }
 
     // One readable line.
     std::ostringstream s;
@@ -2116,8 +2202,8 @@ PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWri
         throw PlayError("only pass and run plays can be run so far");
     }
     if (options.flip && !play->flip) throw PlayError("play " + play->id + " can't be flipped");
-    if (options.yard_line < 1.0 || options.yard_line > 99.0) {
-        throw PlayError("yard line must be 1-99");
+    if (options.yard_line <= 0.0 || options.yard_line >= 100.0) {
+        throw PlayError("yard line must be between 0 and 100");
     }
     const auto formation = data.formations.find(play->formation);
     if (formation == data.formations.end()) {
