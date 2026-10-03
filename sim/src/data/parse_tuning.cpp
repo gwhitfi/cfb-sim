@@ -60,7 +60,7 @@ MovementTuning parse_movement_tuning(const Json& json, const std::string& source
 
     const Reader root(json, source);
     root.allow_only({"format_version", "top_speed", "t90", "decel", "lateral_accel", "factors",
-                     "cut", "facing_turn_rate_deg", "standing_speed", "body", "collision"});
+                     "cut", "facing_turn_rate_deg", "standing_speed", "gravity", "body", "collision"});
     detail::require_format_version(root);
 
     MovementTuning t;
@@ -82,6 +82,7 @@ MovementTuning parse_movement_tuning(const Json& json, const std::string& source
 
     t.facing_turn_rate_deg = root.number("facing_turn_rate_deg");
     t.standing_speed = root.number("standing_speed");
+    t.gravity = root.number("gravity");
 
     const Reader body = root.at("body");
     body.allow_only({"radius_by_weight", "reach_arm_factor"});
@@ -265,22 +266,39 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     if (t.short_max >= t.medium_max) th.at("medium_max").fail("must be more than short_max");
 
     const Reader c = root.at("catch");
-    c.allow_only({"arms_up_factor", "jump", "low", "dive_extra", "dive_factor", "base",
-                  "reach_penalty", "fast_ball_speed", "fast_ball_penalty"});
+    c.allow_only({"arms_up_factor", "jump", "low", "body_control", "window_shape", "dive_extra",
+                  "dive_max_height", "dive_down", "dive_slide", "jump_comfort", "jump_timing", "jump_look_ahead",
+                  "hold_ease", "dive_factor", "base", "reach_penalty", "reach_penalty_power",
+                  "fast_ball_speed", "fast_ball_penalty"});
     t.arms_up_factor = c.number("arms_up_factor");
     t.jump_reach = parse_curve(c.at("jump"));
     t.catch_low = c.number("low");
-    t.dive_extra = c.number("dive_extra");
+    t.body_control = parse_blend(c.at("body_control"));
+    t.window_shape = parse_curve(c.at("window_shape"));
+    t.dive_extra = parse_curve(c.at("dive_extra"));
+    t.dive_max_height = c.number("dive_max_height");
+    std::tie(t.dive_down_min, t.dive_down_max) = parse_range(c.at("dive_down"));
+    t.dive_slide = c.number("dive_slide");
+    t.jump_comfort = c.number("jump_comfort");
+    const Reader jt = c.at("jump_timing");
+    jt.allow_only({"defense", "offense", "sd"});
+    t.jump_timing_defense = parse_blend(jt.at("defense"));
+    t.jump_timing_offense = parse_blend(jt.at("offense"));
+    t.jump_timing_sd = parse_curve(jt.at("sd"));
+    t.jump_look_ahead = c.number("jump_look_ahead");
+    t.hold_ease = c.number("hold_ease");
+    if (t.dive_max_height <= t.catch_low) c.at("dive_max_height").fail("must be more than low");
     t.dive_factor = c.number("dive_factor");
     t.catch_base = parse_curve(c.at("base"));
     t.reach_penalty = c.number("reach_penalty");
+    t.reach_penalty_power = c.number("reach_penalty_power");
     t.fast_ball_speed = c.number("fast_ball_speed");
     t.fast_ball_penalty = c.number("fast_ball_penalty");
 
     const Reader k = root.at("contested");
     k.allow_only({"traffic_range", "traffic_penalty", "traffic_bravery_share", "receiver",
-                  "defender", "closer_bonus", "skill_scale", "catch_factor", "int_contested",
-                  "int_alone", "touch", "bat_factor", "line_depth", "tip_chance", "tip_keep",
+                  "defender", "closer_bonus", "skill_scale", "catch_factor", "int_contested", "dive_int_factor",
+                  "int_alone", "touch", "behind_factor", "bat_factor", "line_depth", "tip_chance", "tip_keep",
                   "tip_up"});
     t.traffic_range = k.number("traffic_range");
     t.traffic_penalty = parse_curve(k.at("traffic_penalty"));
@@ -291,8 +309,10 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     t.contest_skill_scale = k.number("skill_scale");
     t.contested_catch_factor = k.number("catch_factor");
     t.int_contested = parse_curve(k.at("int_contested"));
+    t.dive_int_factor = k.number("dive_int_factor");
     t.int_alone = parse_curve(k.at("int_alone"));
     t.touch = parse_curve(k.at("touch"));
+    t.behind_factor = k.number("behind_factor");
     t.bat_factor = k.number("bat_factor");
     t.line_depth = k.number("line_depth");
     t.tip_chance = k.number("tip_chance");
@@ -333,7 +353,8 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
 
     const Reader man = root.at("man");
     man.allow_only({"skill", "lag", "sell", "sell_window", "leverage", "min_cushion",
-                    "cushion_shrink", "gain", "backpedal_share"});
+                    "cushion_shrink", "drive_start", "drive_speed", "drive_rate", "drive_recover",
+                    "gain", "backpedal_share"});
     t.man_skill = parse_blend(man.at("skill"));
     t.man_lag = parse_curve(man.at("lag"));
     t.sell = parse_curve(man.at("sell"));
@@ -341,12 +362,17 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.leverage = man.number("leverage");
     t.min_cushion = man.number("min_cushion");
     t.cushion_shrink = man.number("cushion_shrink");
+    t.drive_start = man.number("drive_start");
+    t.drive_speed = man.number("drive_speed");
+    t.drive_rate = parse_curve(man.at("drive_rate"));
+    t.drive_recover = man.number("drive_recover");
     t.man_gain = man.number("gain");
     t.backpedal_share = man.number("backpedal_share");
 
     const Reader zone = root.at("zone");
     zone.allow_only({"skill", "lag", "face_max_deg", "threat_lookahead", "eyes_weight",
-                     "switch_margin", "deep_min_depth", "deep_cushion", "under_short", "drift", "margin"});
+                     "switch_margin", "deep_min_depth", "deep_cushion", "deep_lookahead", "deep_wide", "deep_lead",
+                     "under_short", "drift", "margin"});
     t.zone_skill = parse_blend(zone.at("skill"));
     t.zone_lag = parse_curve(zone.at("lag"));
     t.face_max_deg = zone.number("face_max_deg");
@@ -355,6 +381,9 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.switch_margin = zone.number("switch_margin");
     t.deep_min_depth = zone.number("deep_min_depth");
     t.deep_cushion = zone.number("deep_cushion");
+    t.deep_lookahead = zone.number("deep_lookahead");
+    t.deep_wide = zone.number("deep_wide");
+    t.deep_lead = parse_curve(zone.at("deep_lead"));
     t.under_short = zone.number("under_short");
     t.drift = zone.number("drift");
     t.zone_margin = zone.number("margin");

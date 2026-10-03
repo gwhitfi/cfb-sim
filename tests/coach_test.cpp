@@ -49,7 +49,7 @@ bool contains(const std::vector<std::string>& v, const char* s) { return std::fi
 }  // namespace
 
 TEST(Coach, SituationBuckets) {
-    const AutoCoach c(data(), data().teams.at("state_u"), 0, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 1);
     EXPECT_TRUE(contains(c.buckets(state(1, 10, 25)), "1st_down"));
     EXPECT_TRUE(contains(c.buckets(state(3, 12, 25)), "3rd_long"));
     const auto short_yardage = c.buckets(state(4, 1, 50));
@@ -71,7 +71,7 @@ TEST(Coach, SituationBuckets) {
 }
 
 TEST(Coach, SituationsShiftTheCall) {
-    const AutoCoach c(data(), data().teams.at("state_u"), 0, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 1);
     const double first = share(c.offense_weights(state(1, 10, 25)), is_pass);
     const double third_long = share(c.offense_weights(state(3, 12, 25)), is_pass);
     const double third_short = share(c.offense_weights(state(3, 1, 25)), is_pass);
@@ -84,7 +84,7 @@ TEST(Coach, SituationsShiftTheCall) {
 }
 
 TEST(Coach, TacticsShiftTheCall) {
-    Team runner = data().teams.at("state_u");
+    Team runner = data().teams.at("clemson_2018");
     runner.tactics.offense.run_pass = 90.0;
     Team thrower = runner;
     thrower.tactics.offense.run_pass = 10.0;
@@ -92,7 +92,7 @@ TEST(Coach, TacticsShiftTheCall) {
     EXPECT_LT(share(r.offense_weights(state(1, 10, 25)), is_pass) + 0.3,
               share(t.offense_weights(state(1, 10, 25)), is_pass));
 
-    Team blitzer = data().teams.at("tech");
+    Team blitzer = data().teams.at("clemson_2025");
     blitzer.tactics.defense.blitz = 100.0;
     Team sitter = blitzer;
     sitter.tactics.defense.blitz = 0.0;
@@ -103,7 +103,7 @@ TEST(Coach, TacticsShiftTheCall) {
 }
 
 TEST(Coach, DefenseReadsPersonnelAndTendencies) {
-    const AutoCoach c(data(), data().teams.at("tech"), 1, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2025"), 1, 1);
     const Play* eleven = data().playbooks.at("spread_base").find("smash");  // 11 personnel
     ASSERT_NE(eleven, nullptr);
     const auto nickel = [](const Play& p) { return data().formations.at(p.formation).package == "nickel"; };
@@ -121,7 +121,7 @@ TEST(Coach, DefenseReadsPersonnelAndTendencies) {
 }
 
 TEST(Coach, AntiRepeatSpreadsTheCalls) {
-    AutoCoach c(data(), data().teams.at("state_u"), 0, 7);
+    AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 7);
     std::set<std::string> seen;
     std::string last;
     int repeats = 0;
@@ -136,7 +136,7 @@ TEST(Coach, AntiRepeatSpreadsTheCalls) {
 }
 
 TEST(Coach, FourthDownByExpectedPoints) {
-    const AutoCoach c(data(), data().teams.at("state_u"), 0, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 1);
     const Specialists sp;
     EXPECT_EQ(c.fourth_down(state(4, 1, 60), sp), KickChoice::Go);          // 4th & 1 at their 40
     EXPECT_EQ(c.fourth_down(state(4, 10, 25), sp), KickChoice::Punt);       // 4th & 10 at our 25
@@ -148,7 +148,7 @@ TEST(Coach, FourthDownByExpectedPoints) {
     EXPECT_NE(c.fourth_down(state(4, 8, 60), weak), KickChoice::FieldGoal);
 
     // The fourth_down tactic moves the line.
-    Team bold = data().teams.at("state_u"), timid = bold;
+    Team bold = data().teams.at("clemson_2018"), timid = bold;
     bold.tactics.offense.fourth_down = 100.0;
     timid.tactics.offense.fourth_down = 0.0;
     const AutoCoach b(data(), bold, 0, 1), t(data(), timid, 0, 1);
@@ -165,7 +165,7 @@ TEST(Coach, FourthDownByExpectedPoints) {
 }
 
 TEST(Coach, TwoPointChartAndKickoffs) {
-    const AutoCoach c(data(), data().teams.at("state_u"), 0, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 1);
     GameState g = state(1, 10, 25);
     g.quarter = 4;
     g.score = {6, 8};  // down 2 after the touchdown
@@ -176,7 +176,7 @@ TEST(Coach, TwoPointChartAndKickoffs) {
     g.score = {6, 8};
     EXPECT_FALSE(c.go_for_two(g));
 
-    Team squib = data().teams.at("state_u");
+    Team squib = data().teams.at("clemson_2018");
     squib.tactics.special.kickoff = "squib";
     const AutoCoach s(data(), squib, 0, 1);
     GameState k = state(1, 10, 25);
@@ -188,7 +188,7 @@ TEST(Coach, TwoPointChartAndKickoffs) {
 }
 
 TEST(Coach, TimeoutsLateToStopTheClock) {
-    const AutoCoach c(data(), data().teams.at("state_u"), 0, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 1);
     GameState g = state(2, 6, 40);
     g.quarter = 4;
     g.clock = 90.0;
@@ -204,13 +204,13 @@ TEST(Coach, TimeoutsLateToStopTheClock) {
 }
 
 TEST(Coach, PenaltyChoiceTakesTheBestOption) {
-    const AutoCoach c(data(), data().teams.at("state_u"), 0, 1);
+    const AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 1);
     EXPECT_EQ(c.penalty_choice(1.0, {0.5, 2.0, 1.5}), 1);
     EXPECT_EQ(c.penalty_choice(3.0, {0.5, 2.0}), -1);
 }
 
 TEST(Coach, TacticsRoundTripThroughTheTeamFile) {
-    Team t = data().teams.at("tech");
+    Team t = data().teams.at("clemson_2025");
     t.tactics.offense.tempo = Tempo::Hurry;
     t.tactics.offense.featured = "RB";
     t.tactics.defense.man_zone = 20.0;
@@ -233,8 +233,8 @@ TEST(Coach, ReturnAggressionChangesFairCatches) {
         int n = 0;
         for (std::uint64_t seed = 1; seed <= 40; ++seed) {
             KickOptions o;
-            o.kicking_team = "state_u";
-            o.receiving_team = "tech";
+            o.kicking_team = "clemson_2018";
+            o.receiving_team = "clemson_2025";
             o.kick_play = "punt_normal";
             o.return_play = "pr_middle";
             o.yard_line = 30.0;

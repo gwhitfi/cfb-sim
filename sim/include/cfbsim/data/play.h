@@ -104,6 +104,10 @@ struct Assignment {
     std::vector<Job> sequence;  // offense / special teams: jobs in order
     std::optional<Job> run;     // defense: run responsibility
     std::optional<Job> pass;    // defense: pass responsibility
+    // Defense: where this call lines him up, replacing the formation slot's
+    // x and/or y (plays-and-data.md#defensive-plays).
+    std::optional<Anchor> align_x;
+    std::optional<Anchor> align_y;
 };
 
 // ---------------------------------------------------------------------------

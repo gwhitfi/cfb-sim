@@ -20,3 +20,6 @@ out/
 
 # Tracking files and logs written by CLI runs at the repo root
 /*.jsonl
+
+# Personal guided tour of the codebase (not shared)
+/tour/

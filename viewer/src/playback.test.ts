@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ballAt, lerpAngleDeg, Playback } from "./playback";
+import { ballAt, ballHeading, lerpAngleDeg, Playback } from "./playback";
 import { parseTracking } from "./tracking";
 
 // One player running +x at 1 yd per tick, facing swinging across ±180°.
@@ -64,5 +64,28 @@ describe("lerpAngleDeg", () => {
     expect(lerpAngleDeg(10, 50, 0.5)).toBe(30);
     expect(lerpAngleDeg(170, -170, 0.5)).toBe(180);
     expect(lerpAngleDeg(-170, 170, 0.5)).toBe(-180);
+  });
+});
+
+describe("ballHeading", () => {
+  const lines = (balls: ([number, number, number] | null)[]) =>
+    parseTracking(
+      [
+        JSON.stringify({ type: "header", format_version: 1, tick_rate: 20, players: [{ id: "a", team: "home" }] }),
+        ...balls.map((ball, t) => JSON.stringify({ type: "tick", tick: t, p: [[0, 0, 0, 0, 0]], ball })),
+      ].join("\n"),
+    );
+
+  it("points the way the ball is going", () => {
+    const rec = lines([[10, 10, 2], [11, 11, 2.5], [12, 12, 2.8]]);
+    const [dx, dy] = ballHeading(rec, 0.5)!;
+    expect(dx).toBeCloseTo(Math.SQRT1_2);
+    expect(dy).toBeCloseTo(Math.SQRT1_2);
+  });
+
+  it("keeps the way it last moved once it stops, and is null before it has moved", () => {
+    const rec = lines([[10, 10, 0], [10, 10, 0], [10, 9, 1], [10, 9, 1], [10, 9, 1]]);
+    expect(ballHeading(rec, 0)).toBeNull();
+    expect(ballHeading(rec, 4)).toEqual([0, -1]);
   });
 });

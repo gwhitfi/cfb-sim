@@ -1,7 +1,7 @@
 {
   "format_version": 1,
-  "home": "state_u",
-  "away": "tech",
+  "home": "clemson_2018",
+  "away": "clemson_2025",
   "seed": 12345,
   "venue": {"neutral": false, "surface": "grass", "altitude_ft": 600, "crowd": 0.8},
   "weather": {"temp_f": 55, "wind_mph": 10, "wind_dir_deg": 90, "precip": "none"},

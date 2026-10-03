@@ -7,10 +7,12 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "shot": "node --experimental-strip-types --no-warnings scripts/shot.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
     "vitest": "^5.0.3"

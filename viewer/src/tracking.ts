@@ -60,7 +60,8 @@ export const Y = 1;
 export const VX = 2;
 export const VY = 3;
 export const FACING = 4;
-export const STRIDE = 5;
+export const Z = 5; // feet above the ground: 0 unless he's in the air (format 2 rows have a sixth value)
+export const STRIDE = 6;
 
 export interface Recording {
   header: Header;
@@ -220,10 +221,11 @@ function parsePlayers(p: unknown, count: number, where: string): Float32Array {
   }
   const out = new Float32Array(count * STRIDE);
   p.forEach((values, i) => {
-    if (!Array.isArray(values) || values.length !== STRIDE) {
-      throw new TrackingError(`${where}: p[${i}]: expected [x, y, vx, vy, facing_deg]`);
+    // Five values on the ground; a sixth (z) when he's in the air.
+    if (!Array.isArray(values) || (values.length !== STRIDE - 1 && values.length !== STRIDE)) {
+      throw new TrackingError(`${where}: p[${i}]: expected [x, y, vx, vy, facing_deg] or [..., z]`);
     }
-    for (let k = 0; k < STRIDE; k++) out[i * STRIDE + k] = Number(values[k]);
+    for (let k = 0; k < STRIDE; k++) out[i * STRIDE + k] = Number(values[k] ?? 0);
   });
   return out;
 }

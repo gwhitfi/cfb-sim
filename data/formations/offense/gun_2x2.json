@@ -1,20 +1,32 @@
 {
-  "format_version": 1,
-  "id": "gun_2x2",
-  "name": "Gun 2x2",
-  "side": "offense",
-  "personnel": "11",
-  "slots": {
-    "LT": {"pos": "OT", "x": -2.8, "y": -1, "stance": "three_point", "on_line": true},
-    "LG": {"pos": "OG", "x": -1.4, "y": -1, "stance": "three_point", "on_line": true},
-    "C":  {"pos": "C",  "x": 0,    "y": -1, "stance": "snap",        "on_line": true},
-    "RG": {"pos": "OG", "x": 1.4,  "y": -1, "stance": "three_point", "on_line": true},
-    "RT": {"pos": "OT", "x": 2.8,  "y": -1, "stance": "three_point", "on_line": true},
-    "X":  {"pos": "WR", "x": {"from": "numbers", "side": "left", "offset": 0},  "y": -1, "stance": "two_point", "on_line": true},
-    "H":  {"pos": "WR", "x": {"from": "X", "offset": 6},                        "y": -2, "stance": "two_point"},
-    "Z":  {"pos": "WR", "x": {"from": "numbers", "side": "right", "offset": 0}, "y": -1, "stance": "two_point", "on_line": true},
-    "Y":  {"pos": "TE", "x": {"from": "Z", "offset": -6},                       "y": -2, "stance": "two_point"},
-    "QB": {"pos": "QB", "x": 0,  "y": -5, "stance": "gun"},
-    "RB": {"pos": "RB", "x": -2, "y": -5, "stance": "two_point"}
-  }
+    "format_version": 1,
+    "id": "gun_2x2",
+    "name": "Gun 2x2",
+    "side": "offense",
+    "personnel": "11",
+    "slots": {
+        "LT": { "pos": "OT", "x": -3.0, "y": -1, "stance": "three_point", "on_line": true },
+        "LG": { "pos": "OG", "x": -1.5, "y": -1, "stance": "three_point", "on_line": true },
+        "C": { "pos": "C", "x": 0, "y": -1, "stance": "snap", "on_line": true },
+        "RG": { "pos": "OG", "x": 1.5, "y": -1, "stance": "three_point", "on_line": true },
+        "RT": { "pos": "OT", "x": 3.0, "y": -1, "stance": "three_point", "on_line": true },
+        "X": {
+            "pos": "WR",
+            "x": { "from": "numbers", "side": "left", "offset": 0 },
+            "y": -1,
+            "stance": "two_point",
+            "on_line": true
+        },
+        "H": { "pos": "WR", "x": { "from": "X", "offset": 6 }, "y": -2, "stance": "two_point" },
+        "Z": {
+            "pos": "WR",
+            "x": { "from": "numbers", "side": "right", "offset": 0 },
+            "y": -1,
+            "stance": "two_point",
+            "on_line": true
+        },
+        "Y": { "pos": "TE", "x": { "from": "Z", "offset": -6 }, "y": -2, "stance": "two_point" },
+        "QB": { "pos": "QB", "x": 0, "y": -5, "stance": "gun" },
+        "RB": { "pos": "RB", "x": -2, "y": -5, "stance": "two_point" }
+    }
 }

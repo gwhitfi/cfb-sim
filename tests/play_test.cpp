@@ -18,7 +18,7 @@ const DataSet& data() {
 
 PlayOptions options(const std::string& play, std::uint64_t seed = 1) {
     PlayOptions o;
-    o.team = "state_u";
+    o.team = "clemson_2018";
     o.play = play;
     o.seed = seed;
     o.huddle = false;
@@ -35,7 +35,7 @@ std::string tracking(const DataSet& d, const PlayOptions& o) {
 // The roster, with one attribute set for every player.
 DataSet with_attribute(Attr attr, double value) {
     DataSet d = data();
-    for (Player& p : d.rosters.at("state_u").players) p.attributes[attr] = value;
+    for (Player& p : d.rosters.at("clemson_2018").players) p.attributes[attr] = value;
     return d;
 }
 
@@ -105,8 +105,8 @@ TEST(Play, AccuracyMatters) {
     DataSet good = with_attribute(Attr::ShortAccuracy, 95);
     DataSet bad = with_attribute(Attr::ShortAccuracy, 25);
     for (const Attr a : {Attr::MediumAccuracy, Attr::DeepAccuracy}) {
-        for (Player& p : good.rosters.at("state_u").players) p.attributes[a] = 95;
-        for (Player& p : bad.rosters.at("state_u").players) p.attributes[a] = 25;
+        for (Player& p : good.rosters.at("clemson_2018").players) p.attributes[a] = 95;
+        for (Player& p : bad.rosters.at("clemson_2018").players) p.attributes[a] = 25;
     }
     // About 90% vs. 70%: a gap of ~40 in 200, with a spread of ~8.
     EXPECT_GT(completions(good), completions(bad) + 20);
@@ -114,7 +114,7 @@ TEST(Play, AccuracyMatters) {
 
 TEST(Play, LowPlaybookKnowledgeBusts) {
     DataSet d = data();
-    for (Player& p : d.rosters.at("state_u").players) p.playbook_knowledge["spread"] = 1;
+    for (Player& p : d.rosters.at("clemson_2018").players) p.playbook_knowledge["spread"] = 1;
     int busts = 0;
     for (std::uint64_t seed = 1; seed <= 20; ++seed) {
         busts += static_cast<int>(run_play(d, options("trips_stick", seed)).busts.size());

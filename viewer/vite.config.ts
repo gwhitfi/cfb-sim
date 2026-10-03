@@ -5,8 +5,9 @@ import { defineConfig, type Plugin } from "vite";
 
 // The repo root, where `cfbsim run-drill ... --out x.jsonl` writes by default.
 const REPO = fileURLToPath(new URL("..", import.meta.url));
-// Folders searched for tracking files: the repo root, out/, and one level of
-// folders inside out/ (a game's per-snap files from `--tracking out/NAME`).
+// Folders searched for tracking files: the repo root, out/, and two levels of
+// folders inside out/ (a game's per-snap files from `--tracking out/NAME`, or
+// grouped test runs like out/tests/smash).
 const SEARCH = [".", "out"];
 
 // Dev-server only: lists and serves the repo's tracking files, so the viewer
@@ -66,7 +67,7 @@ async function listFiles(): Promise<string[]> {
       if (e.isDirectory() && depth > 0) await scan(path, depth - 1);
     }
   };
-  for (const dir of SEARCH) await scan(dir, dir === "out" ? 1 : 0);
+  for (const dir of SEARCH) await scan(dir, dir === "out" ? 2 : 0);
   return found;
 }
 

@@ -7,6 +7,7 @@ import { drawScene, layerColor, playerAtPoint, type ViewOptions } from "./render
 import { describeEvent, text as valueText } from "./events";
 import { parseTracking, TrackingError, X, Y, STRIDE, type Recording } from "./tracking";
 import { Live } from "./live";
+import { DEFAULT_YARDS, followPoint, followX, viewTurns, type Behind, type ViewMode } from "./view";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -19,6 +20,14 @@ const speedSelect = $<HTMLSelectElement>("speed");
 const repoFiles = $<HTMLSelectElement>("repo-files");
 const reloadButton = $<HTMLButtonElement>("reload");
 const tooltip = $<HTMLDivElement>("tooltip");
+const viewSelect = $<HTMLSelectElement>("view");
+const behindSelect = $<HTMLSelectElement>("view-behind");
+const zoomSelect = $<HTMLSelectElement>("zoom");
+
+// Fixed zoom: yards across the screen in each view (saved), and how far the
+// user has dragged the view off the ball on this play (not saved).
+const zoomYards: Record<ViewMode, number> = { ...DEFAULT_YARDS };
+let panOffset: [number, number] = [0, 0];
 
 const PLAY_ICON = `<svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 2v12l10-6z" fill="currentColor"/></svg>`;
 const PAUSE_ICON = `<svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 2h4v12H3zM9 2h4v12H9z" fill="currentColor"/></svg>`;
@@ -31,6 +40,7 @@ let source: { name: string; repoPath?: string } | null = null;
 const opts: ViewOptions = {
   velocity: false,
   trails: false,
+  names: true,
   labelMode: "label",
   hiddenLayers: new Set(),
   selected: null,
@@ -54,12 +64,14 @@ function load(text: string, name: string, repoPath?: string): boolean {
   const keepFrame = sameFile ? pb!.frame : 0;
   source = { name, repoPath };
   pb = new Playback(rec);
+  pb.speed = Number(speedSelect.value);
   pb.seek(keepFrame);
+  if (!sameFile) panOffset = [0, 0];
   if (!sameFile) {
     opts.selected = null;
     opts.hiddenLayers.clear();
-    fitPlayers();
   }
+  applyView(!sameFile);
   if (repoPath) history.replaceState(null, "", `#file=${encodeURIComponent(repoPath)}`);
 
   $("empty").hidden = true;
@@ -84,6 +96,12 @@ const live = new Live({
     return true;
   },
   playback: () => pb,
+  coaching(sides) {
+    // Coaching one side: sit behind your team. Otherwise behind the offense.
+    behindSelect.value = sides.length === 1 ? sides[0]! : "offense";
+    saveView();
+    applyView(false);
+  },
 });
 
 function showError(message: string): void {
@@ -281,6 +299,8 @@ for (const s of SPEEDS) speedSelect.append(new Option(`${s}×`, String(s)));
 speedSelect.value = "1";
 speedSelect.addEventListener("change", () => {
   if (pb) pb.speed = Number(speedSelect.value);
+  saveView();
+  speedSelect.blur(); // so the keyboard shortcuts keep working
 });
 
 function changeSpeed(dir: 1 | -1): void {
@@ -288,6 +308,7 @@ function changeSpeed(dir: 1 | -1): void {
   const next = SPEEDS[Math.min(Math.max(i + dir, 0), SPEEDS.length - 1)]!;
   speedSelect.value = String(next);
   if (pb) pb.speed = next;
+  saveView();
 }
 
 playButton.addEventListener("click", () => pb?.togglePlay());
@@ -298,13 +319,20 @@ scrub.addEventListener("input", () => {
   pb.playing = false;
   pb.seek(Number(scrub.value));
 });
-$("fit").addEventListener("click", (e) => (e.shiftKey ? fitPlayers() : cam.fitField()));
+$("fit").addEventListener("click", (e) => {
+  if (!e.shiftKey) fitView();
+  else if (fixedZoom()) panOffset = [0, 0];
+  else fitPlayers();
+});
 
 const velocityBox = $<HTMLInputElement>("opt-velocity");
 const trailsBox = $<HTMLInputElement>("opt-trails");
+const namesBox = $<HTMLInputElement>("opt-names");
 const labelsSelect = $<HTMLSelectElement>("opt-labels");
 velocityBox.addEventListener("change", () => (opts.velocity = velocityBox.checked));
 trailsBox.addEventListener("change", () => (opts.trails = trailsBox.checked));
+namesBox.checked = opts.names;
+namesBox.addEventListener("change", () => (opts.names = namesBox.checked));
 labelsSelect.addEventListener("change", () => (opts.labelMode = labelsSelect.value as ViewOptions["labelMode"]));
 
 window.addEventListener("keydown", (e) => {
@@ -323,10 +351,15 @@ window.addEventListener("keydown", (e) => {
   else if (key === "End") pb?.seek(pb.lastFrame);
   else if (key === "]") changeSpeed(1);
   else if (key === "[") changeSpeed(-1);
-  else if (key === "f") cam.fitField();
-  else if (key === "F") fitPlayers();
+  else if (key === "f") fitView();
+  else if (key === "c") {
+    viewSelect.value = viewSelect.value === "vertical" ? "horizontal" : "vertical";
+    viewSelect.dispatchEvent(new Event("change"));
+  }
+  else if (key === "F") fixedZoom() ? (panOffset = [0, 0]) : fitPlayers();
   else if (key === "v") velocityBox.click();
   else if (key === "t") trailsBox.click();
+  else if (key === "n") namesBox.click();
   else if (key === "r") reloadButton.click();
   else if (key === "Escape") opts.selected = null;
   else handled = false;
@@ -342,6 +375,11 @@ let drag: { x: number; y: number; moved: boolean } | null = null;
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   cam.zoomAt(e.offsetX, e.offsetY, Math.exp(-e.deltaY * 0.0015));
+  if (fixedZoom()) {
+    zoomYards[viewMode()] = cam.acrossPixels / cam.scale;
+    keepPanOffset();
+    saveView();
+  }
 }, { passive: false });
 
 canvas.addEventListener("pointerdown", (e) => {
@@ -356,6 +394,7 @@ canvas.addEventListener("pointermove", (e) => {
       drag.moved = true;
       canvas.classList.add("panning");
       cam.panPixels(dx, dy);
+      if (fixedZoom()) keepPanOffset();
       drag.x = e.clientX;
       drag.y = e.clientY;
     }
@@ -372,7 +411,7 @@ canvas.addEventListener("pointerleave", () => {
   opts.hovered = null;
   tooltip.hidden = true;
 });
-canvas.addEventListener("dblclick", () => fitPlayers());
+canvas.addEventListener("dblclick", () => (fixedZoom() ? (panOffset = [0, 0]) : fitPlayers()));
 
 let hoverPoint: [number, number] | null = null;
 function hoverAt(sx: number, sy: number): void {
@@ -399,6 +438,112 @@ function updateHover(): void {
   tooltip.style.top = `${sy + 14}px`;
   canvas.style.cursor = "pointer";
 }
+
+// ---------------------------------------------------------------------------
+// The view: sideline (the whole field, left to right) or vertical (behind a
+// team, the field's width across the screen, following the ball up and down)
+// ---------------------------------------------------------------------------
+
+const VIEW_KEY = "cfbsim.view";
+
+function viewMode(): ViewMode {
+  return viewSelect.value as ViewMode;
+}
+
+function saveView(): void {
+  try {
+    localStorage.setItem(
+      VIEW_KEY,
+      JSON.stringify({
+        mode: viewSelect.value,
+        behind: behindSelect.value,
+        speed: Number(speedSelect.value),
+        zoom: zoomSelect.value,
+        yards: zoomYards,
+      }),
+    );
+  } catch {
+    // No storage (private window, blocked site data): the choice just isn't remembered.
+  }
+}
+
+function restoreView(): void {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null");
+    if (saved?.mode === "horizontal" || saved?.mode === "vertical") viewSelect.value = saved.mode;
+    if (["offense", "home", "away"].includes(saved?.behind)) behindSelect.value = saved.behind;
+    if (SPEEDS.includes(saved?.speed)) speedSelect.value = String(saved.speed);
+    if (saved?.zoom === "fixed" || saved?.zoom === "fit") zoomSelect.value = saved.zoom;
+    for (const mode of ["horizontal", "vertical"] as const) {
+      const y = Number(saved?.yards?.[mode]);
+      if (Number.isFinite(y) && y > 2) zoomYards[mode] = y;
+    }
+  } catch {
+    // Nothing saved, or no storage.
+  }
+  behindSelect.hidden = viewMode() !== "vertical";
+}
+
+// Turns the camera for the current file and view. `refit` also reframes it
+// (a new file, or the view changed); the vertical view always reframes, since
+// it frames the same way every time.
+function applyView(refit: boolean): void {
+  const before = cam.turns;
+  cam.turns = pb ? viewTurns(pb.rec, viewMode(), behindSelect.value as Behind) : viewMode() === "vertical" ? 1 : 0;
+  if (fixedZoom() && pb) {
+    if (refit) panOffset = [0, 0];
+    frameFixed(); // (the draw loop keeps it framed)
+  } else if (viewMode() === "vertical") fitView();
+  else if (refit || cam.turns !== before) fitPlayers();
+}
+
+// "Fit": with fixed zoom, back to the default zoom for this view, on the
+// ball; otherwise the whole field from the sideline, or the field's width
+// centered on the ball in the vertical view.
+function fitView(): void {
+  if (fixedZoom() && pb) {
+    zoomYards[viewMode()] = DEFAULT_YARDS[viewMode()];
+    panOffset = [0, 0];
+    saveView();
+    frameFixed();
+  } else if (viewMode() === "vertical") cam.fitWidthAt((pb && followX(pb.rec, pb.frame)) ?? 60);
+  else cam.fitField();
+}
+
+function fixedZoom(): boolean {
+  return zoomSelect.value === "fixed";
+}
+
+// Fixed zoom: the saved zoom for this view, following the ball (plus any drag).
+function frameFixed(): void {
+  if (!pb) return;
+  const [x, y] = followPoint(pb.rec, pb.frame) ?? [cam.cx, cam.cy];
+  cam.frameOn(x + panOffset[0], y + panOffset[1], zoomYards[viewMode()]);
+}
+
+// After the user zooms or drags with fixed zoom: remember where the view sits
+// relative to the ball, so it keeps following from there.
+function keepPanOffset(): void {
+  if (!pb) return;
+  const [x, y] = followPoint(pb.rec, pb.frame) ?? [cam.cx, cam.cy];
+  panOffset = [cam.cx - x, cam.cy - y];
+}
+
+zoomSelect.addEventListener("change", () => {
+  saveView();
+  applyView(true);
+  zoomSelect.blur();
+});
+
+for (const select of [viewSelect, behindSelect]) {
+  select.addEventListener("change", () => {
+    behindSelect.hidden = viewMode() !== "vertical";
+    saveView();
+    applyView(true);
+    select.blur(); // so the keyboard shortcuts keep working
+  });
+}
+restoreView();
 
 // Frames the area every player covers during the whole recording.
 function fitPlayers(): void {
@@ -430,10 +575,8 @@ function resize(): void {
   const first = cam.width === 1;
   cam.resize(rect.width, rect.height);
   // The file can finish loading before the canvas has a size; fit again now.
-  if (first) {
-    if (pb) fitPlayers();
-    else cam.fitField();
-  }
+  if (first) applyView(true);
+  else if (!fixedZoom() && viewMode() === "vertical") fitView(); // keep the field's width filling the screen
 }
 new ResizeObserver(resize).observe(canvas);
 
@@ -443,6 +586,9 @@ function loop(now: number): void {
   lastTime = now;
   if (pb) {
     pb.advance(dt);
+    // Fixed zoom follows the ball; so does the vertical camera, yard for yard.
+    if (fixedZoom()) frameFixed();
+    else if (viewMode() === "vertical") cam.cx = followX(pb.rec, pb.frame) ?? cam.cx;
     updateHover();
     drawScene(ctx, cam, pb, opts);
     updatePanel();

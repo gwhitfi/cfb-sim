@@ -66,6 +66,7 @@ struct PlayerUsage {
 struct PlayResult {
     // How the play ended: "touchdown", "out_of_bounds", "incomplete",
     // "tackled", "sack", "safety", "recovered" (a loose ball fallen on),
+    // "down" (went to the ground making a diving catch: down untouched),
     // "fumble_out_of_bounds", or "whistle" (the time limit).
     std::string outcome;
     std::string summary;  // one readable line
@@ -85,6 +86,8 @@ struct PlayResult {
     bool thrown_away = false;
     int breakups = 0;
     int tips = 0;
+    int defender_plays = 0;  // times a defender played the ball (interception attempts)
+    int jumps = 0;           // players who jumped for it
     // Blocking and the rush (phase 6).
     double time_to_pressure = -1.0;  // s until a defender first got within 2.5 yd of the
                                      // QB while he held the ball (-1: never)

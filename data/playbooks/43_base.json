@@ -41,10 +41,10 @@
         "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
         "SAM":  {"run": {"gap": "D", "side": "strong"}, "pass": {"man": "#3_strong"}},
         "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hole"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"man": "#2_weak"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_strong", "leverage": "outside"}}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_weak", "leverage": "outside"}}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#2_strong"}},
+        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"man": "#2_weak"}, "align": {"x": {"over": "#2", "side": "weak", "offset": -1}, "y": 5}},
+        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_strong", "leverage": "outside"}}, "align": {"y": 6}},
+        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_weak", "leverage": "outside"}}, "align": {"y": 6}},
+        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#2_strong"}, "align": {"x": {"over": "#2", "side": "strong", "offset": -1}, "y": 6}},
         "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
       },
       "tags": ["base", "man", "vs_pass", "3rd_medium"]
@@ -65,8 +65,8 @@
         "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "curl_flat_weak"}},
         "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_strong_out"}},
         "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_weak_out"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_quarter_strong_in"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_quarter_weak_in"}}
+        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_quarter_strong_in"}, "align": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 10}},
+        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_quarter_weak_in"}, "align": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 10}}
       },
       "tags": ["base", "zone", "vs_run", "1st_down"]
     },
@@ -103,10 +103,10 @@
         "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
         "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
         "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"man": "back_1"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"man": "#2_weak"}},
+        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"man": "#2_weak"}, "align": {"x": {"over": "#2", "side": "weak", "offset": -1}, "y": 5}},
         "NB":   {"run": {"support": "force_strong"}, "pass": {"man": "#2_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_strong", "leverage": "outside"}}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_weak", "leverage": "outside"}}},
+        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_strong", "leverage": "outside"}}, "align": {"y": 6}},
+        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_weak", "leverage": "outside"}}, "align": {"y": 6}},
         "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#3_strong"}},
         "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
       },
@@ -126,10 +126,10 @@
         "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
         "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "hook_curl_weak"}},
         "NB":   {"run": {"support": "force_strong"}, "pass": {"zone": "hook_curl_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "flat_strong"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "flat_weak"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_half_strong"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_half_weak"}}
+        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "flat_strong"}, "align": {"y": 5}},
+        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "flat_weak"}, "align": {"y": 5}},
+        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_half_strong"}, "align": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 12}},
+        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_half_weak"}, "align": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 12}}
       },
       "tags": ["zone", "vs_pass", "2nd_long", "two_minute"]
     },
@@ -170,8 +170,8 @@
         "NB":   {"run": {"support": "force_strong"}, "pass": {"zone": "curl_flat_strong"}},
         "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_strong_out"}},
         "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_weak_out"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_quarter_strong_in"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_quarter_weak_in"}}
+        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_quarter_strong_in"}, "align": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 10}},
+        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_quarter_weak_in"}, "align": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 10}}
       },
       "tags": ["zone", "vs_pass", "3rd_long", "prevent"]
     },
@@ -210,10 +210,10 @@
         "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"blitz": {"gap": "A", "side": "strong"}}},
         "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"blitz": {"gap": "B", "side": "weak"}}},
         "NB":   {"run": {"support": "force_strong"}, "pass": {"man": "#2_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": "#1_strong"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": "#1_weak"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#2_weak"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"man": "back_1"}}
+        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": "#1_strong"}, "align": {"y": 5}},
+        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": "#1_weak"}, "align": {"y": 5}},
+        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#2_weak"}, "align": {"x": {"over": "#2", "side": "weak", "offset": -1}, "y": 5}},
+        "FS":   {"run": {"support": "deep_fill"}, "pass": {"man": "back_1"}, "align": {"x": {"from": "ball", "offset": 0}, "y": 8}}
       },
       "tags": ["pressure", "man", "3rd_short", "short_yardage", "goal_line"]
     }

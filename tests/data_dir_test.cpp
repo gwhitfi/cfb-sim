@@ -38,8 +38,8 @@ TEST(StarterData, HasTheExpectedContent) {
     EXPECT_TRUE(d.formations.contains("gun_trips_rt"));
     ASSERT_TRUE(d.playbooks.contains("spread_base"));
     EXPECT_NE(d.playbooks.at("spread_base").find("trips_stick"), nullptr);
-    EXPECT_TRUE(d.teams.contains("state_u"));
-    EXPECT_TRUE(d.teams.contains("tech"));
+    EXPECT_TRUE(d.teams.contains("clemson_2018"));
+    EXPECT_TRUE(d.teams.contains("clemson_2025"));
 
     const Play* stick = d.playbooks.at("spread_base").find("trips_stick");
     ASSERT_TRUE(stick->pass.has_value());
@@ -68,7 +68,7 @@ TEST(Validation, CatchesMissingAssignment) {
 
 TEST(Validation, CatchesDepthChartTooShallow) {
     DataSet d = starter_data().data;
-    d.teams.at("tech").depth_chart.positions.at(Position::CB).resize(2);  // nickel needs CB3
+    d.teams.at("clemson_2025").depth_chart.positions.at(Position::CB).resize(2);  // nickel needs CB3
     EXPECT_TRUE(
         has_error_containing(validate_references(d), "needs CB3 but the depth chart has 2"));
 }

@@ -32,6 +32,7 @@ struct MovementTuning {
 
     double facing_turn_rate_deg = 720.0;  // how fast a player can turn his body, deg/s
     double standing_speed = 0.5;          // below this (yd/s) a player turns freely
+    double gravity = 10.73;               // yd/s^2: a player in the air comes down under it
 
     Curve radius_by_weight;         // weight (lb) -> body radius (yd)
     double reach_arm_factor = 0.9;  // reach = radius + factor * arm length (yd)
@@ -139,10 +140,26 @@ struct PassingTuning {
     double arms_up_factor = 1.2;
     Curve jump_reach;  // Jumping -> yd
     double catch_low = 0.15;
-    double dive_extra = 0.8;
+    // How far he can stretch (movement-and-interaction.md#catch-resolution):
+    // body control (a blend, Agility and Balance) sets how much of his height
+    // range he keeps away from his body, and how far he can dive.
+    Blend body_control;
+    Curve window_shape;       // body control -> superellipse exponent
+    Curve dive_extra;         // body control -> yd beyond reach with a dive
+    double dive_max_height = 1.6;  // yd: no diving for a ball higher than this
+    double dive_down_min = 0.8, dive_down_max = 1.2;  // s on the ground after a dive
+    double dive_slide = 0.25;  // share of his speed a diver keeps (a short slide)
+    // Jumping for the ball (movement-and-interaction.md#passing-game).
+    double jump_comfort = 0.3;  // yd: he jumps to put the ball this far under his hands
+    Blend jump_timing_defense;  // a defender's timing skill
+    Blend jump_timing_offense;  // the target's
+    Curve jump_timing_sd;       // timing skill -> sd of his takeoff error, s
+    double jump_look_ahead = 0.8;  // s of flight he looks ahead
+    double hold_ease = 0.25;    // s for a caught ball to come in to the carry spot
     double dive_factor = 0.45;
     Curve catch_base;  // Catching -> chance
-    double reach_penalty = 0.25;
+    double reach_penalty = 0.4;        // share lost at the edge of his catch window ...
+    double reach_penalty_power = 4.0;  // ... growing as stretch^this (most of it near the edge)
     double fast_ball_speed = 22.0;
     double fast_ball_penalty = 0.01;
 
@@ -156,8 +173,10 @@ struct PassingTuning {
     double contest_skill_scale = 15.0;
     double contested_catch_factor = 0.75;
     Curve int_contested;  // Ball Skills -> chance a defender who wins the contest intercepts
+    double dive_int_factor = 0.03;  // ... times this if he dove for it
     Curve int_alone;      // Ball Skills -> chance a defender alone at the ball who gets a hand on it intercepts
     Curve touch;          // Ball Skills -> chance a defender at the ball gets a hand on it
+    double behind_factor = 0.2;  // a defender's chance on a ball from straight behind him
     double bat_factor = 0.25;  // ... times this for a lineman at the line batting it
     double line_depth = 2.5;   // yd: defenders this close to the line are at the line
     double tip_chance = 0.25;
@@ -187,6 +206,10 @@ struct DefenseTuning {
     double leverage = 1.0;
     double min_cushion = 1.0;
     double cushion_shrink = 0.5;
+    double drive_start = 1.0;    // yd into his route before he can drive on a stop
+    double drive_speed = 2.0;    // yd/s downfield: slower than this is a stop
+    Curve drive_rate;            // Man Coverage -> yd/s the cushion closes on a stop
+    double drive_recover = 3.0;  // yd/s it comes back if the receiver takes off again
     double man_gain = 2.5;
     double backpedal_share = 0.9;
 
@@ -199,6 +222,9 @@ struct DefenseTuning {
     double switch_margin = 1.3;
     double deep_min_depth = 10.0;
     double deep_cushion = 2.0;
+    double deep_lookahead = 1.5;  // s: deep zones count receivers who'll be in the area this soon
+    double deep_wide = 10.0;      // yd: deep zones with a landmark wider than this play outside leverage
+    Curve deep_lead;              // zone skill -> s ahead a deep defender plays the threat
     double under_short = 2.0;
     double drift = 3.0;
     double zone_margin = 2.0;

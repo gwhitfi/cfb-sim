@@ -407,6 +407,7 @@ class ManCoverage final : public Behavior {
     double cushion_;
     double lag_;
     std::optional<double> start_y_;  // the receiver's play-frame y at the snap
+    double drive_ = 0.0;             // yd of cushion given up driving on a stop
 };
 
 // ---------------------------------------------------------------------------

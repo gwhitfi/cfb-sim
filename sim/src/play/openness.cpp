@@ -62,7 +62,7 @@ double openness_against_defense(const PlayState& play, int receiver, Vec3 releas
     double open = 1.0;
     for (int d = play.offense_count; d < play.count(); ++d) {
         const Agent& def = play.agent(d);
-        const double high = catch_window(def, t).high;
+        const double high = best_catch_height(def, t);
         // How soon he'd react to the throw, at his usual speed (no random
         // draw: openness is a judgment, not an event).
         // He keeps doing his job until the ball is out and he has reacted,

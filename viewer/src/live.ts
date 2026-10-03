@@ -27,6 +27,8 @@ export interface Host {
   // Loads a snap's tracking file and starts playing it. False if it can't be read.
   show(text: string, name: string): boolean;
   playback(): Playback | null;
+  // The sides the user coaches, when a game starts (none when watching).
+  coaching(sides: TeamKey[]): void;
 }
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -176,6 +178,7 @@ export class Live {
     const side = $<HTMLSelectElement>("game-side").value;
     const user: TeamKey[] = side === "both" ? ["home", "away"] : side === "none" ? [] : [side as TeamKey];
     this.user = new Set(user);
+    this.host.coaching(user);
     const seedText = $<HTMLInputElement>("game-seed").value.trim();
     const msg: any = {
       type: "new_game",
@@ -191,6 +194,7 @@ export class Live {
     const file = $<HTMLSelectElement>("game-logs").value;
     if (!file) return;
     this.user.clear();
+    this.host.coaching([]);
     this.send({ type: "replay", file });
   }
 

@@ -40,8 +40,9 @@ const EvasionResult* Tackles::evasion(int carrier, int tackler) const {
 }
 
 bool Tackles::can_try(int tackler, int carrier, double extra) const {
-    if (play_.teammates(tackler, carrier) || play_.knocked_down(tackler) || play_.stumbling(tackler)) {
-        return false;
+    if (play_.teammates(tackler, carrier) || play_.knocked_down(tackler) || play_.stumbling(tackler) ||
+        play_.agent(tackler).airborne()) {
+        return false;  // (in the air, he can't wrap anyone up)
     }
     if (play_.drag && play_.drag->tackler == tackler) return false;
     // A juke or spin that beat him: he whiffed.

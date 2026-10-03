@@ -21,8 +21,8 @@ const DataSet& data() {
 
 GameOptions options(std::uint64_t seed) {
     GameOptions o;
-    o.home = "state_u";
-    o.away = "tech";
+    o.home = "clemson_2018";
+    o.away = "clemson_2025";
     o.seed = seed;
     return o;
 }
@@ -133,8 +133,8 @@ TEST(Game, OvertimeEndsWithAWinner) {
 }
 
 TEST(Lineup, FillsFromTheDepthChartAndSkipsTheInjured) {
-    const Team& team = data().teams.at("state_u");
-    Lineup lineup(team, data().rosters.at("state_u"), data().tuning.game);
+    const Team& team = data().teams.at("clemson_2018");
+    Lineup lineup(team, data().rosters.at("clemson_2018"), data().tuning.game);
     const SlotMap& personnel = team.depth_chart.offense_personnel.at("11");
     std::vector<std::string> slots;
     for (const auto& [slot, fill] : personnel) slots.push_back(slot);
@@ -155,8 +155,8 @@ TEST(Lineup, FillsFromTheDepthChartAndSkipsTheInjured) {
 }
 
 TEST(Lineup, WorkDrainsEnergyAndRestRestoresIt) {
-    const Team& team = data().teams.at("state_u");
-    Lineup lineup(team, data().rosters.at("state_u"), data().tuning.game);
+    const Team& team = data().teams.at("clemson_2018");
+    Lineup lineup(team, data().rosters.at("clemson_2018"), data().tuning.game);
     const std::string de = team.depth_chart.positions.at(Position::DE).front();
     std::vector<PlayerUsage> usage{{de, true, 8.0, 3.0, 1}};
     for (int k = 0; k < 6; ++k) lineup.play(usage, true);

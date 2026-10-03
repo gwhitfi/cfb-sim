@@ -3,7 +3,7 @@
 
 import { Camera } from "./camera";
 import { drawField } from "./field";
-import { ballAt, playerAt, type Playback } from "./playback";
+import { ballAt, ballHeading, playerAt, type Playback } from "./playback";
 import type { Point, Recording, Shape } from "./tracking";
 
 // Built-in layers (computed by the viewer). The file's own overlay layers
@@ -11,6 +11,7 @@ import type { Point, Recording, Shape } from "./tracking";
 export interface ViewOptions {
   velocity: boolean; // arrow to where each player will be in half a second
   trails: boolean; // the path each player has run so far
+  names: boolean; // each player's name in small type under his circle
   labelMode: "label" | "jersey" | "position" | "none";
   hiddenLayers: Set<string>;
   selected: number | null; // player index
@@ -18,8 +19,13 @@ export interface ViewOptions {
 }
 
 const VELOCITY_LOOKAHEAD = 0.5; // s
+// How much a jumping player's drawn height is exaggerated (see drawScene).
+const JUMP_LIFT = 2.5;
 const TRAIL_SECONDS = 3;
-const MIN_PLAYER_PX = 9; // players never shrink below this on screen, so they stay clickable
+// Every player is drawn the same size, whatever his body radius in the sim
+// (0.35-0.5 yd by weight): about twice the average, so they're easy to read.
+const PLAYER_RADIUS_YD = 0.75;
+const MIN_PLAYER_PX = 5; // players never shrink below this on screen (zoomed far out), so they stay clickable
 
 export function drawScene(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playback, opts: ViewOptions): void {
   const rec = pb.rec;
@@ -37,13 +43,26 @@ export function drawScene(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playba
   for (let i = 0; i < players.length; i++) {
     const info = players[i]!;
     const p = pb.player(i);
-    const [sx, sy] = cam.toScreen(p.x, p.y);
-    const r = playerRadiusPx(cam, info.radius);
+    const [sx, groundY] = cam.toScreen(p.x, p.y);
     const color = rec.header.teams[info.team].color;
+
+    // In the air (a jump): a shadow where he is on the ground, and his body
+    // raised and a little bigger. Jumps are under half a yard, so the lift is
+    // exaggerated (JUMP_LIFT x his height) to be visible at all.
+    let sy = groundY;
+    let r = playerRadiusPx(cam);
+    if (p.z > 0.01) {
+      ctx.beginPath();
+      ctx.ellipse(sx, groundY, r, r * 0.6, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fill();
+      sy = groundY - p.z * cam.scale * JUMP_LIFT;
+      r *= 1 + p.z * 0.6;
+    }
 
     if (opts.velocity && Math.hypot(p.vx, p.vy) > 0.05) {
       const [ex, ey] = cam.toScreen(p.x + p.vx * VELOCITY_LOOKAHEAD, p.y + p.vy * VELOCITY_LOOKAHEAD);
-      arrow(ctx, sx, sy, ex, ey, "rgba(255,255,255,0.9)", Math.max(1.5, cam.scale * 0.08));
+      arrow(ctx, sx, groundY, ex, ey, "rgba(255,255,255,0.9)", Math.max(1.5, cam.scale * 0.08));
     }
 
     // Body.
@@ -56,7 +75,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playba
     ctx.stroke();
 
     // Facing: a notch on the rim (screen angle is negated because screen y is flipped).
-    const a = (-p.facingDeg * Math.PI) / 180;
+    const a = (-p.facingDeg * Math.PI) / 180 + cam.angle;
     ctx.beginPath();
     ctx.moveTo(sx + Math.cos(a) * r * 0.45, sy + Math.sin(a) * r * 0.45);
     ctx.lineTo(sx + Math.cos(a) * r * 1.35, sy + Math.sin(a) * r * 1.35);
@@ -65,6 +84,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playba
     ctx.stroke();
 
     const text = labelText(rec, i, opts.labelMode);
+    let below = sy + r + 2; // the top of the next thing drawn under the circle
     if (text) {
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
@@ -74,17 +94,34 @@ export function drawScene(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playba
         ctx.font = `bold ${Math.max(9, r * (text.length <= 2 ? 1.05 : 0.8))}px system-ui, sans-serif`;
         ctx.fillText(text, sx, sy + 0.5);
       } else {
-        ctx.font = `bold ${Math.max(10, cam.scale * 0.6)}px system-ui, sans-serif`;
-        ctx.fillText(text, sx, sy + r + Math.max(8, cam.scale * 0.5));
+        const size = Math.max(10, cam.scale * 0.6);
+        ctx.font = `bold ${size}px system-ui, sans-serif`;
+        const y = sy + r + Math.max(8, cam.scale * 0.5);
+        ctx.fillText(text, sx, y);
+        below = y + size / 2 + 1;
       }
+    }
+
+    if (opts.names && info.name) {
+      // Small, and outlined so it reads over grass and yard lines alike.
+      const size = Math.min(Math.max(8, cam.scale * 0.4), 11);
+      ctx.font = `600 ${size}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "rgba(0,0,0,0.6)";
+      ctx.strokeText(info.name, sx, below);
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillText(info.name, sx, below);
     }
   }
 
   drawBall(ctx, cam, rec, pb.frame);
 }
 
-export function playerRadiusPx(cam: Camera, radiusYd: number): number {
-  return Math.max(radiusYd * cam.scale, MIN_PLAYER_PX);
+export function playerRadiusPx(cam: Camera): number {
+  return Math.max(PLAYER_RADIUS_YD * cam.scale, MIN_PLAYER_PX);
 }
 
 function labelText(rec: Recording, i: number, mode: ViewOptions["labelMode"]): string {
@@ -105,15 +142,15 @@ function labelText(rec: Recording, i: number, mode: ViewOptions["labelMode"]): s
 export function playerAtPoint(cam: Camera, pb: Playback, sx: number, sy: number): number | null {
   let best: number | null = null;
   let bestDist = Infinity;
-  pb.rec.header.players.forEach((info, i) => {
+  for (let i = 0; i < pb.rec.header.players.length; i++) {
     const p = pb.player(i);
     const [px, py] = cam.toScreen(p.x, p.y);
     const d = Math.hypot(px - sx, py - sy);
-    if (d <= playerRadiusPx(cam, info.radius) + 3 && d < bestDist) {
+    if (d <= playerRadiusPx(cam) + 3 && d < bestDist) {
       best = i;
       bestDist = d;
     }
-  });
+  }
   return best;
 }
 
@@ -150,16 +187,30 @@ function drawBall(ctx: CanvasRenderingContext2D, cam: Camera, rec: Recording, fr
   const z = Math.max(0, rawZ); // a ball below the ground (e.g. on the tee) draws on it
   const [sx, sy] = cam.toScreen(x, y);
   const size = Math.max(cam.scale * 0.35, 4);
+  // The nose points the way it's going (screen angle of its heading).
+  const [hx, hy] = ballHeading(rec, frame) ?? [1, 0];
+  const [nx, ny] = cam.toScreen(x + hx, y + hy);
+  const nose = Math.atan2(ny - sy, nx - sx);
 
   ctx.beginPath();
-  ctx.ellipse(sx, sy, size, size * 0.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx, sy, size, size * 0.6, nose, 0, Math.PI * 2);
   ctx.fillStyle = `rgba(0,0,0,${Math.max(0.15, 0.45 - z * 0.02)})`;
   ctx.fill();
 
   const lift = z * cam.scale * 0.6;
   const grow = 1 + Math.min(z, 25) * 0.03;
+  // A thin stem from the shadow up to the ball: the ball is drawn raised, so
+  // without it a high ball looks like it's over a player it isn't near.
+  if (z > 0.5) {
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx, sy - lift);
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
   ctx.beginPath();
-  ctx.ellipse(sx, sy - lift, size * grow, size * 0.62 * grow, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx, sy - lift, size * grow, size * 0.62 * grow, nose, 0, Math.PI * 2);
   ctx.fillStyle = "#8b4a1c";
   ctx.fill();
   ctx.strokeStyle = "#f5f5f5";
@@ -195,7 +246,7 @@ function drawShape(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playback, sha
     }
     case "ring": {
       const [sx, sy] = playerPx(shape.player);
-      const r = playerRadiusPx(cam, pb.rec.header.players[shape.player]!.radius) + 5;
+      const r = playerRadiusPx(cam) + 5;
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.lineWidth = 3;
@@ -204,7 +255,7 @@ function drawShape(ctx: CanvasRenderingContext2D, cam: Camera, pb: Playback, sha
     }
     case "tag": {
       const [sx, sy] = playerPx(shape.player);
-      const r = playerRadiusPx(cam, pb.rec.header.players[shape.player]!.radius);
+      const r = playerRadiusPx(cam);
       textBox(ctx, shape.text, sx + r + 4, sy - r - 4, color);
       break;
     }

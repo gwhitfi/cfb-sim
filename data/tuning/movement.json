@@ -20,6 +20,7 @@
 
   "facing_turn_rate_deg": 720,
   "standing_speed": 0.5,
+  "gravity": 10.73,  // yd/s^2, for players in the air (the ball's is in passing.json)
 
   "body": {
     "radius_by_weight": {"curve": "linear", "points": [[170, 0.35], [330, 0.5]]},

@@ -48,6 +48,10 @@ export function describeEvent(ev: TrackingEvent): string {
       return `catch by ${f.player} at ${yd(f.air_yards)}`;
     case "drop":
       return `${f.diving ? "diving " : ""}drop by ${f.player}`;
+    case "dive":
+      return `${f.player} dives for the ball`;
+    case "jump":
+      return `${f.player} jumps for the ball (${yd(f.height)})`;
     case "handoff":
       return `handoff ${f.from} → ${f.to}`;
     case "bust":
@@ -90,6 +94,8 @@ export function describeEvent(ev: TrackingEvent): string {
       return `${f.player} scrambles`;
     case "touchdown":
       return `touchdown (${yd(f.yards)})`;
+    case "down":
+      return `down where he caught it (diving catch), gain of ${yd(f.yards)}`;
     case "out_of_bounds":
     case "whistle":
     case "tackled":

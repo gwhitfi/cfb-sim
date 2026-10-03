@@ -5,7 +5,7 @@
 // frame index rather than seconds: frames are what the file has, and gaps in
 // the tick numbers (dead time skipped in a game) just play straight through.
 
-import { FACING, STRIDE, X, Y, VX, VY, type Recording } from "./tracking";
+import { FACING, STRIDE, X, Y, VX, VY, Z, type Recording } from "./tracking";
 
 export interface PlayerState {
   x: number;
@@ -13,6 +13,7 @@ export interface PlayerState {
   vx: number;
   vy: number;
   facingDeg: number;
+  z: number; // feet above the ground (a jump)
 }
 
 export const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4] as const;
@@ -93,6 +94,7 @@ export function playerAt(rec: Recording, index: number, frame: number): PlayerSt
     vx: lerp(VX),
     vy: lerp(VY),
     facingDeg: lerpAngleDeg(s[a + FACING]!, s[b + FACING]!, t),
+    z: lerp(Z),
   };
 }
 
@@ -113,4 +115,22 @@ export function ballAt(rec: Recording, frame: number): [number, number, number] 
   const b = rec.ball[f1] ?? a; // ball goes dead next frame: hold it in place
   const t = Math.min(Math.max(frame - f0, 0), 1);
   return [a[0]! + (b[0]! - a[0]!) * t, a[1]! + (b[1]! - a[1]!) * t, a[2]! + (b[2]! - a[2]!) * t];
+}
+
+// The way the ball is pointing at `frame`, as a unit vector on the ground:
+// its direction of travel (in the air, the pass's line; held, where the
+// carrier is going). A ball that isn't moving keeps the way it last moved;
+// null if it hasn't moved yet (the viewer then points it along +x).
+export function ballHeading(rec: Recording, frame: number): [number, number] | null {
+  const MOVING = 0.01; // yd per frame
+  for (let f = Math.min(Math.max(Math.floor(frame), 0), rec.frameCount - 1); f >= 0; f--) {
+    const a = rec.ball[f];
+    const b = rec.ball[f + 1];
+    if (!a || !b) continue;
+    const dx = b[0]! - a[0]!;
+    const dy = b[1]! - a[1]!;
+    const len = Math.hypot(dx, dy);
+    if (len > MOVING) return [dx / len, dy / len];
+  }
+  return null;
 }

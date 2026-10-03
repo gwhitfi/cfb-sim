@@ -168,7 +168,18 @@ Intent ManCoverage::decide(const PlayState& play, int self, Actions& /*actions*/
     const double center_x = play.offense ? play.offense->center_x : 0.0;
     const double outside = rec.x >= center_x ? 1.0 : -1.0;
     const double gained = std::max(0.0, rec.y - *start_y_);
-    const double cushion = std::max(t.min_cushion, cushion_ - t.cushion_shrink * gained);
+    // A receiver who has stopped going downfield (a hitch, a curl): drive on
+    // him. If he takes off again, give the cushion back (late: he sees him
+    // with the lag, and the sell at the break).
+    const double base = std::max(t.min_cushion, cushion_ - t.cushion_shrink * gained);
+    const double downfield = play.frame.dir_to_play(seen.vel).y;
+    if (gained >= t.drive_start && downfield < t.drive_speed) {
+        drive_ = std::min(drive_ + t.drive_rate(me.ratings[Attr::ManCoverage]) * kTickSeconds,
+                          base - t.min_cushion);
+    } else {
+        drive_ = std::max(0.0, drive_ - t.drive_recover * kTickSeconds);
+    }
+    const double cushion = std::max(t.min_cushion, base - drive_);
     const Vec2 spot = play.frame.to_field(rec + Vec2{leverage_ * outside * t.leverage, cushion});
 
     Vec2 want = seen.vel + (spot - me.pos) * t.man_gain;
@@ -203,17 +214,20 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
     struct Threat {
         int player;
         Vec2 pos;
+        Vec2 vel;  // play frame
         double score;
     };
     std::vector<Threat> threats;
+    // Deep zones look further ahead: a vertical stem is a threat before it's deep.
+    const double lookahead = zone_.deep ? t.deep_lookahead : t.threat_lookahead;
     const auto consider = [&](int r) {
         const Seen s = play.seen(r, lag_);
         const Vec2 p = frame.to_play(s.pos);
-        const Vec2 ahead = p + frame.dir_to_play(s.vel) * t.threat_lookahead;
-        if (!zone_.contains(p) && !zone_.contains(ahead)) return;
+        const Vec2 v = frame.dir_to_play(s.vel);
+        if (!zone_.contains(p) && !zone_.contains(p + v * lookahead)) return;
         // The nearer, and the one the QB is looking at, the bigger the threat.
         const double eye = 1.0 + (r == eyes ? t.eyes_weight * skill_ / 100.0 : 0.0);
-        threats.push_back({r, p, eye / (1.0 + (p - me).length() / 5.0)});
+        threats.push_back({r, p, v, eye / (1.0 + (p - me).length() / 5.0)});
     };
     if (play.offense) {
         for (const auto& side : play.offense->receivers) {
@@ -224,15 +238,28 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
 
     Vec2 spot = zone_.drop;
     if (zone_.deep) {
-        // Carry the deepest threat: deeper than him and on his inside.
+        // Carry the deepest threat: deeper than him and on his inside, where
+        // he's going (his position `lead` s ahead), not where he is.
+        const double lead = t.deep_lead(skill_);
         const Threat* deepest = nullptr;
+        Vec2 going;
         for (const Threat& th : threats) {
-            if (!deepest || th.pos.y > deepest->pos.y) deepest = &th;
+            const Vec2 ahead = th.pos + th.vel * lead;
+            if (!deepest || ahead.y > going.y) {
+                deepest = &th;
+                going = ahead;
+            }
         }
         if (deepest) {
+            // Leverage: a deep zone out wide (a deep third or an outside
+            // quarter) has help inside him, so he stays outside the threat and
+            // keeps outside-breaking routes in front of him; the middle and
+            // the halves have no help inside, so they stay inside.
             const double center_x = play.offense ? play.offense->center_x : 0.0;
-            const double inside = deepest->pos.x >= center_x ? -1.0 : 1.0;
-            spot = {deepest->pos.x + inside, std::max(zone_.drop.y, deepest->pos.y + t.deep_cushion)};
+            const double toward_middle = going.x >= center_x ? -1.0 : 1.0;
+            const bool wide = std::abs(zone_.drop.x - center_x) > t.deep_wide;
+            const double lean = wide ? -toward_middle : toward_middle;
+            spot = {going.x + lean, std::max(zone_.drop.y, going.y + t.deep_cushion)};
         }
     } else if (!threats.empty()) {
         // Play one man: the biggest threat, switching only when another is

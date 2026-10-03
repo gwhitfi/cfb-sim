@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <initializer_list>
+#include <iostream>
 #include <set>
 #include <sstream>
 #include <string>
@@ -24,9 +25,9 @@ const DataSet& data() {
 
 PlayOptions matchup(const std::string& play, const std::string& defense, std::uint64_t seed = 1) {
     PlayOptions o;
-    o.team = "state_u";
+    o.team = "clemson_2018";
     o.play = play;
-    o.defense = "tech";
+    o.defense = "clemson_2025";
     o.defense_play = defense;
     o.seed = seed;
     o.huddle = false;
@@ -72,9 +73,9 @@ TEST(Tackling, EveryStarterPlayReachesAWhistle) {
     // M2: every offensive play against every defensive play runs from the
     // snap to a real ending (never the time limit).
     const std::set<std::string> endings = {"touchdown", "out_of_bounds", "incomplete", "tackled",
-                                           "sack", "safety", "recovered", "fumble_out_of_bounds"};
-    const Playbook& offense = data().playbooks.at(data().teams.at("state_u").offense_playbook);
-    const Playbook& defense = data().playbooks.at(data().teams.at("tech").defense_playbook);
+                                           "sack", "safety", "recovered", "fumble_out_of_bounds", "down"};
+    const Playbook& offense = data().playbooks.at(data().teams.at("clemson_2018").offense_playbook);
+    const Playbook& defense = data().playbooks.at(data().teams.at("clemson_2025").defense_playbook);
     EXPECT_GE(offense.plays.size(), 14u);
     for (const Play& o : offense.plays) {
         for (const Play& d : defense.plays) {
@@ -90,7 +91,7 @@ TEST(Tackling, TacklingRatingsMatter) {
     // Sure tacklers miss less, and the runs go shorter.
     const auto measure = [](double rating, int& tries, int& failed, double& yards) {
         DataSet d = data();
-        set(d, "tech", kDefense, {Attr::Tackling, Attr::HitPower, Attr::Pursuit}, rating);
+        set(d, "clemson_2025", kDefense, {Attr::Tackling, Attr::HitPower, Attr::Pursuit}, rating);
         tries = failed = 0;
         yards = 0.0;
         each_run(d, 20, [&](const PlayResult& r) {
@@ -114,7 +115,7 @@ TEST(Tackling, PowerBacksBreakTackles) {
     // after contact, than one rated 10.
     const auto measure = [](double rating, int& broken, double& after) {
         DataSet d = data();
-        set(d, "state_u", {Position::RB}, {Attr::BreakTackle, Attr::Balance, Attr::Strength}, rating);
+        set(d, "clemson_2018", {Position::RB}, {Attr::BreakTackle, Attr::Balance, Attr::Strength}, rating);
         broken = 0;
         after = 0.0;
         each_run(d, 20, [&](const PlayResult& r) {
@@ -145,8 +146,8 @@ TEST(Tackling, FumblesAreRecovered) {
     // Careless carriers against hard hitters fumble, and every loose ball
     // ends with a recovery (or out of bounds).
     DataSet d = data();
-    set(d, "state_u", {Position::RB}, {Attr::BallSecurity}, 1);
-    set(d, "tech", kDefense, {Attr::HitPower}, 100);
+    set(d, "clemson_2018", {Position::RB}, {Attr::BallSecurity}, 1);
+    set(d, "clemson_2025", kDefense, {Attr::HitPower}, 100);
     int fumbles = 0, lost = 0;
     each_run(d, 20, [&](const PlayResult& r) {
         if (!r.fumble) return;
@@ -161,16 +162,17 @@ TEST(Tackling, FumblesAreRecovered) {
 TEST(Tackling, QuarterbacksScramble) {
     // Under heavy pressure with nobody open, QBs take off sometimes.
     DataSet d = data();
-    set(d, "tech", {Position::DE, Position::DT},
+    set(d, "clemson_2025", {Position::DE, Position::DT},
         {Attr::BlockShedding, Attr::PowerMoves, Attr::FinesseMoves, Attr::Strength}, 95);
-    set(d, "state_u", {Position::QB}, {Attr::Speed, Attr::PocketPresence, Attr::Decisions}, 95);
+    set(d, "clemson_2018", {Position::QB}, {Attr::Speed, Attr::PocketPresence, Attr::Decisions}, 95);
     int scrambles = 0;
     for (const char* play : {"sb_dagger", "trips_curl_flat", "four_verts"}) {
-        for (std::uint64_t seed = 1; seed <= 30; ++seed) {
+        for (std::uint64_t seed = 1; seed <= 60; ++seed) {
             const PlayResult r = run_play(d, matchup(play, "43_over_cover1", seed));
             scrambles += r.scramble ? 1 : 0;
         }
     }
+    std::cout << "[          ] " << scrambles << " scrambles in 180 plays\n";
     EXPECT_GE(scrambles, 3);
 }
 
@@ -199,7 +201,7 @@ TEST(Tackling, SameSeedSameFile) {
     PlayOptions o = matchup("sb_outside_zone", "nickel_cover2", 5);
     EXPECT_EQ(tracking(data(), o), tracking(data(), o));
     DataSet d = data();
-    set(d, "state_u", {Position::RB}, {Attr::BallSecurity}, 1);
+    set(d, "clemson_2018", {Position::RB}, {Attr::BallSecurity}, 1);
     o = matchup("gun_power", "43_over_cover3", 7);
     EXPECT_EQ(tracking(d, o), tracking(d, o));
 }

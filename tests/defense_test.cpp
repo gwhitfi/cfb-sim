@@ -3,9 +3,16 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <initializer_list>
+#include <iostream>
+#include <map>
+#include <optional>
 #include <sstream>
+#include <vector>
 #include <string>
 
+#include "cfbsim/log/tracking.h"
 #include "cfbsim/physics/movement.h"
 #include "cfbsim/play/play_sim.h"
 #include "play/openness.h"  // internal: a white-box test of the arrival-time math
@@ -21,9 +28,9 @@ const DataSet& data() {
 
 PlayOptions matchup(const std::string& play, const std::string& defense, std::uint64_t seed = 1) {
     PlayOptions o;
-    o.team = "state_u";
+    o.team = "clemson_2018";
     o.play = play;
-    o.defense = "tech";
+    o.defense = "clemson_2025";
     o.defense_play = defense;
     o.seed = seed;
     o.huddle = false;
@@ -45,7 +52,7 @@ int successes(const DataSet& d, const std::string& play, const std::string& defe
 
 DataSet with_defense_attribute(Attr attr, double value) {
     DataSet d = data();
-    for (Player& p : d.rosters.at("tech").players) p.attributes[attr] = value;
+    for (Player& p : d.rosters.at("clemson_2025").players) p.attributes[attr] = value;
     return d;
 }
 
@@ -53,7 +60,7 @@ DataSet with_defense_attribute(Attr attr, double value) {
 // linebackers (the rushers and blitzers here; the coverage is all DBs) who
 // can't get off blocks and barely move, so the pocket holds past the QB's clock.
 void without_rush(DataSet& d) {
-    for (Player& p : d.rosters.at("tech").players) {
+    for (Player& p : d.rosters.at("clemson_2025").players) {
         const Position pos = p.position;
         if (pos != Position::DE && pos != Position::DT && pos != Position::OLB &&
             pos != Position::MLB) {
@@ -112,6 +119,25 @@ TEST(Defense, SameSeedSameFile) {
     EXPECT_NE(file(5), file(6));
 }
 
+// With the away team on offense (as in a game), the header's teams follow the
+// agents' sides, and home_right says which way the home team attacks.
+TEST(Defense, TrackingHeaderTeamsFollowTheOffenseSide) {
+    PlayOptions o = matchup("smash", "nickel_cover2");
+    o.offense_home = false;
+    o.offense_right = true;
+    std::ostringstream out;
+    TrackingWriter writer(out);
+    run_play(data(), o, &writer);
+    std::istringstream in(out.str());
+    std::string first;
+    std::getline(in, first);
+    const Json header = Json::parse(first);
+    EXPECT_EQ(header["teams"]["away"]["abbr"], data().teams.at("clemson_2018").abbr);
+    EXPECT_EQ(header["teams"]["home"]["abbr"], data().teams.at("clemson_2025").abbr);
+    EXPECT_EQ(header["players"][0]["team"], "away");  // agent 0 is on the offense
+    EXPECT_EQ(header["details"]["home_right"], false);
+}
+
 TEST(Defense, BeatersBeatTheirCoverages) {
     // The done-when check for phase 5: more often than not.
     const int runs = 60;
@@ -144,8 +170,8 @@ TEST(Defense, ManCoverageSkillMatters) {
     };
     DataSet good = with_defense_attribute(Attr::ManCoverage, 95);
     DataSet bad = with_defense_attribute(Attr::ManCoverage, 20);
-    for (Player& p : good.rosters.at("tech").players) p.attributes[Attr::Anticipation] = 95;
-    for (Player& p : bad.rosters.at("tech").players) p.attributes[Attr::Anticipation] = 20;
+    for (Player& p : good.rosters.at("clemson_2025").players) p.attributes[Attr::Anticipation] = 95;
+    for (Player& p : bad.rosters.at("clemson_2025").players) p.attributes[Attr::Anticipation] = 20;
     // Cover 0 brings six: without this the QB throws early against both.
     without_rush(good);
     without_rush(bad);
@@ -202,7 +228,7 @@ TEST(Openness, TimeToReachMatchesTheMovementModel) {
     // A standing player told to run 15 yd: the closed form agrees with the
     // tick-by-tick physics.
     const MovementTuning& t = data().tuning.movement;
-    const Player& p = data().rosters.at("tech").players.front();
+    const Player& p = data().rosters.at("clemson_2025").players.front();
     Agent a = make_agent(p, TeamSide::Away, "CB", {}, t);
     a.pos = {0.0, 0.0};
     a.facing = {1.0, 0.0};
@@ -224,4 +250,103 @@ TEST(Openness, TimeToReachMatchesTheMovementModel) {
     // A reaction delay adds to it, and being already there takes no time.
     EXPECT_NEAR(time_to_reach(a, {15.0, 0.0}, 0.0, 0.3), predicted + 0.3, 1e-9);
     EXPECT_EQ(time_to_reach(a, {0.5, 0.0}, 1.0, 0.3), 0.0);
+}
+
+namespace {
+
+// Each tick's play-frame position (depth past the line, lateral from the
+// ball) of the named slots, read back from the tracking file.
+std::map<std::string, std::vector<Vec2>> tracks(const PlayOptions& o, std::initializer_list<const char*> slots) {
+    std::ostringstream out;
+    TrackingWriter writer(out);
+    run_play(data(), o, &writer);
+    std::istringstream in(out.str());
+    std::string line;
+    std::vector<std::string> labels;
+    std::optional<Vec2> ball;
+    std::map<std::string, std::vector<Vec2>> t;
+    while (std::getline(in, line)) {
+        const Json j = Json::parse(line);
+        if (j["type"] == "header") {
+            for (const Json& p : j["players"]) labels.push_back(p["label"]);
+        } else if (j["type"] == "tick") {
+            if (!ball) ball = Vec2{j["ball"][0].get<double>(), j["ball"][1].get<double>()};
+            for (const char* s : slots) {
+                const auto k = static_cast<std::size_t>(std::find(labels.begin(), labels.end(), s) - labels.begin());
+                const Json& p = j["p"][k];
+                t[s].push_back({p[0].get<double>() - ball->x, p[1].get<double>() - ball->y});
+            }
+        }
+    }
+    return t;
+}
+
+}  // namespace
+
+TEST(Coverage, TheCallSetsTheAlignment) {
+    // Same formation, two calls: Cover 3 keeps the FS over the ball at 13;
+    // Cover 2 splits the safeties over the hashes at 12.
+    PlayOptions o = matchup("smash", "nickel_cover3");
+    const auto c3 = tracks(o, {"FS", "SS"});
+    EXPECT_NEAR(c3.at("FS").front().y, 0.0, 0.1);
+    EXPECT_NEAR(c3.at("FS").front().x, 13.0, 0.1);
+    o.defense_play = "nickel_cover2";
+    const auto c2 = tracks(o, {"FS", "SS"});
+    EXPECT_GT(std::abs(c2.at("FS").front().y), 4.0);
+    EXPECT_LT(c2.at("FS").front().y * c2.at("SS").front().y, 0.0);  // opposite hashes
+    EXPECT_NEAR(c2.at("FS").front().x, 12.0, 0.1);
+    EXPECT_NEAR(c2.at("SS").front().x, 12.0, 0.1);
+}
+
+TEST(Coverage, ManCoverageDrivesOnAHitch) {
+    // The QB holds the ball: X runs his hitch and stops; the corner, who
+    // backed off while X came at him, drives back down on him.
+    int drove = 0;
+    for (std::uint64_t seed = 1; seed <= 10; ++seed) {
+        PlayOptions o = matchup("smash", "nickel_cover1", seed);
+        o.hold_ball = true;
+        const auto t = tracks(o, {"X", "WCB"});
+        const auto& x = t.at("X");
+        const auto& w = t.at("WCB");
+        const std::size_t end = std::min<std::size_t>(x.size() - 1, 3 * 20);  // 3 s after the snap
+        double widest = 0.0;
+        for (std::size_t k = 0; k <= end; ++k) widest = std::max(widest, w[k].x - x[k].x);
+        const double now = w[end].x - x[end].x;
+        if (now < widest - 2.5 && now < 3.0) ++drove;
+    }
+    EXPECT_GE(drove, 8);
+}
+
+TEST(Coverage, DeepZonesPlayWhereTheReceiverIsGoing) {
+    // Smash's corner route against Cover 2, the QB holding the ball: the
+    // deep-half safety on that side stays over the top of it. (Playing where
+    // H was, he let H get about a yard behind him by 2.5 s; playing where H
+    // is going, he's about 3 yd deeper.)
+    int over = 0;
+    for (std::uint64_t seed = 1; seed <= 10; ++seed) {
+        PlayOptions o = matchup("smash", "nickel_cover2", seed);
+        o.hold_ball = true;
+        const auto t = tracks(o, {"H", "FS"});
+        const std::size_t at = std::min<std::size_t>(t.at("H").size() - 1, 25 * 2 + 10);  // 2.5 s
+        const Vec2 h = t.at("H")[at];
+        const Vec2 fs = t.at("FS")[at];
+        if (fs.x > h.x + 1.5 && std::abs(fs.y - h.y) < 7.0) ++over;
+    }
+    EXPECT_GE(over, 8);
+}
+
+TEST(Coverage, WideDeepZonesKeepOutsideLeverage) {
+    // A fire zone's deep-third corner, with H stemming up inside him, stays
+    // outside H (the FS in the middle is his help inside).
+    int outside = 0;
+    for (std::uint64_t seed = 1; seed <= 10; ++seed) {
+        PlayOptions o = matchup("smash", "nickel_fire_zone", seed);
+        o.hold_ball = true;
+        const auto t = tracks(o, {"H", "WCB"});
+        const std::size_t at = 20 + 10;  // 1.5 s, H still on his stem
+        const Vec2 h = t.at("H")[at];
+        const Vec2 w = t.at("WCB")[at];
+        if (std::abs(w.y) > std::abs(h.y)) ++outside;
+    }
+    EXPECT_GE(outside, 8);
 }

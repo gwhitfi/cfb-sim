@@ -75,7 +75,11 @@ struct Agent {
     Vec2 pos;
     Vec2 vel;
     Vec2 facing{1.0, 0.0};  // unit vector
+    double z = 0.0;         // yd: his feet above the ground (a jump)
+    double vz = 0.0;        // yd/s, up
     bool carrying = false;  // has the ball
+
+    bool airborne() const { return z > 0.0 || vz > 0.0; }
 };
 
 // Builds an Agent from a roster player. `label` is his slot on this play.

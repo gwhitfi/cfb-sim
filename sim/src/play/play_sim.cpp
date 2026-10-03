@@ -186,7 +186,10 @@ class PlaySim {
     void throw_ball(int qb, int target, bool away);
     void ball_phase();
     void play_the_ball(Vec3 before);
+    bool can_play_ball(int i) const;
+    void plan_jumps();
     void after_touch(int player, Vec3 at, bool defender, const char* what);
+    void take_ball(int player, Vec3 at);
     void catch_ball(int receiver, Vec3 at);
     void intercept(int defender, Vec3 at);
     void check_rules();
@@ -219,6 +222,13 @@ class PlaySim {
     std::int64_t dead_tick_ = 0;
     // Playing a pass: who has had his try at it since the last touch.
     std::vector<bool> tried_;
+    std::vector<bool> jumped_;         // jumped for the ball this touch
+    std::vector<double> jump_timing_;  // s: his takeoff error on this throw (+ early)
+    // Debug tags (the "ball" layer): who's going for the ball this tick, and
+    // what happened when each player last played it (shown for a moment).
+    std::vector<bool> attacking_;
+    std::vector<std::string> note_;
+    std::vector<double> note_until_;
     bool tipped_ = false;
     // The ball after a fumble: where it came out, and who had it.
     std::optional<Vec2> fumble_spot_;
@@ -338,6 +348,11 @@ void PlaySim::setup() {
     job_index_.assign(n(), 0);
     busts_.assign(n(), std::nullopt);
     tried_.assign(n(), false);
+    jumped_.assign(n(), false);
+    jump_timing_.assign(n(), 0.0);
+    attacking_.assign(n(), false);
+    note_.assign(n(), std::string());
+    note_until_.assign(n(), -1.0);
     blocking_.setup();
     tackles_.setup();
     fouls_.setup();
@@ -375,11 +390,19 @@ void PlaySim::setup_defense() {
     if (package == team.depth_chart.defense_packages.end()) {
         throw PlayError("team " + team.id + " has no '" + f.package + "' package");
     }
-    // The defense lines up on the offense's set.
+    // The defense lines up on the offense's set, where the call says (an
+    // assignment's `align` replaces its formation slot's x and/or y).
     const OffenseRead read = read_offense_set(false);
+    Formation lined_up = f;
+    for (FormationSlot& slot : lined_up.slots) {
+        const auto a = defense_.play->assignments.find(slot.name);
+        if (a == defense_.play->assignments.end()) continue;
+        if (a->second.align_x) slot.x = *a->second.align_x;
+        if (a->second.align_y) slot.y = *a->second.align_y;
+    }
     std::vector<Vec2> aligned;
     try {
-        aligned = align_formation(f, state_.defense_frame, &read,
+        aligned = align_formation(lined_up, state_.defense_frame, &read,
                                   {defense().shade, defense().ghost_te_split});
     } catch (const GeometryError& e) {
         throw PlayError("formation " + f.id + ": " + e.what());
@@ -426,11 +449,15 @@ void PlaySim::write_header() {
     info.kind = "play";
     info.name = play.name + (opt_.flip ? " (flip)" : "");
     info.seed = opt_.seed;
-    info.home = {team_.name, team_.abbr, team_.color_primary};
+    // The offense's agents are home or away by `offense_home`; the header's
+    // teams must match, or the viewer colors each side with the other's color.
+    TrackingTeam& offense = opt_.offense_home ? info.home : info.away;
+    TrackingTeam& defense = opt_.offense_home ? info.away : info.home;
+    offense = {team_.name, team_.abbr, team_.color_primary};
     if (defense_.team) {
         const Team& d = *defense_.team;
         // The same team on both sides (a scrimmage) wears its second color.
-        info.away = {d.name, d.abbr, d.id == team_.id ? d.color_secondary : d.color_primary};
+        defense = {d.name, d.abbr, d.id == team_.id ? d.color_secondary : d.color_primary};
         info.name += " vs " + defense_.play->name;
     }
     info.details = {{"team", team_.id},
@@ -441,12 +468,17 @@ void PlaySim::write_header() {
                     {"flip", opt_.flip},
                     {"yard_line", opt_.yard_line},
                     {"hash", std::string(to_name(kHashNames, opt_.hash))},
-                    {"direction", opt_.offense_right ? "right" : "left"}};
+                    {"direction", opt_.offense_right ? "right" : "left"},
+                    // Whether the home team attacks +x (the viewer's vertical view uses it).
+                    {"home_right", opt_.offense_right == opt_.offense_home}};
     // The line of scrimmage, across the whole field.
     const double x = state_.frame.ball().x;
     info.overlays.push_back(shapes::line("lines", {{x, 0.0}, {x, kFieldWidth}}, "#4fc3f7"));
     out_->header(info, world_);
 }
+
+// How long a ball-play tag stays up, s (display only).
+constexpr double kNoteSeconds = 1.2;
 
 void PlaySim::write_frame() {
     if (!out_) return;
@@ -478,6 +510,26 @@ void PlaySim::write_frame() {
             dbg.push_back(shapes::line("throw",
                                        {state_.pass->release.ground(), state_.pass->aim.ground()},
                                        "#ffd400", true));
+        }
+        // The ball in the air: who's going for it, who's jumping, and what
+        // happened when each one played it.
+        for (int i = 0; i < state_.count(); ++i) {
+            const auto idx = static_cast<std::size_t>(i);
+            const Agent& a = state_.agent(i);
+            const bool defender = !state_.is_offense(i);
+            if (state_.since_snap() < note_until_[idx]) {
+                const bool good = note_[idx].ends_with("PICK") || note_[idx].ends_with("CATCH");
+                dbg.push_back(shapes::tag("ball", i, note_[idx], good ? "#ffd400" : "#cfd8dc"));
+                continue;
+            }
+            std::string text;
+            if (attacking_[idx]) text = defender ? "INT ATTEMPT" : "going for it";
+            if (a.airborne()) {
+                char buf[32];
+                std::snprintf(buf, sizeof buf, "%sJUMP %.2f", text.empty() ? "" : " | ", a.z);
+                text += buf;
+            }
+            if (!text.empty()) dbg.push_back(shapes::tag("ball", i, text, defender ? "#f44336" : "#4caf50"));
         }
     }
     out_->frame(world_, std::move(dbg));
@@ -1596,6 +1648,14 @@ void PlaySim::throw_ball(int qb_index, int target, bool away) {
         const double delay = pt.reaction_delay(skill) + rng.normal(0.0, pt.reaction_noise_sd);
         state_.throw_reaction[static_cast<std::size_t>(i)] = std::max(0.05, delay);
     }
+    // And how well he'd time a jump for it.
+    std::fill(jumped_.begin(), jumped_.end(), false);
+    const PassingTuning& jt = passing();
+    for (int i = 0; i < state_.count(); ++i) {
+        const Agent& a = state_.agent(i);
+        const double skill = state_.is_offense(i) ? jt.jump_timing_offense(a.ratings) : jt.jump_timing_defense(a.ratings);
+        jump_timing_[static_cast<std::size_t>(i)] = rng.normal(0.0, jt.jump_timing_sd(skill));
+    }
 
     result_.target = state_.slot_name(target);
     passer_ = qb_index;
@@ -1664,6 +1724,65 @@ void PlaySim::ball_phase() {
     }
 }
 
+bool PlaySim::can_play_ball(int i) const {
+    // The target, any defender who has seen the throw, and after a tip
+    // anyone who has seen it; once per touch.
+    if (tried_[static_cast<std::size_t>(i)] || i == state_.pass->thrower) return false;
+    return state_.is_offense(i) ? i == state_.pass->target || (tipped_ && state_.sees_throw(i))
+                                : state_.sees_throw(i);
+}
+
+void PlaySim::plan_jumps() {
+    // A player who can play the ball looks ahead: the ball's flight against
+    // where he'll be at his current velocity. If it will come within his
+    // reach he's going for it (a defender: an interception attempt). If it
+    // will pass above his hands, he jumps, timed to peak as it arrives (off by
+    // his timing error). See movement-and-interaction.md#passing-game.
+    std::fill(attacking_.begin(), attacking_.end(), false);
+    const Ball& ball = world_.ball();
+    if (state_.phase != PlayPhase::Live || ball.state != Ball::State::InFlight || !state_.pass ||
+        state_.pass->away) {
+        return;
+    }
+    const PassingTuning& t = passing();
+    const double g = world_.tuning().gravity;
+    const int steps = static_cast<int>(std::ceil(t.jump_look_ahead / kTickSeconds));
+    for (int i = 0; i < state_.count(); ++i) {
+        const auto idx = static_cast<std::size_t>(i);
+        Agent& a = agent(i);
+        if (state_.knocked_down(i) || state_.engaged(i) || !can_play_ball(i)) continue;
+        // Where the ball passes closest to him, and when.
+        Vec3 bp = ball.pos;
+        Vec3 bv = ball.vel;
+        double best = std::numeric_limits<double>::infinity();
+        double when = 0.0;
+        double height = 0.0;
+        for (int k = 1; k <= steps && bp.z > 0.0; ++k) {
+            step_ballistic(bp, bv, t.gravity, kTickSeconds);
+            const double s = k * kTickSeconds;
+            const double d = (bp.ground() - (a.pos + a.vel * s)).length();
+            if (d < best) {
+                best = d;
+                when = s;
+                height = bp.z;
+            }
+        }
+        if (best > catch_window(a, t).dive_reach) continue;  // not coming to him
+        attacking_[idx] = true;
+        if (jumped_[idx] || a.airborne() || best > a.body.reach) continue;
+        const double hands = a.body.height * t.arms_up_factor;
+        const double want = height - (hands - t.jump_comfort);
+        if (want <= 0.0) continue;  // he can reach it standing
+        const double h = std::min(want, t.jump_reach(a.ratings[Attr::Jumping]));
+        const double rise = std::sqrt(2.0 * h / g);
+        if (when > rise + jump_timing_[idx]) continue;  // not yet
+        a.vz = std::sqrt(2.0 * g * h);
+        jumped_[idx] = true;
+        ++result_.jumps;
+        event("jump", {{"player", state_.slot_name(i)}, {"height", h}});
+    }
+}
+
 void PlaySim::play_the_ball(Vec3 before) {
     // Who can play the ball this tick: the target, any defender who has seen
     // the throw, and after a tip anyone who has seen it. Each plays it on
@@ -1675,21 +1794,16 @@ void PlaySim::play_the_ball(Vec3 before) {
     struct Try {
         int player;
         Closest c;
+        CatchReach reach;
         bool diving;
     };
     std::vector<Try> tries;
     for (int i = 0; i < state_.count(); ++i) {
-        if (tried_[static_cast<std::size_t>(i)] || i == state_.pass->thrower) continue;
-        const bool can = state_.is_offense(i)
-                             ? i == state_.pass->target || (tipped_ && state_.sees_throw(i))
-                             : state_.sees_throw(i);
-        if (!can) continue;
+        if (!can_play_ball(i)) continue;
         const Agent& a = state_.agent(i);
         const Closest c = closest_approach(before, ball.pos, a.pos);
-        const CatchWindow w = catch_window(a, t);
-        if (c.u < 1.0 && c.dist <= w.dive_reach && c.at.z >= w.low && c.at.z <= w.high) {
-            tries.push_back({i, c, c.dist > w.reach});
-        }
+        const CatchReach r = catch_reach(catch_window(a, t), c.dist, c.at.z);
+        if (c.u < 1.0 && r.reachable) tries.push_back({i, c, r, r.diving});
     }
     if (tries.empty()) return;
     // In the order the ball reaches them (agent order breaks ties).
@@ -1706,69 +1820,167 @@ void PlaySim::play_the_ball(Vec3 before) {
     if (off) tried_[static_cast<std::size_t>(off->player)] = true;
     if (def) tried_[static_cast<std::size_t>(def->player)] = true;
 
-    const auto stretch_factor = [&](const Try& tr) {
-        const Agent& a = state_.agent(tr.player);
-        const double stretch = std::clamp(tr.c.dist / a.body.reach, 0.0, 1.0);
-        double f = 1.0 - t.reach_penalty * stretch * stretch;
-        if (tr.diving) f *= t.dive_factor;
+    // How well he can play it: reaching (stretch_factor), and for a defender
+    // whether he can see it coming (receivers track it over the shoulder).
+    const auto play_factor = [&](const Try& tr) {
+        double f = stretch_factor(tr.reach, t);
+        if (!state_.is_offense(tr.player)) f *= sight_factor(state_.agent(tr.player).facing, ball.vel.ground(), t);
         return f;
     };
 
-    if (off && def) {
-        // Contested: who wins the ball?
-        const Agent& o = state_.agent(off->player);
-        const Agent& d = state_.agent(def->player);
-        const double ro = t.contest_receiver(o.ratings) +
-                          (off->c.dist < def->c.dist ? t.contest_closer_bonus : 0.0);
-        const double rd = t.contest_defender(d.ratings) +
-                          (def->c.dist < off->c.dist ? t.contest_closer_bonus : 0.0);
-        if (rng.chance(contest_probability(ro, rd, t.contest_skill_scale))) {
-            const double p = catch_chance(o, off->c.dist, off->diving, ball.vel.length(), t) *
-                             t.contested_catch_factor;
+    // Who gets it. A lambda so each outcome can just return. It records what
+    // happened to each side and the odds they had, for the debug tags and the
+    // ball_play events.
+    std::string off_result, def_result;
+    double off_odds = -1.0, def_odds = -1.0, pick_odds = -1.0;
+    [&] {
+        if (off && def) {
+            // Contested: who wins the ball?
+            const Agent& o = state_.agent(off->player);
+            const Agent& d = state_.agent(def->player);
+            const double ro = t.contest_receiver(o.ratings) +
+                              (off->c.dist < def->c.dist ? t.contest_closer_bonus : 0.0);
+            const double rd = t.contest_defender(d.ratings) +
+                              (def->c.dist < off->c.dist ? t.contest_closer_bonus : 0.0);
+            // Reach counts: a player stretching or diving for it wins less
+            // often than one with the ball in his chest (odds scaled by each
+            // side's stretch factor).
+            const double skill = contest_probability(ro, rd, t.contest_skill_scale);
+            const double so = skill * play_factor(*off);
+            const double sd = (1.0 - skill) * play_factor(*def);
+            off_odds = so / (so + sd);
+            def_odds = 1.0 - off_odds;
+            // Diving through a receiver, he can knock it away but almost
+            // never come up with it.
+            pick_odds = t.int_contested(d.ratings[Attr::BallSkills]) * (def->diving ? t.dive_int_factor : 1.0);
+            if (rng.chance(off_odds)) {
+                def_result = "lost the contest";
+                const double p = catch_chance(o, off->reach, ball.vel.length(), t) *
+                                 t.contested_catch_factor;
+                if (rng.chance(p)) {
+                    off_result = "CATCH";
+                    catch_ball(off->player, off->c.at);
+                    return;
+                }
+                off_result = "drop";
+                after_touch(off->player, off->c.at, false, "drop");
+            } else {
+                off_result = "lost the contest";
+                if (rng.chance(pick_odds)) {
+                    def_result = "PICK";
+                    intercept(def->player, def->c.at);
+                    return;
+                }
+                def_result = "breakup";
+                after_touch(def->player, def->c.at, true, "breakup");
+            }
+            return;
+        }
+        if (off) {
+            const Agent& o = state_.agent(off->player);
+            double p = catch_chance(o, off->reach, ball.vel.length(), t);
+            // Traffic: a defender right on him as the ball arrives.
+            for (int d = state_.offense_count; d < state_.count(); ++d) {
+                if ((state_.agent(d).pos - o.pos).length() <= t.traffic_range) {
+                    const double nerve = (1.0 - t.traffic_bravery_share) * o.ratings[Attr::CatchInTraffic] +
+                                         t.traffic_bravery_share * o.ratings[Attr::Bravery];
+                    p *= 1.0 - t.traffic_penalty(nerve);
+                    break;
+                }
+            }
+            off_odds = p;
             if (rng.chance(p)) {
+                off_result = "CATCH";
                 catch_ball(off->player, off->c.at);
                 return;
             }
+            off_result = "drop";
             after_touch(off->player, off->c.at, false, "drop");
-        } else {
-            if (rng.chance(t.int_contested(d.ratings[Attr::BallSkills]))) {
-                intercept(def->player, def->c.at);
-                return;
-            }
-            after_touch(def->player, def->c.at, true, "breakup");
-        }
-        return;
-    }
-    if (off) {
-        const Agent& o = state_.agent(off->player);
-        double p = catch_chance(o, off->c.dist, off->diving, ball.vel.length(), t);
-        // Traffic: a defender right on him as the ball arrives.
-        for (int d = state_.offense_count; d < state_.count(); ++d) {
-            if ((state_.agent(d).pos - o.pos).length() <= t.traffic_range) {
-                const double nerve = (1.0 - t.traffic_bravery_share) * o.ratings[Attr::CatchInTraffic] +
-                                     t.traffic_bravery_share * o.ratings[Attr::Bravery];
-                p *= 1.0 - t.traffic_penalty(nerve);
-                break;
-            }
-        }
-        if (rng.chance(p)) {
-            catch_ball(off->player, off->c.at);
             return;
         }
-        after_touch(off->player, off->c.at, false, "drop");
-        return;
+        // A defender alone at the ball: does he get a hand on it (a lineman at
+        // the line far less often), and if so, does he hold on?
+        const Agent& d = state_.agent(def->player);
+        double touch = t.touch(d.ratings[Attr::BallSkills]) * play_factor(*def);
+        if (state_.play_pos(def->player).y < t.line_depth) touch *= t.bat_factor;
+        def_odds = touch;
+        pick_odds = t.int_alone(d.ratings[Attr::BallSkills]);
+        if (!rng.chance(touch)) {  // it goes by him
+            def_result = "went by him";
+            return;
+        }
+        if (rng.chance(pick_odds)) {
+            def_result = "PICK";
+            intercept(def->player, def->c.at);
+            return;
+        }
+        def_result = "breakup";
+        after_touch(def->player, def->c.at, true, "breakup");
+    }();
+
+    // What each side did with it: a ball_play event, and a tag for a moment.
+    const bool contested = off && def;
+    const auto report = [&](const Try& tr, const std::string& what, double odds) {
+        const bool defender = !state_.is_offense(tr.player);
+        const Agent& a = state_.agent(tr.player);
+        const double sight = defender ? sight_factor(a.facing, ball.vel.ground(), t) : 1.0;
+        Json f = {{"player", state_.slot_name(tr.player)}, {"stretch", tr.reach.stretch}, {"result", what}};
+        if (tr.diving) f["diving"] = true;
+        if (a.z > 0.0) f["jump"] = a.z;
+        if (contested) f["contested"] = true;
+        if (defender && sight < 1.0) f["sight"] = sight;
+        if (odds >= 0.0) f[defender ? (contested ? "won_odds" : "hand_odds") : (contested ? "won_odds" : "catch_odds")] = odds;
+        if (defender && pick_odds >= 0.0) f["pick_odds"] = pick_odds;
+        event("ball_play", f);
+
+        char buf[160];
+        std::string text = defender ? "INT try" : "catch try";
+        if (a.z > 0.0) {
+            std::snprintf(buf, sizeof buf, " | jump %.2f", a.z);
+            text += buf;
+        }
+        std::snprintf(buf, sizeof buf, " | stretch %.2f", tr.reach.stretch);
+        text += buf;
+        if (tr.diving) text += " | dive";
+        if (contested) text += " | contested";
+        if (defender && sight < 1.0) {
+            std::snprintf(buf, sizeof buf, " | sight %.2f", sight);
+            text += buf;
+        }
+        if (odds >= 0.0) {
+            std::snprintf(buf, sizeof buf, " | %s %.0f%%", contested ? "win" : defender ? "hand" : "catch", 100.0 * odds);
+            text += buf;
+        }
+        if (defender && pick_odds >= 0.0) {
+            std::snprintf(buf, sizeof buf, " | pick %.0f%%", 100.0 * pick_odds);
+            text += buf;
+        }
+        text += " -> " + what;
+        const auto idx = static_cast<std::size_t>(tr.player);
+        note_[idx] = text;
+        note_until_[idx] = state_.since_snap() + kNoteSeconds;
+    };
+    if (off) report(*off, off_result, off_odds);
+    if (def) {
+        ++result_.defender_plays;
+        report(*def, def_result, def_odds);
     }
-    // A defender alone at the ball: does he get a hand on it (a lineman at
-    // the line far less often), and if so, does he hold on?
-    const Agent& d = state_.agent(def->player);
-    double touch = t.touch(d.ratings[Attr::BallSkills]) * stretch_factor(*def);
-    if (state_.play_pos(def->player).y < t.line_depth) touch *= t.bat_factor;
-    if (!rng.chance(touch)) return;  // it goes by him
-    if (rng.chance(t.int_alone(d.ratings[Attr::BallSkills]))) {
-        intercept(def->player, def->c.at);
-        return;
+
+    // A dive puts him on the ground. Going to the ground with the ball, he's
+    // down there (NCAA: no getting up and running, touched or not); otherwise
+    // he's out of the play for a moment.
+    for (const Try* tr : {off, def}) {
+        if (!tr || !tr->diving) continue;
+        event("dive", {{"player", state_.slot_name(tr->player)}});
+        Agent& diver = agent(tr->player);
+        diver.vel = diver.vel * t.dive_slide;  // he hits the ground and slides
+        if (state_.phase == PlayPhase::Live && state_.has_ball(tr->player)) {
+            whistle("down", tr->c.at.ground());
+            return;
+        }
+        state_.down_until[static_cast<std::size_t>(tr->player)] =
+            state_.since_snap() + rng.uniform(t.dive_down_min, t.dive_down_max);
     }
-    after_touch(def->player, def->c.at, true, "breakup");
 }
 
 void PlaySim::after_touch(int player, Vec3 at, bool defender, const char* what) {
@@ -1787,6 +1999,7 @@ void PlaySim::after_touch(int player, Vec3 at, bool defender, const char* what) 
         // A new touch: everyone else gets another try.
         std::fill(tried_.begin(), tried_.end(), false);
         tried_[static_cast<std::size_t>(player)] = true;
+        std::fill(jumped_.begin(), jumped_.end(), false);
         event("tip", {{"player", state_.slot_name(player)}});
         return;
     }
@@ -1794,6 +2007,19 @@ void PlaySim::after_touch(int player, Vec3 at, bool defender, const char* what) 
     ball.pos = at;
     ball.vel = {ball.vel.x * 0.2, ball.vel.y * 0.2, -3.0};
     std::fill(tried_.begin(), tried_.end(), true);
+}
+
+void PlaySim::take_ball(int player, Vec3 at) {
+    // Caught at `at`: it comes in to the carry spot over hold_ease s instead
+    // of jumping there.
+    Ball& ball = world_.ball();
+    ball.state = Ball::State::Held;
+    ball.carrier = player;
+    ball.pos = at;
+    ball.hold_offset = at - carry_spot(state_.agent(player));
+    ball.hold_total = passing().hold_ease;
+    ball.hold_left = ball.hold_total;
+    ball.hold_carrier = player;
 }
 
 void PlaySim::catch_ball(int receiver, Vec3 at) {
@@ -1809,9 +2035,7 @@ void PlaySim::catch_ball(int receiver, Vec3 at) {
         whistle("incomplete");
         return;
     }
-    ball.state = Ball::State::Held;
-    ball.carrier = receiver;
-    ball.pos = at;
+    take_ball(receiver, at);
     result_.complete = true;
     result_.air_yards = state_.frame.to_play(at.ground()).y;
     event("catch", {{"player", state_.slot_name(receiver)}, {"air_yards", result_.air_yards}});
@@ -1833,9 +2057,7 @@ void PlaySim::intercept(int defender, Vec3 at) {
         whistle("incomplete");
         return;
     }
-    ball.state = Ball::State::Held;
-    ball.carrier = defender;
-    ball.pos = at;
+    take_ball(defender, at);
     result_.interception = true;
     result_.intercepted_by = state_.slot_name(defender);
     result_.interceptor_id = state_.agent(defender).id;
@@ -2088,6 +2310,7 @@ PlayResult PlaySim::run() {
         if (state_.phase == PlayPhase::Live) {
             blocking_.steer(intents);
             tackles_.steer(intents);
+            plan_jumps();
         }
         world_.step(intents);
         if (state_.phase == PlayPhase::Live) {

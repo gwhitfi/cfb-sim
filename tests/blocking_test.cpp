@@ -20,9 +20,9 @@ const DataSet& data() {
 
 PlayOptions matchup(const std::string& play, const std::string& defense, std::uint64_t seed = 1) {
     PlayOptions o;
-    o.team = "state_u";
+    o.team = "clemson_2018";
     o.play = play;
-    o.defense = "tech";
+    o.defense = "clemson_2025";
     o.defense_play = defense;
     o.seed = seed;
     o.huddle = false;
@@ -41,11 +41,11 @@ void set(DataSet& d, const std::string& team, std::initializer_list<Position> po
 }
 
 void set_line(DataSet& d, double ol, double dl) {
-    set(d, "state_u", {Position::OT, Position::OG, Position::C},
+    set(d, "clemson_2018", {Position::OT, Position::OG, Position::C},
         {Attr::PassBlocking, Attr::Footwork, Attr::Strength, Attr::HandTechnique, Attr::Balance,
          Attr::Anticipation, Attr::Agility},
         ol);
-    set(d, "tech", {Position::DE, Position::DT},
+    set(d, "clemson_2025", {Position::DE, Position::DT},
         {Attr::BlockShedding, Attr::PowerMoves, Attr::FinesseMoves, Attr::Strength,
          Attr::HandTechnique, Attr::Agility, Attr::Acceleration},
         dl);
@@ -126,8 +126,8 @@ TEST(Blocking, PickupTakesAnticipation) {
     // picks up fewer blitzers than one who reads them early.
     const auto back = [](double rating) {
         DataSet d = data();
-        set(d, "state_u", {Position::RB}, {Attr::Anticipation}, rating);
-        for (Player& p : d.rosters.at("state_u").players) {
+        set(d, "clemson_2018", {Position::RB}, {Attr::Anticipation}, rating);
+        for (Player& p : d.rosters.at("clemson_2018").players) {
             if (p.position == Position::RB) {
                 for (auto& [scheme, pk] : p.playbook_knowledge) pk = rating;
             }
@@ -191,4 +191,38 @@ TEST(Blocking, SameSeedSameFile) {
     EXPECT_EQ(tracking(data(), o), tracking(data(), o));
     o = matchup("mesh", "nickel_fire_zone", 3);
     EXPECT_EQ(tracking(data(), o), tracking(data(), o));
+}
+
+TEST(Probe, Pickups) {
+    const auto run = [](const char* dir, const char* off, const char* def) {
+        const LoadReport rep = load_data_dir(dir);
+        for (double rating : {1.0, 30.0, 60.0, 99.0}) {
+            DataSet d = rep.data;
+            for (Player& p : d.rosters.at(off).players) {
+                if (p.position == Position::RB) {
+                    p.attributes[Attr::Anticipation] = rating;
+                    for (auto& [scheme, pk] : p.playbook_knowledge) pk = rating;
+                }
+            }
+            int n = 0;
+            double ticks = 0;
+            for (std::uint64_t seed = 1; seed <= 40; ++seed) {
+                PlayOptions o = matchup("smash", "nickel_cover0", seed);
+                o.team = off; o.defense = def; o.hold_ball = true;
+                const std::string file = tracking(d, o);
+                for (const char* who : {"MIKE", "WILL"}) {
+                    const std::string key = std::string(R"("event":"block","player":"RB","on":")") + who;
+                    const auto at = file.find(key);
+                    if (at == std::string::npos) continue;
+                    const auto t = file.rfind(R"("tick":)", at);
+                    ticks += std::stod(file.substr(t + 7));
+                    ++n;
+                    break;
+                }
+            }
+            std::printf("%s vs %s rating %.0f: %d pickups, avg tick %.1f\n", off, def, rating, n, ticks / n);
+        }
+    };
+    run(CFBSIM_DATA_DIR, "clemson_2018", "clemson_2025");
+    run(CFBSIM_DATA_DIR, "clemson_2025", "clemson_2018");
 }

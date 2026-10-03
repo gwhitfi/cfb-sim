@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cmath>
 #include <set>
+#include <stdexcept>
 
 #include "cfbsim/core/rng.h"
 #include "data/json_reader.h"
@@ -299,6 +300,235 @@ class Generator {
 GeneratedTeam generate_team(const GeneratorTemplates& templates, const TeamIdentity& identity,
                             int talent, std::uint64_t seed) {
     return Generator(templates, identity, talent, seed).run();
+}
+
+// ---------------------------------------------------------------------------
+// Real rosters
+// ---------------------------------------------------------------------------
+
+RealRosterSpec parse_real_roster(const Json& json, const std::string& source) {
+    const Reader root(json, source);
+    root.allow_only({"format_version", "team", "seed", "players", "tactics"});
+    detail::require_format_version(root);
+
+    RealRosterSpec spec;
+    const Reader team = root.at("team");
+    team.allow_only({"id", "name", "nickname", "abbr", "colors", "playbooks"});
+    TeamIdentity& id = spec.identity;
+    id.id = team.string("id");
+    id.name = team.string("name");
+    id.nickname = team.string_or("nickname", "");
+    id.abbr = team.string("abbr");
+    const Reader colors = team.at("colors");
+    id.color_primary = colors.string("primary");
+    id.color_secondary = colors.string("secondary");
+    const Reader books = team.at("playbooks");
+    id.offense_playbook = books.string("offense");
+    id.defense_playbook = books.string("defense");
+    id.special_playbook = books.string("special");
+
+    spec.seed = static_cast<std::uint64_t>(root.integer("seed"));
+    if (auto tactics = root.find("tactics")) spec.tactics = tactics->json();
+
+    root.at("players").for_each([&](const Reader& r) {
+        r.allow_only({"name", "jersey", "pos", "class", "redshirt", "height", "weight", "rating",
+                      "attrs"});
+        RealPlayer p;
+        // "First Last": everything after the first space is the last name
+        // ("Brian Dawkins Jr." -> "Brian" + "Dawkins Jr.").
+        const std::string name = r.string("name");
+        const std::size_t space = name.find(' ');
+        if (space == std::string::npos) r.at("name").fail("expected 'First Last'");
+        p.first_name = name.substr(0, space);
+        p.last_name = name.substr(space + 1);
+        p.jersey = r.integer("jersey");
+        p.position = r.at("pos").as_enum(kPositionNames, "position");
+        p.class_year = r.at("class").as_enum(kClassYearNames, "class");
+        p.redshirt = r.boolean_or("redshirt", false);
+        // Height as "6-4" (feet-inches).
+        const std::string height = r.string("height");
+        const std::size_t dash = height.find('-');
+        if (dash == std::string::npos) r.at("height").fail("expected feet-inches, like '6-4'");
+        p.height_in = std::stoi(height.substr(0, dash)) * 12.0 + std::stoi(height.substr(dash + 1));
+        p.weight_lb = r.number("weight");
+        p.rating = r.number("rating");
+        if (p.rating < 1.0 || p.rating > 99.0) r.at("rating").fail("expected 1-99");
+        if (auto attrs = r.find("attrs")) {
+            attrs->for_each_member([&](const std::string& key, const Reader& v) {
+                p.attrs[parse_attr_key(v, key)] = v.as_number();
+            });
+        }
+        spec.players.push_back(std::move(p));
+    });
+    if (spec.players.empty()) root.at("players").fail("needs at least one player");
+    return spec;
+}
+
+namespace {
+
+// "Brian Dawkins Jr." -> "brian_dawkins_jr": readable, stable player ids.
+std::string slug(const std::string& text) {
+    std::string out;
+    for (const unsigned char c : text) {
+        if (std::isalnum(c)) {
+            out += static_cast<char>(std::tolower(c));
+        } else if (!out.empty() && out.back() != '_') {
+            out += '_';
+        }
+    }
+    while (!out.empty() && out.back() == '_') out.pop_back();
+    return out;
+}
+
+class RealGenerator {
+  public:
+    RealGenerator(const GeneratorTemplates& templates, const RealRosterSpec& spec)
+        : templates_(templates), spec_(spec), rng_(spec.seed) {}
+
+    GeneratedTeam run() {
+        GeneratedTeam out;
+        out.roster.team_id = spec_.identity.id;
+        std::string prefix = spec_.identity.abbr;
+        std::transform(prefix.begin(), prefix.end(), prefix.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::set<std::string> ids;
+        for (const RealPlayer& real : spec_.players) {
+            const PositionTemplate* t = templates_.find(real.position);
+            if (!t) {
+                throw std::runtime_error("no generator template for position " +
+                                         std::string(to_string(real.position)));
+            }
+            Player p = make_player(real, *t);
+            p.id = prefix + "_" + slug(real.first_name + " " + real.last_name);
+            if (!ids.insert(p.id).second) {
+                throw std::runtime_error("two players would get the id '" + p.id + "'");
+            }
+            out.roster.players.push_back(std::move(p));
+        }
+        out.team = make_team(out.roster);
+        return out;
+    }
+
+  private:
+    Player make_player(const RealPlayer& real, const PositionTemplate& t) {
+        Player p;
+        p.first_name = real.first_name;
+        p.last_name = real.last_name;
+        p.jersey = real.jersey;
+        p.position = real.position;
+        p.class_year = real.class_year;
+        p.redshirt = real.redshirt;
+        const int year = static_cast<int>(real.class_year);
+        const double year_bonus[] = {-4.0, -2.0, 0.0, 2.0, 3.0};
+
+        // How far this player sits from the template's average at the key
+        // attributes. Key attributes take all of it, listed ones half, the
+        // rest a little, the same shape as the random generator.
+        double key_mean = 0.0;
+        for (Attr a : t.key) key_mean += t.attrs.contains(a) ? t.attrs.at(a) : t.base;
+        key_mean /= static_cast<double>(t.key.size());
+        const double bump = real.rating - key_mean;
+
+        for (const AttrInfo& row : kAttrInfo) {
+            double value = 0.0;
+            if (auto it = t.attrs.find(row.attr); it != t.attrs.end()) {
+                const double mean = it->second;
+                const bool is_key = std::find(t.key.begin(), t.key.end(), row.attr) != t.key.end();
+                double b = bump * (is_key ? 1.0 : 0.5);
+                if (b > 0.0) b *= std::min(1.0, (100.0 - mean) / 30.0);  // less room at the top
+                value = rng_.normal(mean + b, 3.0);
+            } else if (row.group == AttrGroup::Mental) {
+                value = rng_.normal(50.0 + 0.4 * bump + year_bonus[year], 7.0);
+            } else {
+                value = rng_.normal(t.base + 0.2 * bump, 4.0);
+            }
+            p.attributes[row.attr] = clamp_rating(value);
+        }
+        for (const auto& [attr, value] : real.attrs) p.attributes[attr] = clamp_rating(value);
+
+        // Land the position score on the rating: spread what's left over the
+        // key attributes the spec didn't pin (the "less room at the top" squeeze
+        // and the noise both pull it off).
+        std::vector<Attr> free;
+        for (Attr a : t.key) {
+            if (!real.attrs.contains(a)) free.push_back(a);
+        }
+        for (int pass = 0; pass < 3 && !free.empty(); ++pass) {
+            const double gap = real.rating - position_score(p, t);
+            const double each = gap * static_cast<double>(t.key.size()) /
+                                static_cast<double>(free.size());
+            for (Attr a : free) p.attributes[a] = clamp_rating(p.attributes[a] + each);
+        }
+
+        Measurables& m = p.measurables;
+        m.height_in = real.height_in;
+        m.weight_lb = real.weight_lb;
+        m.arm_in = std::round(rng_.normal(t.arm_mean, 0.8) * 4.0) / 4.0;
+        m.hand_in = std::round(rng_.normal(t.hand_mean, 0.3) * 4.0) / 4.0;
+
+        HiddenAttributes& h = p.hidden;
+        for (double* field :
+             {&h.consistency, &h.big_games, &h.injury_proneness, &h.dirtiness, &h.professionalism,
+              &h.ambition, &h.loyalty, &h.temperament, &h.adaptability}) {
+            *field = clamp_rating(rng_.normal(50.0, 15.0));
+        }
+
+        // Knowledge of the team's schemes grows with years in the program.
+        const auto knowledge = [&] { return clamp_rating(rng_.normal(45.0 + 12.0 * year, 7.0)); };
+        if (is_offense(p.position) || is_special(p.position)) {
+            p.playbook_knowledge[spec_.identity.offense_scheme] = knowledge();
+        }
+        if (!is_offense(p.position) || is_special(p.position)) {
+            p.playbook_knowledge[spec_.identity.defense_scheme] = knowledge();
+        }
+
+        p.position_familiarity[p.position] = 100.0;
+        for (const auto& [other, value] : t.familiar) {
+            p.position_familiarity[other] = clamp_rating(rng_.normal(value, 5.0));
+        }
+
+        // Placeholder CA/PA, as in the random generator.
+        p.ability.current = static_cast<int>(
+            std::clamp(std::round(position_score(p, t) * 2.0 - 10.0), 1.0, 200.0));
+        const int headroom = rng_.uniform_int(0, 12 * (4 - std::min(year, 3)) + 5);
+        p.ability.potential = std::min(200, p.ability.current + headroom);
+        return p;
+    }
+
+    // The depth chart is the spec's order within each position.
+    Team make_team(const Roster& roster) const {
+        const TeamIdentity& id = spec_.identity;
+        Team t;
+        t.id = id.id;
+        t.name = id.name;
+        t.nickname = id.nickname;
+        t.abbr = id.abbr;
+        t.color_primary = id.color_primary;
+        t.color_secondary = id.color_secondary;
+        t.roster_file = "rosters/" + id.id + ".json";
+        t.offense_playbook = id.offense_playbook;
+        t.defense_playbook = id.defense_playbook;
+        t.special_playbook = id.special_playbook;
+        for (const PositionTemplate& tmpl : templates_.positions) {
+            for (const Player& p : roster.players) {
+                if (p.position == tmpl.position) t.depth_chart.positions[tmpl.position].push_back(p.id);
+            }
+        }
+        t.depth_chart.offense_personnel = templates_.offense_personnel;
+        t.depth_chart.defense_packages = templates_.defense_packages;
+        t.depth_chart.special_units = templates_.special_units;
+        return t;
+    }
+
+    const GeneratorTemplates& templates_;
+    const RealRosterSpec& spec_;
+    Rng rng_;
+};
+
+}  // namespace
+
+GeneratedTeam generate_real_team(const GeneratorTemplates& templates, const RealRosterSpec& spec) {
+    return RealGenerator(templates, spec).run();
 }
 
 }  // namespace cfbsim

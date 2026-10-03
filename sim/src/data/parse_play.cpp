@@ -192,9 +192,16 @@ Assignment parse_assignment(const Reader& r, Unit unit) {
             a.sequence = parse_sequence(r, kOffenseJobs, "offense");
             break;
         case Unit::Defense:
-            r.allow_only({"run", "pass"});
+            r.allow_only({"run", "pass", "align"});
             a.run = parse_job(r.at("run"), kDefenseRunJobs, "run defense");
             a.pass = parse_job(r.at("pass"), kDefensePassJobs, "pass defense");
+            if (r.has("align")) {
+                const Reader al = r.at("align");
+                al.allow_only({"x", "y"});
+                if (al.has("x")) a.align_x = detail::parse_anchor(al.at("x"), unit, detail::Axis::X);
+                if (al.has("y")) a.align_y = detail::parse_anchor(al.at("y"), unit, detail::Axis::Y);
+                if (!a.align_x && !a.align_y) al.fail("needs x, y, or both");
+            }
             break;
         case Unit::Kicking:
         case Unit::Receiving:

@@ -23,7 +23,7 @@ const char* cfbsim_version(void);
 const char* cfbsim_last_error(void);
 
 /* Loads the data folder and sets up a match. `options_json`:
- *   {"home": "state_u", "away": "tech", "seed": 1, "crowd": 0.5, "neutral": false,
+ *   {"home": "clemson_2018", "away": "clemson_2025", "seed": 1, "crowd": 0.5, "neutral": false,
  *    "user": ["home"],          sides the caller controls (default: none)
  *    "replay_log": "...",       a game log's text: watch that game instead
  *    "tracking": true}          a tracking file per snap in the messages

@@ -45,6 +45,8 @@ void print_usage() {
            "43_base)\n"
            "      --data DIR            (default data)          --force  overwrite existing "
            "files\n"
+           "      --spec FILE           a real roster (data/generator/real/*.json) instead of\n"
+           "                            the options above: names, numbers, sizes, ratings\n"
            "  run-drill forty         40-yard dash times\n"
            "      --speed N --accel N [--agility N --weight LB]   one runner (default 95/95)\n"
            "      --runners 95/95,70/70,50/50                    several runners, speed/accel\n"
@@ -65,23 +67,23 @@ void print_usage() {
            "      --runs N              run N seeds (seed, seed+1, ...) and summarize\n"
            "      --out FILE.jsonl      write a tracking file (first run)   --data DIR\n"
            "  matrix                  every pass play against every defensive play\n"
-           "      --offense ID --defense ID   (default state_u vs tech)\n"
+           "      --offense ID --defense ID   (default clemson_2018 vs clemson_2025)\n"
            "      --runs N              plays per matchup (default 100), spread over both\n"
            "                            hashes and the middle, flipped and not\n"
            "      --plays a,b  --defs c,d   only these plays\n"
            "  run-kick                one kicking play: kickoff, punt, or field goal (phase 9)\n"
-           "      --team ID (kicking, default state_u) --vs ID (receiving, default tech)\n"
+           "      --team ID (kicking, default clemson_2018) --vs ID (receiving, default clemson_2025)\n"
            "      --kick ID (default kickoff_deep) --return ID (default by kick type)\n"
            "      --yard-line N (kicking team's own; default 35 kickoff, 30 punt, 70 FG)\n"
            "      --seed N  --runs N (summarize)  --out FILE.jsonl\n"
            "      --return-aggression N  the receiving team's tactic, 0-100 (default 50)\n"
            "  play-game               a full game, both teams on the auto coach\n"
-           "      --home ID --away ID   (default state_u vs tech)   --game FILE  a game setup file\n"
+           "      --home ID --away ID   (default clemson_2018 vs clemson_2025)   --game FILE  a game setup file\n"
            "      --seed N (default 1)  --log FILE.gamelog.jsonl   --box FILE.json\n"
            "      --games N             play N seeds and print averages instead\n"
            "      --tracking DIR        write a tracking file per snap (for the viewer)\n"
            "  batch                   many games on all cores, vs. the calibration targets (phase 10)\n"
-           "      --home ID --away ID   (default state_u vs tech; alternated home and away)\n"
+           "      --home ID --away ID   (default clemson_2018 vs clemson_2025; alternated home and away)\n"
            "      --games N (default 1000)  --seed N (first seed)  --threads N (default: all cores)\n"
            "  replay FILE             re-run a game log and check it reproduces exactly\n"
            "      --tracking DIR        also write a tracking file per snap\n";
@@ -141,7 +143,57 @@ int cmd_validate(const Options& opt) {
     return 1;
 }
 
+// generate-team --spec FILE: a real roster (data/generator/real/*.json).
+int cmd_generate_real_team(const Options& opt) {
+    const fs::path root = opt.get("data", "data");
+    const std::string spec_file = opt.get("spec");
+    try {
+        cfbsim::RealRosterSpec spec =
+            cfbsim::parse_real_roster(cfbsim::read_json_file(spec_file, spec_file), spec_file);
+
+        // Playbook Knowledge is keyed by scheme, so look up each playbook's scheme.
+        const cfbsim::LoadReport report = cfbsim::load_data_dir(root);
+        for (auto [book, scheme] : {std::pair{spec.identity.offense_playbook, &spec.identity.offense_scheme},
+                                    std::pair{spec.identity.defense_playbook, &spec.identity.defense_scheme}}) {
+            const auto it = report.data.playbooks.find(book);
+            if (it == report.data.playbooks.end()) {
+                std::cerr << "cfbsim generate-team: playbook '" << book << "' not found in "
+                          << (root / "playbooks").string() << "\n";
+                return 1;
+            }
+            *scheme = it->second.scheme;
+        }
+
+        const std::string& id = spec.identity.id;
+        const fs::path roster_file = root / "rosters" / (id + ".json");
+        const fs::path team_file = root / "teams" / (id + ".json");
+        if (!opt.has("force") && (fs::exists(roster_file) || fs::exists(team_file))) {
+            std::cerr << "cfbsim generate-team: " << id
+                      << " already exists (use --force to overwrite)\n";
+            return 1;
+        }
+
+        const auto templates = cfbsim::parse_generator_templates(
+            cfbsim::read_json_file(root / "generator" / "templates.json",
+                                   "generator/templates.json"),
+            "generator/templates.json");
+        const cfbsim::GeneratedTeam generated = cfbsim::generate_real_team(templates, spec);
+        cfbsim::Json team = cfbsim::to_json(generated.team);
+        if (!spec.tactics.is_null()) team["tactics"] = spec.tactics;
+        cfbsim::write_json_file(roster_file, cfbsim::to_json(generated.roster));
+        cfbsim::write_json_file(team_file, team);
+        std::cout << "wrote " << roster_file.string() << " (" << generated.roster.players.size()
+                  << " players)\n"
+                  << "wrote " << team_file.string() << "\n";
+    } catch (const std::exception& e) {
+        std::cerr << "cfbsim generate-team: " << e.what() << "\n";
+        return 1;
+    }
+    return 0;
+}
+
 int cmd_generate_team(const Options& opt) {
+    if (opt.has("spec")) return cmd_generate_real_team(opt);
     for (const char* required : {"id", "name", "abbr"}) {
         if (!opt.has(required)) {
             std::cerr << "cfbsim generate-team: --" << required << " is required\n";
@@ -415,6 +467,7 @@ int cmd_run_play(const Options& opt) {
     std::vector<double> pocket;  // per run: how long the pocket held
     std::vector<double> gains;   // per run: yards (runs, completions, sacks; not incompletions)
     int tries = 0, broken = 0, missed = 0, evaded = 0, fumbles = 0, lost = 0, scrambles = 0;
+    int defender_plays = 0, breakups = 0, jumps = 0, throws = 0;
     double yac = 0.0, after_contact = 0.0, before_contact = 0.0;
     int contacted = 0;
     std::map<std::string, int> reads;
@@ -453,6 +506,10 @@ int cmd_run_play(const Options& opt) {
             fumbles += r.fumble ? 1 : 0;
             lost += r.fumble_lost ? 1 : 0;
             scrambles += r.scramble ? 1 : 0;
+            defender_plays += r.defender_plays;
+            breakups += r.breakups;
+            jumps += r.jumps;
+            throws += !r.target.empty() && !r.thrown_away ? 1 : 0;
             yac += r.yac;
             if (r.tackle_tries > 0) {
                 ++contacted;
@@ -530,6 +587,13 @@ int cmd_run_play(const Options& opt) {
             if (complete > 0) std::printf("; %.1f yd after the catch", yac / complete);
             if (scrambles > 0) std::printf("; %d scrambles", scrambles);
             std::printf("\n");
+            if (defender_plays > 0 || jumps > 0) {
+                std::printf(
+                    "  ball plays: %d interception attempts (%.2f per throw): %d picks, %d breakups, "
+                    "%d missed or lost the contest; %d jumps\n",
+                    defender_plays, throws > 0 ? static_cast<double>(defender_plays) / throws : 0.0, picks,
+                    breakups, defender_plays - picks - breakups, jumps);
+            }
             if (!reads.empty()) {
                 std::printf("  reads:");
                 for (const auto& [name, n] : reads) std::printf(" %s %d", name.c_str(), n);
@@ -589,8 +653,8 @@ int cmd_matrix(const Options& opt) {
         return 1;
     }
     const cfbsim::DataSet& data = report.data;
-    const std::string offense = opt.get("offense", "state_u");
-    const std::string defense = opt.get("defense", "tech");
+    const std::string offense = opt.get("offense", "clemson_2018");
+    const std::string defense = opt.get("defense", "clemson_2025");
     const auto runs_opt = number_option(opt, "runs", 100);
     if (!runs_opt) return 1;
     const int reps = std::max(1, static_cast<int>(*runs_opt));
@@ -775,8 +839,8 @@ int cmd_run_kick(const Options& opt) {
         return 1;
     }
     cfbsim::KickOptions o;
-    o.kicking_team = opt.get("team", "state_u");
-    o.receiving_team = opt.get("vs", "tech");
+    o.kicking_team = opt.get("team", "clemson_2018");
+    o.receiving_team = opt.get("vs", "clemson_2025");
     o.kick_play = opt.get("kick", "kickoff_deep");
     const bool punt = o.kick_play.starts_with("punt");
     const bool fg = o.kick_play.starts_with("fg");
@@ -870,8 +934,8 @@ int cmd_play_game(const Options& opt) {
     }
     const cfbsim::DataSet& data = report.data;
     cfbsim::GameOptions o;
-    o.home = opt.get("home", "state_u");
-    o.away = opt.get("away", "tech");
+    o.home = opt.get("home", "clemson_2018");
+    o.away = opt.get("away", "clemson_2025");
     o.seed = std::stoull(opt.get("seed", "1"));
     if (opt.has("game")) {
         try {
@@ -992,7 +1056,7 @@ int cmd_batch(const Options& opt) {
         return 1;
     }
     const cfbsim::DataSet& data = report.data;
-    const std::string a = opt.get("home", "state_u"), b = opt.get("away", "tech");
+    const std::string a = opt.get("home", "clemson_2018"), b = opt.get("away", "clemson_2025");
     const std::uint64_t seed = std::stoull(opt.get("seed", "1"));
     const int games = std::stoi(opt.get("games", "1000"));
     const unsigned hw = std::max(1u, std::thread::hardware_concurrency());

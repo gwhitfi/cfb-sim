@@ -22,8 +22,8 @@ const DataSet& data() {
 
 MatchOptions options(std::uint64_t seed, bool home_user, bool tracking = false) {
     MatchOptions o;
-    o.game.home = "state_u";
-    o.game.away = "tech";
+    o.game.home = "clemson_2018";
+    o.game.away = "clemson_2025";
     o.game.seed = seed;
     o.user = {home_user, false};
     o.tracking = tracking;
@@ -62,8 +62,8 @@ Json take_suggestion(const Json&) { return {{"type", "answer"}, {"auto", true}};
 
 std::string log_of(const DataSet& d, std::uint64_t seed) {
     GameOptions o;
-    o.home = "state_u";
-    o.away = "tech";
+    o.home = "clemson_2018";
+    o.away = "clemson_2025";
     o.seed = seed;
     std::ostringstream log;
     play_game(d, o, &log);

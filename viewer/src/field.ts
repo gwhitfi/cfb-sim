@@ -33,8 +33,8 @@ export function drawField(ctx: CanvasRenderingContext2D, cam: Camera, teams: { h
 
   // Sidelines and end lines.
   ctx.lineWidth = Math.max(1.5, s * 0.15);
-  const [l, t] = cam.toScreen(0, FIELD_WIDTH);
-  ctx.strokeRect(l, t, FIELD_LENGTH * s, FIELD_WIDTH * s);
+  const [l, t, w, h] = screenRect(cam, 0, 0, FIELD_LENGTH, FIELD_WIDTH);
+  ctx.strokeRect(l, t, w, h);
 
   // Yard lines every 5 (goal lines are 10 and 110), a little heavier at the goal lines.
   for (let x = 10; x <= 110; x += 5) {
@@ -64,7 +64,7 @@ export function drawField(ctx: CanvasRenderingContext2D, cam: Camera, teams: { h
         const [sx, sy] = cam.toScreen(x, y);
         ctx.save();
         ctx.translate(sx, sy);
-        if (flip) ctx.rotate(Math.PI);
+        ctx.rotate(cam.angle + (flip ? Math.PI : 0));
         ctx.fillText(String(yards), 0, 0);
         ctx.restore();
         if (yards !== 50) arrow(ctx, cam, x, y, x < 60 ? -1 : 1, flip);
@@ -78,7 +78,7 @@ function endZone(ctx: CanvasRenderingContext2D, cam: Camera, x0: number, team: T
   const [sx, sy] = cam.toScreen(x0 + 5, FIELD_WIDTH / 2);
   ctx.save();
   ctx.translate(sx, sy);
-  ctx.rotate(x0 === 0 ? -Math.PI / 2 : Math.PI / 2); // letters read from the field
+  ctx.rotate(cam.angle + (x0 === 0 ? -Math.PI / 2 : Math.PI / 2)); // letters read from the field
   ctx.fillStyle = "rgba(255,255,255,0.8)";
   ctx.font = `bold ${5 * cam.scale}px system-ui, sans-serif`;
   ctx.textAlign = "center";
@@ -103,10 +103,16 @@ function arrow(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number,
 }
 
 function rect(ctx: CanvasRenderingContext2D, cam: Camera, x0: number, y0: number, x1: number, y1: number, fill: string): void {
-  const [ax, ay] = cam.toScreen(x0, y1);
-  const [bx, by] = cam.toScreen(x1, y0);
   ctx.fillStyle = fill;
-  ctx.fillRect(ax, ay, bx - ax, by - ay);
+  ctx.fillRect(...screenRect(cam, x0, y0, x1, y1));
+}
+
+// A field rectangle's [left, top, width, height] on screen, whichever way the
+// camera is turned.
+function screenRect(cam: Camera, x0: number, y0: number, x1: number, y1: number): [number, number, number, number] {
+  const [ax, ay] = cam.toScreen(x0, y0);
+  const [bx, by] = cam.toScreen(x1, y1);
+  return [Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay)];
 }
 
 function line(ctx: CanvasRenderingContext2D, cam: Camera, x0: number, y0: number, x1: number, y1: number): void {

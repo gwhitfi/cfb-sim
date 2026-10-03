@@ -64,11 +64,34 @@
     "arms_up_factor": 1.2,  // highest catch point = height x this + jump
     "jump": {"curve": "linear", "points": [[0, 0.1], [100, 0.5]]},  // Jumping -> yd
     "low": 0.15,            // yd: lowest catchable height
-    "dive_extra": 0.8,      // yd beyond reach he can get to with a dive
+    // How far he can stretch. Body control (a blend) shapes the window: near his
+    // body he has the whole height range, at full stretch only the middle of it.
+    // Window: (d / reach)^n + (|z - mid| / half)^n <= 1, n from window_shape.
+    "body_control": {"agility": 0.6, "balance": 0.4},
+    "window_shape": {"curve": "linear", "points": [[0, 2.0], [100, 6.0]]},
+    "dive_extra": {"curve": "linear", "points": [[0, 0.5], [100, 1.0]]},  // yd beyond reach
+    "dive_max_height": 1.6, // yd: a dive is a low ball; nobody dives for one higher than this
+    "dive_down": [0.8, 1.2],  // s on the ground after a dive that doesn't end the play
+    "dive_slide": 0.25,       // share of his speed a diver keeps as he hits the ground
+    // Jumping: a player who can play a ball passing above his hands jumps
+    // (height from "jump" above), to put it this far under his hands ...
+    "jump_comfort": 0.3,
+    // ... timed to peak as it arrives, off by a normal error (sd from his skill).
+    "jump_timing": {
+      "defense": {"ball_skills": 1.0},
+      "offense": {"contested_catch": 1.0},
+      "sd": {"curve": "linear", "points": [[0, 0.15], [100, 0.03]]}
+    },
+    "jump_look_ahead": 0.8,   // s of the ball's flight he looks ahead
+    "hold_ease": 0.25,        // s for a caught ball to come in to the carry spot
     "dive_factor": 0.45,    // catch chance multiplier for a diving catch
     // Catching -> chance of catching a ball thrown right at him, uncontested.
     "base": {"curve": "linear", "points": [[0, 0.55], [50, 0.9], [100, 0.985]]},
-    "reach_penalty": 0.12,  // at full reach the chance drops by this share
+    // Reaching costs: at the edge of his window (out to the side, up at the top
+    // of his jump, or down low) the chance drops by this share, as stretch^power
+    // (stretch: 0 at the middle of the window, 1 at its edge).
+    "reach_penalty": 0.4,
+    "reach_penalty_power": 4,
     "fast_ball_speed": 22,  // yd/s: faster balls are harder to catch...
     "fast_ball_penalty": 0.01  // ...by this share per yd/s over
   },
@@ -84,10 +107,15 @@
     "skill_scale": 15,
     "catch_factor": 0.75,     // a receiver who wins the contest still has to hold on
     "int_contested": {"curve": "linear", "points": [[0, 0.05], [100, 0.25]]}, // Ball Skills
+    "dive_int_factor": 0.03,  // ... times this for a defender diving through the receiver: almost never
     "int_alone": {"curve": "linear", "points": [[0, 0.15], [100, 0.45]]},     // Ball Skills, once he has a hand on it
     // A defender alone at the ball gets a hand on it (Ball Skills -> chance,
     // scaled by reach and dive like a catch); otherwise it goes by him.
     "touch": {"curve": "linear", "points": [[0, 0.35], [100, 0.85]]},
+    // A defender who can't see it coming: full chance with the ball up to 90
+    // degrees off his facing, falling to this share from straight behind.
+    // (Receivers track the ball over the shoulder, so they don't pay it.)
+    "behind_factor": 0.2,
     "bat_factor": 0.25,       // a lineman at the line has to get his hands up in time
     "line_depth": 2.5,        // yd: defenders this close to the line are at the line
     "tip_chance": 0.25,       // a breakup or drop stays live

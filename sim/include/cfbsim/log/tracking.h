@@ -1,12 +1,13 @@
 // Tracking files: every player's and the ball's position each tick, as JSON
 // Lines, for the viewer to play back (rules-and-flow.md#game-log--replay).
 //
-//   {"type":"header", "format_version":1, "tick_rate":20, "players":[...], ...}
-//   {"type":"tick", "tick":0, "p":[[x, y, vx, vy, facing_deg], ...], "ball":[x, y, z] or null,
+//   {"type":"header", "format_version":2, "tick_rate":20, "players":[...], ...}
+//   {"type":"tick", "tick":0, "p":[[x, y, vx, vy, facing_deg(, z)], ...], "ball":[x, y, z] or null,
 //    "dbg":[shape, ...]}
 //   {"type":"event", "tick":87, "event":"split", ...}
 //
-// Players in "p" are in the same order as the header's "players" list.
+// Players in "p" are in the same order as the header's "players" list. A
+// player in the air has a sixth value, z (his feet's height); format 2.
 //
 // Debug overlays are "shapes" the viewer draws on named, toggleable layers:
 // the header's "overlays" are shown the whole time, a tick's "dbg" only on

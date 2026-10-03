@@ -22,8 +22,8 @@ const DataSet& data() {
 
 KickOptions kick(const std::string& play, const std::string& answer, double yard_line, std::uint64_t seed) {
     KickOptions o;
-    o.kicking_team = "state_u";
-    o.receiving_team = "tech";
+    o.kicking_team = "clemson_2018";
+    o.receiving_team = "clemson_2025";
     o.kick_play = play;
     o.return_play = answer;
     o.yard_line = yard_line;
@@ -104,7 +104,7 @@ TEST(SpecialTeams, FieldGoalsGetHarderWithDistance) {
 TEST(SpecialTeams, KickerRatingsMatter) {
     const auto rate = [](double rating) {
         DataSet d = data();
-        for (Player& p : d.rosters.at("state_u").players) {
+        for (Player& p : d.rosters.at("clemson_2018").players) {
             if (p.position == Position::K) {
                 p.attributes[Attr::KickAccuracy] = rating;
                 p.attributes[Attr::KickPower] = rating;

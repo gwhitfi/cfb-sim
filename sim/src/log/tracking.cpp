@@ -46,7 +46,7 @@ void TrackingWriter::header(const TrackingInfo& info, const World& world) {
                            {"radius", rounded(a.body.radius, 100.0)}});
     }
     Json line = {{"type", "header"},
-                 {"format_version", 1},
+                 {"format_version", 2},
                  {"sim_version", std::string(version())},
                  {"kind", info.kind},
                  {"name", info.name},
@@ -66,8 +66,10 @@ void TrackingWriter::frame(const World& world, Json debug) {
     Json p = Json::array();
     for (const Agent& a : world.agents()) {
         const double facing_deg = std::atan2(a.facing.y, a.facing.x) * 180.0 / std::numbers::pi;
-        p.push_back({rounded(a.pos.x, 100.0), rounded(a.pos.y, 100.0), rounded(a.vel.x, 100.0),
-                     rounded(a.vel.y, 100.0), rounded(facing_deg, 10.0)});
+        Json row = {rounded(a.pos.x, 100.0), rounded(a.pos.y, 100.0), rounded(a.vel.x, 100.0),
+                    rounded(a.vel.y, 100.0), rounded(facing_deg, 10.0)};
+        if (a.z > 0.0) row.push_back(rounded(a.z, 100.0));  // in the air (format 2)
+        p.push_back(std::move(row));
     }
     const Ball& b = world.ball();
     Json ball = nullptr;

@@ -51,8 +51,8 @@ cfbsim_match* cfbsim_match_create(const char* data_dir, const char* options_json
         }
         h->data = std::move(report.data);
         cfbsim::MatchOptions mo;
-        mo.game.home = o.value("home", "state_u");
-        mo.game.away = o.value("away", "tech");
+        mo.game.home = o.value("home", "clemson_2018");
+        mo.game.away = o.value("away", "clemson_2025");
         mo.game.seed = o.value("seed", std::uint64_t{1});
         mo.game.crowd = o.value("crowd", 0.5);
         mo.game.neutral = o.value("neutral", false);

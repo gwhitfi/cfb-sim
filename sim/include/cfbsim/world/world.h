@@ -28,7 +28,17 @@ struct Ball {
     Vec3 pos;
     Vec3 vel;
     int carrier = -1;  // index into World::agents() while Held
+    // Just caught: it eases from where it was caught to the carry spot.
+    // `hold_offset` is (catch point - carry spot) at the catch; it shrinks to
+    // nothing over `hold_total` s (`hold_left` to go).
+    Vec3 hold_offset;
+    double hold_left = 0.0;
+    double hold_total = 0.0;
+    int hold_carrier = -1;  // who caught it (anyone else holds it normally)
 };
+
+// Where a held ball rides: in front of him at waist height.
+Vec3 carry_spot(const Agent& carrier);
 
 class World {
   public:

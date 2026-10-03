@@ -132,8 +132,8 @@ class Server {
         const std::uint64_t seed = msg.contains("seed") && msg["seed"].is_number_unsigned()
                                        ? msg["seed"].get<std::uint64_t>()
                                        : static_cast<std::uint64_t>(std::chrono::system_clock::now().time_since_epoch().count()) % 1000000007ULL;
-        const Json o = {{"home", msg.value("home", "state_u")},
-                        {"away", msg.value("away", "tech")},
+        const Json o = {{"home", msg.value("home", "clemson_2018")},
+                        {"away", msg.value("away", "clemson_2025")},
                         {"seed", seed},
                         {"user", msg.value("user", Json::array())},
                         {"tracking", true}};

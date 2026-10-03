@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frameAtTick, parseTracking, STRIDE } from "./tracking";
+import { frameAtTick, parseTracking, STRIDE, Z } from "./tracking";
 
 const header = {
   type: "header",
@@ -64,6 +64,13 @@ describe("parseTracking", () => {
   it("explains that a game log isn't a tracking file", () => {
     const log = file({ type: "header", sim_version: "0.1.0", rules: "ncaa_fbs", seed: 1, home: "a", away: "b" });
     expect(() => parseTracking(log)).toThrow("this is a game log");
+  });
+
+  it("reads a sixth value (z) for a player in the air, 0 otherwise", () => {
+    const rec = parseTracking(file(header, { ...tick(0, 10), p: [[1, 2, 0, 0, 0], [3, 4, 0, 0, 0, 0.42]] }));
+    expect(rec.state[0 * STRIDE + Z]).toBe(0);
+    expect(rec.state[1 * STRIDE + Z]).toBeCloseTo(0.42);
+    expect(rec.state[1 * STRIDE]).toBe(3);
   });
 
   it("gives errors that name the line", () => {
