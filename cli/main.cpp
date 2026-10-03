@@ -903,6 +903,15 @@ void add_stats(cfbsim::TeamStats& a, const cfbsim::TeamStats& s) {
     a.pass_att += s.pass_att;
     a.pass_cmp += s.pass_cmp;
     a.pass_yds += s.pass_yds;
+    a.designed_runs += s.designed_runs;
+    a.scrambles += s.scrambles;
+    a.designed_run_yds += s.designed_run_yds;
+    a.scramble_yds += s.scramble_yds;
+    a.sack_yds += s.sack_yds;
+    a.runs_lost += s.runs_lost;
+    a.runs_4 += s.runs_4;
+    a.runs_10 += s.runs_10;
+    a.runs_20 += s.runs_20;
     a.sacks_taken += s.sacks_taken;
     a.ints += s.ints;
     a.fumbles_lost += s.fumbles_lost;
@@ -1145,6 +1154,29 @@ int cmd_batch(const Options& opt) {
          [](const cfbsim::TeamStats& s, double) { return s.pass_att > 0 ? 100.0 * s.ints / s.pass_att : 0.0; }},
         {"fumbles lost per game", "~0.6", [](const cfbsim::TeamStats& s, double g) { return s.fumbles_lost / g; }},
         {"plays per team per game", "~70", [](const cfbsim::TeamStats& s, double g) { return s.plays / g; }},
+        // Designed runs only (no sacks or scrambles), and their spread.
+        {"run share of plays %", "~45-50",
+         [](const cfbsim::TeamStats& s, double) { return s.plays > 0 ? 100.0 * s.designed_runs / s.plays : 0.0; }},
+        {"designed run yd/carry", "~5",
+         [](const cfbsim::TeamStats& s, double) {
+             return s.designed_runs > 0 ? s.designed_run_yds / s.designed_runs : 0.0;
+         }},
+        {"runs at or under 0 %", "~18",
+         [](const cfbsim::TeamStats& s, double) {
+             return s.designed_runs > 0 ? 100.0 * s.runs_lost / s.designed_runs : 0.0;
+         }},
+        {"runs of 4+ yd %", "~42",
+         [](const cfbsim::TeamStats& s, double) {
+             return s.designed_runs > 0 ? 100.0 * s.runs_4 / s.designed_runs : 0.0;
+         }},
+        {"runs of 10+ yd %", "~12",
+         [](const cfbsim::TeamStats& s, double) {
+             return s.designed_runs > 0 ? 100.0 * s.runs_10 / s.designed_runs : 0.0;
+         }},
+        {"runs of 20+ yd %", "~4",
+         [](const cfbsim::TeamStats& s, double) {
+             return s.designed_runs > 0 ? 100.0 * s.runs_20 / s.designed_runs : 0.0;
+         }},
     };
     std::printf("%-26s %8s %8s %10s %10s\n", "calibration", "target", "all", a.c_str(), b.c_str());
     for (const Row& row : rows) {
@@ -1157,6 +1189,12 @@ int cmd_batch(const Options& opt) {
     };
     line("rush att", [](const cfbsim::TeamStats& s) { return double(s.rush_att); });
     line("rush yds", [](const cfbsim::TeamStats& s) { return s.rush_yds; });
+    line("  designed runs", [](const cfbsim::TeamStats& s) { return double(s.designed_runs); });
+    line("  designed run yds", [](const cfbsim::TeamStats& s) { return s.designed_run_yds; });
+    line("  scrambles", [](const cfbsim::TeamStats& s) { return double(s.scrambles); });
+    line("  scramble yds", [](const cfbsim::TeamStats& s) { return s.scramble_yds; });
+    line("  sacks", [](const cfbsim::TeamStats& s) { return double(s.sacks_taken); });
+    line("  sack yds", [](const cfbsim::TeamStats& s) { return s.sack_yds; });
     line("pass att", [](const cfbsim::TeamStats& s) { return double(s.pass_att); });
     line("pass yds", [](const cfbsim::TeamStats& s) { return s.pass_yds; });
     line("first downs", [](const cfbsim::TeamStats& s) { return double(s.first_downs); });

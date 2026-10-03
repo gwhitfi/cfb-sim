@@ -81,16 +81,21 @@ Weighted AutoCoach::offense_weights(const GameState& g) const {
     const std::vector<std::string> active = buckets(g);
     const Tactics::Offense& to = tactics_.offense;
     const double aggr = lean(to.aggression);
+    // Run or pass first, then the play: the run share comes from the tactic
+    // and the situation, never from how many plays of each type the playbook
+    // has. Odds of a run = run_pass / (100 - run_pass) x, per active bucket,
+    // table["run"] / table["pass"].
+    double run_odds = std::max(kFloor, to.run_pass / 50.0) / std::max(kFloor, (100.0 - to.run_pass) / 50.0);
+    for (const std::string& b : active) run_odds *= t_.offense.weight(b, "run") / t_.offense.weight(b, "pass");
+    const double run_share = run_odds / (1.0 + run_odds);
+
     Weighted out;
     for (const Play* p : offense_) {
-        const bool run = p->type == PlayType::Run;
         double w = 1.0;
         for (const std::string& b : active) {
-            w *= t_.offense.weight(b, run ? "run" : "pass");
             for (const std::string& tag : p->tags) w *= t_.offense.weight(b, tag);
         }
         // Tactics.
-        w *= std::max(kFloor, run ? to.run_pass / 50.0 : (100.0 - to.run_pass) / 50.0);
         if (has_tag(*p, "deep")) w *= 1.0 + 0.5 * aggr;
         if (has_tag(*p, "quick_game")) w *= aggr < 0.0 ? 1.0 - 0.5 * aggr : 1.0 - 0.4 * aggr;
         if (const auto f = to.formations.find(p->formation); f != to.formations.end()) {
@@ -104,6 +109,16 @@ Weighted AutoCoach::offense_weights(const GameState& g) const {
         // Anti-repeat.
         w *= std::pow(t_.repeat, static_cast<double>(std::count(recent_offense_.begin(), recent_offense_.end(), p->id)));
         out.emplace_back(p, w);
+    }
+    // Scale each type's plays to sum to its share. A playbook with only one
+    // type gets all of it.
+    double runs = 0.0, passes = 0.0;
+    for (const auto& [p, w] : out) (p->type == PlayType::Run ? runs : passes) += w;
+    for (auto& [p, w] : out) {
+        const bool run = p->type == PlayType::Run;
+        const double type_total = run ? runs : passes;
+        const double share = runs > 0.0 && passes > 0.0 ? (run ? run_share : 1.0 - run_share) : 1.0;
+        w *= share / type_total;
     }
     return out;
 }

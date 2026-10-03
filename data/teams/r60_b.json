@@ -252,7 +252,7 @@
   },
   "tactics": {
     "offense": {
-      "run_pass": 44,
+      "run_pass": 50,
       "aggression": 55,
       "tempo": "huddle",
       "formations": {

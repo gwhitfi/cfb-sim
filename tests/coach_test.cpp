@@ -102,6 +102,24 @@ TEST(Coach, TacticsShiftTheCall) {
               3.0 * share(s.defense_weights(state(2, 8, 30), nullptr), pressure));
 }
 
+TEST(Coach, RunShareIsSetBeforeThePlay) {
+    // The run share comes from run_pass and the situation, not from how many
+    // runs and passes the playbook has (spread_base: 8 passes, 6 runs).
+    Team t = data().teams.at("clemson_2025");
+    t.tactics.offense.run_pass = 50.0;
+    const AutoCoach c(data(), t, 0, 1);
+    const auto run_share = [&](const GameState& g) { return 1.0 - share(c.offense_weights(g), is_pass); };
+    const auto table = [&](const char* bucket) { return data().tuning.coach.offense.weight(bucket, "run"); };
+    EXPECT_NEAR(run_share(state(2, 5, 40)), 0.5, 1e-9);  // 2nd and medium: no run/pass lean
+    const double first = table("1st_down");
+    EXPECT_NEAR(run_share(state(1, 10, 40)), first / (1.0 + first), 1e-9);
+
+    // run_pass 75: three times the odds.
+    t.tactics.offense.run_pass = 75.0;
+    const AutoCoach heavy(data(), t, 0, 1);
+    EXPECT_NEAR(1.0 - share(heavy.offense_weights(state(2, 5, 40)), is_pass), 0.75, 1e-9);
+}
+
 TEST(Coach, DefenseReadsPersonnelAndTendencies) {
     const AutoCoach c(data(), data().teams.at("clemson_2025"), 1, 1);
     const Play* eleven = data().playbooks.at("spread_base").find("smash");  // 11 personnel

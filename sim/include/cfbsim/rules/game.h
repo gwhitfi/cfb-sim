@@ -83,6 +83,11 @@ struct TeamStats {
     int first_downs = 0, first_downs_rush = 0, first_downs_pass = 0, first_downs_penalty = 0;
     int rush_att = 0, pass_att = 0, pass_cmp = 0, sacks_taken = 0, ints = 0, fumbles_lost = 0;
     double rush_yds = 0.0, pass_yds = 0.0;
+    // The rushes split up (sacks and scrambles count as rushes, NCAA), and the
+    // spread of designed runs: gains at or under 0, 4+, 10+, 20+ yd.
+    int designed_runs = 0, scrambles = 0;
+    double designed_run_yds = 0.0, scramble_yds = 0.0, sack_yds = 0.0;
+    int runs_lost = 0, runs_4 = 0, runs_10 = 0, runs_20 = 0;
     int third_att = 0, third_conv = 0, fourth_att = 0, fourth_conv = 0;
     int penalties = 0;
     double penalty_yds = 0.0;

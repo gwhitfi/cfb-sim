@@ -1139,7 +1139,20 @@ void Game::count_stats(const PlayResult& r, const Situation& before, const Next&
         ++to.rush_att;
         to.rush_yds += gained;
         if (scored) ++ru.rush_td;
-        if (r.outcome == "sack") ++to.sacks_taken;
+        if (r.outcome == "sack") {
+            ++to.sacks_taken;
+            to.sack_yds += gained;
+        } else if (r.scramble) {
+            ++to.scrambles;
+            to.scramble_yds += gained;
+        } else {
+            ++to.designed_runs;
+            to.designed_run_yds += gained;
+            to.runs_lost += gained <= 0.0 ? 1 : 0;
+            to.runs_4 += gained >= 4.0 ? 1 : 0;
+            to.runs_10 += gained >= 10.0 ? 1 : 0;
+            to.runs_20 += gained >= 20.0 ? 1 : 0;
+        }
     }
     if (!r.tackler_id.empty()) {
         const bool tackler_on_defense = !turnover;
