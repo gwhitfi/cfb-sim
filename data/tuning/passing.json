@@ -50,7 +50,7 @@
     "short_max": 10,   // yd of air distance
     "medium_max": 20,
     // Air distance -> multiplier on the error sd: longer throws miss by more.
-    "distance_scale": {"curve": "linear", "points": [[0, 0.6], [10, 1.0], [40, 1.8]]},
+    "distance_scale": {"curve": "linear", "points": [[0, 0.6], [10, 1.0], [20, 1.5], [30, 2.4], [40, 3.2]]},
     "height_sd_factor": 0.5,  // height error sd = this x placement sd
     // Throwing while moving faster than this (yd/s) scales the error by
     // Throw on the Run -> multiplier.
@@ -106,9 +106,9 @@
     "closer_bonus": 10,       // skill points for being closer to the ball
     "skill_scale": 15,
     "catch_factor": 0.75,     // a receiver who wins the contest still has to hold on
-    "int_contested": {"curve": "linear", "points": [[0, 0.05], [100, 0.25]]}, // Ball Skills
+    "int_contested": {"curve": "linear", "points": [[0, 0.035], [100, 0.17]]}, // Ball Skills
     "dive_int_factor": 0.03,  // ... times this for a defender diving through the receiver: almost never
-    "int_alone": {"curve": "linear", "points": [[0, 0.15], [100, 0.45]]},     // Ball Skills, once he has a hand on it
+    "int_alone": {"curve": "linear", "points": [[0, 0.10], [100, 0.30]]},     // Ball Skills, once he has a hand on it
     // A defender alone at the ball gets a hand on it (Ball Skills -> chance,
     // scaled by reach and dive like a catch); otherwise it goes by him.
     "touch": {"curve": "linear", "points": [[0, 0.35], [100, 0.85]]},
