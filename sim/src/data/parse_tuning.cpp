@@ -370,13 +370,14 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.backpedal_share = man.number("backpedal_share");
 
     const Reader zone = root.at("zone");
-    zone.allow_only({"skill", "lag", "face_max_deg", "threat_lookahead", "eyes_weight",
+    zone.allow_only({"skill", "lag", "face_max_deg", "threat_lookahead", "threat_margin", "eyes_weight",
                      "switch_margin", "deep_min_depth", "deep_cushion", "deep_lookahead", "deep_wide", "deep_lead",
-                     "under_short", "drift", "margin"});
+                     "under_short", "settle_speed", "drive_range", "under_lead", "drift", "margin"});
     t.zone_skill = parse_blend(zone.at("skill"));
     t.zone_lag = parse_curve(zone.at("lag"));
     t.face_max_deg = zone.number("face_max_deg");
     t.threat_lookahead = zone.number("threat_lookahead");
+    t.threat_margin = zone.number("threat_margin");
     t.eyes_weight = zone.number("eyes_weight");
     t.switch_margin = zone.number("switch_margin");
     t.deep_min_depth = zone.number("deep_min_depth");
@@ -385,6 +386,9 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.deep_wide = zone.number("deep_wide");
     t.deep_lead = parse_curve(zone.at("deep_lead"));
     t.under_short = zone.number("under_short");
+    t.settle_speed = zone.number("settle_speed");
+    t.drive_range = zone.number("drive_range");
+    t.under_lead = parse_curve(zone.at("under_lead"));
     t.drift = zone.number("drift");
     t.zone_margin = zone.number("margin");
 
@@ -585,7 +589,7 @@ CarrierTuning parse_carrier_tuning(const Json& json, const std::string& source) 
     using detail::Reader;
 
     const Reader root(json, source);
-    root.allow_only({"format_version", "lanes", "vision", "sideline", "reads", "moves", "scramble"});
+    root.allow_only({"format_version", "lanes", "vision", "sideline", "reads", "moves", "scramble", "designed_run"});
     detail::require_format_version(root);
     CarrierTuning t;
 
@@ -678,6 +682,20 @@ CarrierTuning parse_carrier_tuning(const Json& json, const std::string& source) 
     t.scramble_rate = parse_curve(sc.at("rate"));
     t.scramble_read_seconds = sc.number("read_seconds");
     t.tuck_line = sc.number("tuck_line");
+
+    const Reader dr = root.at("designed_run");
+    dr.allow_only({"move_edge", "move_min", "juke_stumble", "spin_keep", "broken_base", "broken_keep",
+                   "drag_distance", "fall_max", "lunge_max"});
+    RunnerTuning& d = t.designed_run;
+    d.move_edge = dr.number("move_edge");
+    d.move_min = dr.number("move_min");
+    d.juke_stumble = dr.number("juke_stumble");
+    d.spin_keep = dr.number("spin_keep");
+    d.broken_base = dr.number("broken_base");
+    std::tie(d.broken_keep_min, d.broken_keep_max) = parse_range(dr.at("broken_keep"));
+    std::tie(d.drag_min, d.drag_max) = parse_range(dr.at("drag_distance"));
+    d.fall_max = dr.number("fall_max");
+    d.lunge_max = dr.number("lunge_max");
     return t;
 }
 
@@ -715,16 +733,17 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     t.effort = parse_curve(p.at("effort"));
 
     const Reader f = root.at("fits");
-    f.allow_only({"depth", "step", "flow_share", "flow_max", "commit_range", "stay_in_gap"});
+    f.allow_only({"depth", "step", "flow_share", "flow_max", "commit_range", "stay_in_gap", "lb_run_delay"});
     t.fit_depth = f.number("depth");
     t.fit_step = f.number("step");
     t.flow_share = f.number("flow_share");
     t.flow_max = f.number("flow_max");
     t.commit_range = f.number("commit_range");
     t.stay_in_gap = parse_curve(f.at("stay_in_gap"));
+    t.lb_run_delay = f.number("lb_run_delay");
 
     const Reader k = root.at("tackle");
-    k.allow_only({"skill", "resistance", "edge", "angle", "momentum", "assist", "dive", "arm_base", "arm_min_shed", "arm_reach", "arm_retry", "scale",
+    k.allow_only({"skill", "resistance", "edge", "angle", "momentum", "assist", "dive", "arm_base", "arm_min_shed", "arm_reach", "arm_retry", "block_recover", "lunge", "scale",
                   "outcomes", "drag", "broken", "missed", "stumble_speed", "fall"});
     t.tackle_skill = parse_blend(k.at("skill"));
     t.resistance = parse_blend(k.at("resistance"));
@@ -749,10 +768,16 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     t.dive_closing = dv.number("closing");
     t.dive_penalty = dv.number("penalty");
     std::tie(t.dive_down_min, t.dive_down_max) = parse_range(dv.at("down"));
+    const Reader lu = k.at("lunge");
+    lu.allow_only({"per_closing", "max", "penalty"});
+    t.lunge_per_closing = lu.number("per_closing");
+    t.lunge_max = lu.number("max");
+    t.lunge_penalty = lu.number("penalty");
     t.arm_base = k.number("arm_base");
     t.arm_min_shed = k.number("arm_min_shed");
     t.arm_reach = k.number("arm_reach");
     t.arm_retry = k.number("arm_retry");
+    t.block_recover = k.number("block_recover");
     t.outcome_scale = k.number("scale");
     const Reader oc = k.at("outcomes");
     oc.allow_only({"clean", "drag", "broken", "missed"});

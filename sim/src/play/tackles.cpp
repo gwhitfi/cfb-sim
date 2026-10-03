@@ -21,6 +21,7 @@ void Tackles::setup() {
     play_.stumble_until.assign(n, -1.0);
     play_.stumble_share.assign(n, 1.0);
     next_try_.assign(n, -1.0);
+    was_engaged_.assign(n, false);
 }
 
 double Tackles::forward_y(Vec2 field_pos, int carrier) const {
@@ -52,7 +53,7 @@ bool Tackles::can_try(int tackler, int carrier, double extra) const {
     }
     if (play_.since_snap() < next_try_[static_cast<std::size_t>(tackler)]) return false;
     const Agent& t = play_.agent(tackler);
-    double reach = t.body.reach + extra;
+    double reach = t.body.reach + extra + lunge(tackler, carrier);
     // Out of a block: only an arm's length, and only once he's working free.
     if (const Engagement* e = play_.engagement_of(tackler)) {
         const TacklingTuning& tt = play_.tuning().tackling;
@@ -60,6 +61,18 @@ bool Tackles::can_try(int tackler, int carrier, double extra) const {
         reach = t.body.reach * tt.arm_reach;
     }
     return swept_distance(tackler, carrier) <= reach;
+}
+
+double Tackles::lunge(int tackler, int carrier) const {
+    if (play_.engaged(tackler)) return 0.0;
+    const TacklingTuning& tt = play_.tuning().tackling;
+    const Agent& k = play_.agent(tackler);
+    const Agent& c = play_.agent(carrier);
+    const Vec2 to = c.pos - k.pos;
+    const double dist = to.length();
+    if (dist < 1e-6) return 0.0;
+    const double closing = (k.vel - c.vel).dot(to / dist);
+    return std::clamp(closing * tt.lunge_per_closing, 0.0, play_.runner(carrier).lunge_max);
 }
 
 double Tackles::swept_distance(int a, int b) const {
@@ -73,12 +86,13 @@ double Tackles::swept_distance(int a, int b) const {
     return (before + d * u).length();
 }
 
-std::array<double, 4> Tackles::outcome_odds(double tackle, double resistance) const {
+std::array<double, 4> Tackles::outcome_odds(double tackle, double resistance, int carrier) const {
     const TacklingTuning& t = play_.tuning().tackling;
+    const RunnerTuning r = play_.runner(carrier);
     const double d = (tackle - resistance) / t.outcome_scale;
     std::array<double, 4> w{t.clean_base * std::exp(t.clean_slope * d),
                             t.drag_base * std::exp(t.drag_slope * d),
-                            t.broken_base * std::exp(t.broken_slope * d),
+                            r.broken_base * std::exp(t.broken_slope * d),
                             t.miss_base * std::exp(t.miss_slope * d)};
     const double sum = w[0] + w[1] + w[2] + w[3];
     for (double& x : w) x /= sum;
@@ -110,7 +124,8 @@ void Tackles::resolve_evasion(const Actions::Evasion& move, Rng& rng) {
             skill = t.shoulder(r) + t.shoulder_mass_points * std::log(carrier.body.mass / 210.0);
             break;
     }
-    const double counter = t.move_counter(play_.agent(d).ratings) + t.move_edge;
+    const RunnerTuning rt = play_.runner(c);
+    const double counter = t.move_counter(play_.agent(d).ratings) + rt.move_edge;
     EvasionResult e;
     e.carrier = c;
     e.tackler = d;
@@ -124,12 +139,12 @@ void Tackles::resolve_evasion(const Actions::Evasion& move, Rng& rng) {
     };
     switch (move.move) {
         case Actions::Move::Juke:
-            if (e.won) whiff(t.juke_stumble);
+            if (e.won) whiff(rt.juke_stumble);
             else e.penalty = t.juke_fail;
             break;
         case Actions::Move::Spin:
-            carrier.vel = carrier.vel * t.spin_keep;
-            if (e.won) whiff(t.juke_stumble);
+            carrier.vel = carrier.vel * rt.spin_keep;
+            if (e.won) whiff(rt.juke_stumble);
             else e.penalty = t.spin_fail;
             break;
         case Actions::Move::StiffArm:
@@ -218,18 +233,24 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
         }
     }
     const EvasionResult* ev = evasion(carrier, tackler);
+    // Reaching past his arms (a lunge) costs some of the tackle.
+    const double past = swept_distance(tackler, carrier) - k.body.reach;
+    const double lunge_max = play_.runner(carrier).lunge_max;
+    const double lunging = !dive && past > 0.0 && lunge_max > 0.0 ? std::min(1.0, past / lunge_max) : 0.0;
     double tackle = t.tackle_skill(k.ratings) + t.tackle_edge + angle + momentum + t.assist_points * assists +
-                    (ev ? ev->penalty : 0.0) - (dive ? t.dive_penalty : 0.0);
+                    (ev ? ev->penalty : 0.0) - (dive ? t.dive_penalty : 0.0) - lunging * t.lunge_penalty;
     if (const Engagement* e = play_.engagement_of(tackler)) {
         const double shed = e->defender == tackler ? e->shed : 0.0;
         tackle *= t.arm_base + (1.0 - t.arm_base) * shed;  // an arm tackle out of a block
     }
     const double resistance = t.resistance(c.ratings) + (ev ? ev->bonus : 0.0);
 
-    const std::array<double, 4> odds = outcome_odds(tackle, resistance);
+    const std::array<double, 4> odds = outcome_odds(tackle, resistance, carrier);
+    const RunnerTuning rt = play_.runner(carrier);
     const double roll = rng.uniform(0.0, 1.0);
     Json who = {{"player", play_.slot_name(tackler)}, {"on", play_.slot_name(carrier)}};
     if (dive) who["dive"] = true;
+    if (lunging > 0.0) who["lunge"] = true;
     if (play_.engaged(tackler)) who["arm"] = true;
     TackleResult out;
 
@@ -237,7 +258,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
         // Clean: down where he is, plus a forward fall from the momentum.
         const Vec2 m = c.vel * c.body.mass + k.vel * k.body.mass;
         const double share = m.dot(play_.downfield_for(carrier)) / (c.body.mass * t.fall_speed);
-        double fall = t.fall_max * std::clamp(share, 0.0, 1.0) + (ev ? ev->fall : 0.0);
+        double fall = rt.fall_max * std::clamp(share, 0.0, 1.0) + (ev ? ev->fall : 0.0);
         const bool big = p_k >= t.big_hit_momentum * p_c && rng.chance(k.ratings[Attr::HitPower] / 200.0);
         if (big) fall = 0.0;
         event_("tackle", who);
@@ -257,7 +278,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
         d.carrier = carrier;
         d.tackler = tackler;
         d.start = c.pos;
-        d.distance = rng.uniform(t.drag_min, t.drag_max);
+        d.distance = rng.uniform(rt.drag_min, rt.drag_max);
         d.best_y = forward_y(c.pos, carrier);
         play_.drag = d;
         event_("drag_down", who);
@@ -273,7 +294,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
     }
     if (roll < odds[0] + odds[1] + odds[2]) {
         // Broken: he stays up, stumbling; the tackler goes down.
-        c.vel = c.vel * rng.uniform(t.broken_keep_min, t.broken_keep_max);
+        c.vel = c.vel * rng.uniform(rt.broken_keep_min, rt.broken_keep_max);
         const auto ci = static_cast<std::size_t>(carrier);
         play_.stumble_until[ci] = now + t.broken_stumble;
         play_.stumble_share[ci] = t.stumble_speed;
@@ -319,6 +340,15 @@ TackleResult Tackles::finish_drag(Rng& rng) {
 TackleResult Tackles::interact(Rng& rng) {
     const double now = play_.since_snap();
     std::erase_if(play_.evasions, [&](const EvasionResult& e) { return e.until <= now; });
+    // A block takes a moment to get into and out of: when one starts or ends
+    // he can't try a tackle for block_recover s.
+    const TacklingTuning& tt = play_.tuning().tackling;
+    for (int j = 0; j < play_.count(); ++j) {
+        const auto idx = static_cast<std::size_t>(j);
+        const bool engaged = play_.engaged(j);
+        if (engaged != was_engaged_[idx]) next_try_[idx] = std::max(next_try_[idx], now + tt.block_recover);
+        was_engaged_[idx] = engaged;
+    }
     const int c = play_.carrier();
     // Only a runner or the QB can be tackled (not the center handing the
     // ball back under center).

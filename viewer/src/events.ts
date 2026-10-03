@@ -50,6 +50,11 @@ export function describeEvent(ev: TrackingEvent): string {
       return `${f.diving ? "diving " : ""}drop by ${f.player}`;
     case "dive":
       return `${f.player} dives for the ball`;
+    case "coverage": {
+      const list = (f.defenders as { player: string; job: string; on: string | null }[]) ?? [];
+      const on = list.filter((d) => d.on).map((d) => `${d.player}→${d.on}`);
+      return `coverage at the throw: ${on.join(", ") || "nobody on anyone"}`;
+    }
     case "jump":
       return `${f.player} jumps for the ball (${yd(f.height)})`;
     case "handoff":

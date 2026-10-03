@@ -218,6 +218,7 @@ struct DefenseTuning {
     Curve zone_lag;
     double face_max_deg = 45.0;
     double threat_lookahead = 0.5;
+    double threat_margin = 2.0;  // yd: underneath zones count receivers this near the edge
     double eyes_weight = 2.0;
     double switch_margin = 1.3;
     double deep_min_depth = 10.0;
@@ -226,6 +227,9 @@ struct DefenseTuning {
     double deep_wide = 10.0;      // yd: deep zones with a landmark wider than this play outside leverage
     Curve deep_lead;              // zone skill -> s ahead a deep defender plays the threat
     double under_short = 2.0;
+    double settle_speed = 2.0;  // yd/s: an underneath threat slower than this has settled
+    double drive_range = 6.0;   // yd: drive on a settled receiver in front of him this close
+    Curve under_lead;           // zone skill -> s ahead an underneath defender mirrors the threat
     double drift = 3.0;
     double zone_margin = 2.0;
 
@@ -359,9 +363,26 @@ struct BlockingTuning {
     double pressure_radius = 2.5;   // yd: a defender this close to the QB is pressure (stats)
 };
 
+// The ball carrier's moves and how tackles go against him. Two sets: the
+// designed runner (the handoff carrier and the QB) and everyone else with the
+// ball (a receiver after the catch, a returner): carrier.json "designed_run"
+// and the regular values in carrier.json "moves" and tackling.json "tackle".
+struct RunnerTuning {
+    double move_edge = 25.0;   // + the tackler's counter to a move
+    double move_min = 35.0;    // no move if the best is under this
+    double juke_stumble = 0.5;
+    double spin_keep = 0.7;
+    double broken_base = 0.09;
+    double broken_keep_min = 0.5, broken_keep_max = 0.8;
+    double drag_min = 1.0, drag_max = 3.5;
+    double fall_max = 2.0;
+    double lunge_max = 0.7;  // yd a closing tackler can lunge at him (0: no lunge)
+};
+
 // data/tuning/carrier.json: the ball carrier's lanes, reads, evasion moves,
 // and the QB's scrambles (movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
 struct CarrierTuning {
+    RunnerTuning designed_run;  // the handoff carrier and the QB
     // Lanes.
     double decide_seconds = 0.15;   // he re-picks his heading this often
     int headings = 17;              // candidate headings ...
@@ -448,6 +469,7 @@ struct TacklingTuning {
     double flow_share = 0.4, flow_max = 1.5;
     double commit_range = 3.0;      // yd: the carrier this close ends the fit
     Curve stay_in_gap;              // Discipline -> chance
+    double lb_run_delay = 0.0;      // s a linebacker in coverage waits before playing a run
 
     // Tackles.
     Blend tackle_skill, resistance;
@@ -457,10 +479,14 @@ struct TacklingTuning {
     double assist_points = 10.0, assist_seconds = 0.5;
     int assist_max = 2;
     double dive_extra = 0.8;        // yd past his reach he can dive
+    // A free defender closing on the carrier lunges: extra reach per yd/s of
+    // closing speed, up to lunge_max yd, costing up to lunge_penalty points.
+    double lunge_per_closing = 0.12, lunge_max = 0.7, lunge_penalty = 8.0;
     double dive_closing = 0.5;      // yd/s: he dives when he isn't closing faster than this
     double dive_penalty = 12.0;     // points off the tackle score
     double dive_down_min = 0.8, dive_down_max = 1.2;  // s on the ground after a failed dive
     double arm_min_shed = 0.3, arm_reach = 0.8, arm_retry = 0.5;
+    double block_recover = 0.6;  // s after a block starts or ends before he can try a tackle
     double arm_base = 0.4;          // engaged: x (base + (1 - base) x shed)
     double outcome_scale = 20.0;
     double clean_base = 0.55, clean_slope = 1.0;

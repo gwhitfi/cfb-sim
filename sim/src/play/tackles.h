@@ -62,10 +62,12 @@ class Tackles {
 
     // White-box: the four outcome probabilities (clean, drag, broken, missed)
     // for a tackle score and a resistance.
-    std::array<double, 4> outcome_odds(double tackle, double resistance) const;
+    std::array<double, 4> outcome_odds(double tackle, double resistance, int carrier) const;
 
   private:
     TackleResult attempt(int carrier, int tackler, Rng& rng, bool dive = false);
+    // Extra reach a free defender gets lunging at a carrier he's closing on.
+    double lunge(int tackler, int carrier) const;
     TackleResult finish_drag(Rng& rng);
     bool fumble_roll(int carrier, int tackler, bool big_hit, Rng& rng) const;
     double forward_y(Vec2 field_pos, int carrier) const;  // along the carrier's way, play-frame yd
@@ -80,6 +82,7 @@ class Tackles {
     EventFn event_;
     TackleStats stats_;
     std::vector<double> next_try_;  // per agent: s after the snap he can try again (arm tackles)
+    std::vector<bool> was_engaged_;  // per agent: in a block last tick (for block_recover)
 };
 
 }  // namespace cfbsim

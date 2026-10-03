@@ -163,6 +163,12 @@ class Behavior {
     // Any coverage: the receiver he's playing right now (his man, or the
     // threat in his zone), or -1.
     virtual int covering() const { return -1; }
+    // For the record only (the coverage event at the throw), never for
+    // decisions: his pass job ("man", "zone:deep_half_weak", "rush") and the
+    // receiver he's responsible for right now, including the one a deep zone
+    // is carrying (which covering() leaves out, so openness isn't changed).
+    virtual std::string job() const { return std::string(name()); }
+    virtual int responsible() const { return covering(); }
     // Receivers: seconds after the snap of his latest break.
     virtual double last_break() const { return -std::numeric_limits<double>::infinity(); }
     // Blockers: the defender he's going for (agent index), or -1, and how
@@ -339,6 +345,25 @@ class PlayState {
     int carrier() const {
         const Ball& b = world_.ball();
         return b.state == Ball::State::Held ? b.carrier : -1;
+    }
+    // The runner settings for whoever has the ball: the designed runner's (the
+    // handoff carrier, the QB) or everyone else's (after a catch, a return).
+    RunnerTuning runner(int c) const {
+        const Tuning& t = tuning();
+        if (c >= 0 && (c == qb || c == run_carrier)) return t.carrier.designed_run;
+        RunnerTuning r;
+        r.move_edge = t.carrier.move_edge;
+        r.move_min = t.carrier.move_min;
+        r.juke_stumble = t.carrier.juke_stumble;
+        r.spin_keep = t.carrier.spin_keep;
+        r.broken_base = t.tackling.broken_base;
+        r.broken_keep_min = t.tackling.broken_keep_min;
+        r.broken_keep_max = t.tackling.broken_keep_max;
+        r.drag_min = t.tackling.drag_min;
+        r.drag_max = t.tackling.drag_max;
+        r.fall_max = t.tackling.fall_max;
+        r.lunge_max = t.tackling.lunge_max;
+        return r;
     }
 
     // Field-frame unit vector pointing downfield (the offense's way).

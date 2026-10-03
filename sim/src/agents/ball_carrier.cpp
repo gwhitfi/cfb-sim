@@ -76,7 +76,7 @@ void try_evasion(const PlayState& play, int self, Rng& rng, std::vector<int>& tr
             best_score = s;
         }
     }
-    if (best_score < t.move_min) return;
+    if (best_score < play.runner(self).move_min) return;
     actions.evasion = Actions::Evasion{self, pick, best};
 }
 

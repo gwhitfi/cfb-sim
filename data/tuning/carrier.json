@@ -68,6 +68,22 @@
     "shoulder_result": {"bonus": 15, "fall": 0.5}
   },
 
+  // The designed runner (the handoff carrier and the QB) uses these instead of
+  // the regular values above ("moves") and in tackling.json ("tackle"); a
+  // receiver after the catch, a returner, or a defender with the ball keeps the
+  // regular ones.
+  "designed_run": {
+    "move_edge": 15,          // moves: points added to the tackler's counter
+    "move_min": 25,           // moves: no move if the best is under this
+    "juke_stumble": 0.6,      // s a beaten tackler stumbles
+    "spin_keep": 0.8,         // share of his speed kept through a spin
+    "broken_base": 0.15,      // tackle outcome weight for a broken tackle
+    "broken_keep": [0.6, 0.9],  // share of his speed kept after breaking one
+    "drag_distance": [1.5, 4.5],  // yd he drags a tackler
+    "fall_max": 2.5,          // yd falling forward at full momentum
+    "lunge_max": 0            // yd tacklers can lunge at him (tackling.json "lunge"): none for designed runs
+  },
+
   "scramble": {
     "escape_lane": 3.0,       // yd: best lane to scramble instead of throwing it away
     "wait": 1.0,              // s after his last read ...

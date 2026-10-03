@@ -178,3 +178,33 @@ TEST(ParseRoster, RequiresEveryAttribute) {
     const std::string msg = error_of([&] { parse_roster(j, "r.json"); });
     EXPECT_NE(msg.find("missing attributes: punt_accuracy"), std::string::npos) << msg;
 }
+
+TEST(ParseZones, BoxesAndCapsules) {
+    const Json j = Json::parse(R"({"format_version": 1, "zones": {
+      "deep":    {"drop": {"x": 0, "y": 15}, "width": 18, "depth": [10, 45]},
+      "circle":  {"drop": {"x": 0, "y": 10}, "radius": 6},
+      "capsule": {"drop": {"x": {"from": "numbers", "side": "strong", "offset": -4}, "y": 9},
+                  "ends": [{"x": {"from": "hash", "side": "strong", "offset": 5.5}, "y": 4.5},
+                           {"x": {"from": "numbers", "side": "strong", "offset": 2.5}, "y": 4.5}], "radius": 5.5}
+    }})");
+    const ZoneLibrary z = parse_zones(j, "zones.json");
+    EXPECT_EQ(z.at("deep").radius, 0.0);
+    EXPECT_EQ(z.at("circle").radius, 6.0);
+    EXPECT_FALSE(z.at("circle").ends.has_value());
+    ASSERT_TRUE(z.at("capsule").ends.has_value());
+    EXPECT_EQ((*z.at("capsule").ends)[1].x.offset, 2.5);
+}
+
+TEST(ParseZones, RejectsMixedShapes) {
+    const auto bad = [](const char* zone) {
+        const Json j = Json::parse(std::string(R"({"format_version": 1, "zones": {"z": )") + zone + "}}");
+        return error_of([&] { parse_zones(j, "zones.json"); });
+    };
+    EXPECT_NE(bad(R"({"drop": {"x": 0, "y": 10}, "radius": 6, "width": 10})").find("not both"), std::string::npos);
+    EXPECT_NE(bad(R"({"drop": {"x": 0, "y": 10}, "radius": 0})").find("positive"), std::string::npos);
+    EXPECT_NE(bad(R"({"drop": {"x": 0, "y": 10}, "ends": [{"x": 0, "y": 3}, {"x": 5, "y": 3}], "width": 10, "depth": [0, 8]})")
+                  .find("need a radius"),
+              std::string::npos);
+    EXPECT_NE(bad(R"({"drop": {"x": 0, "y": 10}, "ends": [{"x": 0, "y": 3}], "radius": 5})").find("[point, point]"),
+              std::string::npos);
+}

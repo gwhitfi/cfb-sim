@@ -40,13 +40,13 @@
 
   "throw": {
     // Throw Power -> top ball speed, yd/s (about 27 yd/s is a 55 mph throw).
-    "speed": {"curve": "linear", "points": [[1, 14], [100, 27]]},
+    "speed": {"curve": "linear", "points": [[1, 13.5], [100, 26]]},
     // Air distance (yd) -> share of top speed used: short throws are softer.
     "effort": {"curve": "linear", "points": [[0, 0.6], [25, 1.0]]},
     // Delivery -> seconds from deciding to throw until the ball is out.
     "delivery_seconds": {"curve": "linear", "points": [[0, 0.5], [100, 0.2]]},
     // Accuracy (short, medium, or deep by air distance) -> placement error sd, yd.
-    "accuracy_sd": {"curve": "linear", "points": [[0, 2.5], [50, 1.0], [100, 0.3]]},
+    "accuracy_sd": {"curve": "linear", "points": [[0, 2.7], [50, 1.1], [100, 0.7]]},
     "short_max": 10,   // yd of air distance
     "medium_max": 20,
     // Air distance -> multiplier on the error sd: longer throws miss by more.

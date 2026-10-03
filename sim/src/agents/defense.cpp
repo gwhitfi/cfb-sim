@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <string>
+#include <utility>
 
 #include "agents/behaviors.h"
 #include "agents/steer.h"
@@ -13,6 +15,20 @@
 namespace cfbsim {
 
 namespace {
+
+// The coverage layer's color for a defender: one per back and linebacker
+// slot, so his ring, zone outline, spot and links match.
+std::string coverage_color(const PlayState& play, int self) {
+    static const std::pair<const char*, const char*> kColors[] = {
+        {"SCB", "#ff5c5c"}, {"WCB", "#ffa23a"}, {"NB", "#ffe14d"},   {"SS", "#4dd8ff"},
+        {"FS", "#4d7dff"},  {"MIKE", "#c77dff"}, {"WILL", "#ff6ec7"}, {"SAM", "#ffffff"},
+    };
+    const std::string& slot = play.slot_name(self);
+    for (const auto& [name, color] : kColors) {
+        if (slot == name) return color;
+    }
+    return "#8a7fff";
+}
 
 // Facing the QB, but never more than `max_deg` off the way he's going, so
 // he keeps (nearly) full speed while he watches the QB.
@@ -38,14 +54,15 @@ Vec2 toward_qb(const PlayState& play, const Agent& me) {
 
 Defender::Defender(std::unique_ptr<Behavior> run_job, std::unique_ptr<Behavior> pass_job,
                    double read_delay, double read_rate, double prior, Pursuer::Setup pursuit,
-                   bool disciplined)
+                   bool disciplined, double run_hold)
     : run_job_(std::move(run_job)),
       pass_job_(std::move(pass_job)),
       pursue_(pursuit),
       read_delay_(read_delay),
       read_rate_(read_rate),
       p_pass_(prior),
-      disciplined_(disciplined) {}
+      disciplined_(disciplined),
+      run_hold_(run_hold) {}
 
 bool Defender::should_pursue(const PlayState& play, int self, int carrier) const {
     // (movement-and-interaction.md#run-fits)
@@ -115,6 +132,14 @@ Intent Defender::decide(const PlayState& play, int self, Actions& actions) {
             if (spot->second < 0.3 && to_ball.length() > 0.1) in.face = to_ball.normalized();
             return in;
         }
+    }
+
+    // A linebacker in coverage who reads run waits before playing it (no
+    // throw yet): he holds where he is.
+    if (!playing_pass() && !play.pass && play.since_snap() < run_hold_) {
+        Intent hold;
+        hold.face = toward_qb(play, me);
+        return hold;
     }
 
     // Someone on offense is running with the ball: chase him once he
@@ -195,8 +220,10 @@ Intent ManCoverage::decide(const PlayState& play, int self, Actions& /*actions*/
     return in;
 }
 
-void ManCoverage::draw(const PlayState& /*play*/, int self, Json& shapes) const {
-    Json link = {{"kind", "link"}, {"layer", "coverage"}, {"a", self}, {"b", target_}};
+void ManCoverage::draw(const PlayState& play, int self, Json& shapes) const {
+    const std::string color = coverage_color(play, self);
+    shapes.push_back(shapes::ring("coverage", self, color));
+    Json link = {{"kind", "link"}, {"layer", "coverage"}, {"a", self}, {"b", target_}, {"color", color}};
     shapes.push_back(std::move(link));
 }
 
@@ -220,11 +247,14 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
     std::vector<Threat> threats;
     // Deep zones look further ahead: a vertical stem is a threat before it's deep.
     const double lookahead = zone_.deep ? t.deep_lookahead : t.threat_lookahead;
+    // Underneath zones also count receivers just outside the edge: two
+    // defenders briefly sharing a man near a boundary beats nobody having him.
+    const double edge = zone_.deep ? 0.0 : t.threat_margin;
     const auto consider = [&](int r) {
         const Seen s = play.seen(r, lag_);
         const Vec2 p = frame.to_play(s.pos);
         const Vec2 v = frame.dir_to_play(s.vel);
-        if (!zone_.contains(p) && !zone_.contains(p + v * lookahead)) return;
+        if (!zone_.contains(p, edge) && !zone_.contains(p + v * lookahead, edge)) return;
         // The nearer, and the one the QB is looking at, the bigger the threat.
         const double eye = 1.0 + (r == eyes ? t.eyes_weight * skill_ / 100.0 : 0.0);
         threats.push_back({r, p, v, eye / (1.0 + (p - me).length() / 5.0)});
@@ -237,6 +267,7 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
     }
 
     Vec2 spot = zone_.drop;
+    track_ = {};
     if (zone_.deep) {
         // Carry the deepest threat: deeper than him and on his inside, where
         // he's going (his position `lead` s ahead), not where he is.
@@ -250,6 +281,7 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
                 going = ahead;
             }
         }
+        carrying_ = deepest ? deepest->player : -1;
         if (deepest) {
             // Leverage: a deep zone out wide (a deep third or an outside
             // quarter) has help inside him, so he stays outside the threat and
@@ -273,21 +305,40 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
         }
         if (current && best->score < current->score * t.switch_margin) best = current;
         threat_ = best->player;
-        const Vec2 qb = play.qb >= 0 ? play.play_pos(play.qb) : Vec2{0.0, -5.0};
-        spot = best->pos + (qb - best->pos).normalized() * t.under_short;
+        const bool settled = best->pos.y < me.y && best->vel.length() < t.settle_speed &&
+                             (best->pos - me).length() < t.drive_range;
+        if (settled) {
+            // A receiver who has sat down in front of him (a curl, a hitch):
+            // drive on him, staying short of him toward the QB.
+            const Vec2 qb = play.qb >= 0 ? play.play_pos(play.qb) : Vec2{0.0, -5.0};
+            spot = best->pos + (qb - best->pos).normalized() * t.under_short;
+        } else {
+            // Anyone still running: mirror him side to side, where he's going
+            // (his position `under_lead` s ahead), but don't come up toward
+            // the line. Hold the drop depth, or sink to stay under a receiver
+            // deeper than that. A receiver past the top of the zone is no
+            // longer a threat (the deep defender has him).
+            const Vec2 going = best->pos + best->vel * t.under_lead(skill_);
+            spot = {going.x, std::max(zone_.drop.y, going.y - t.under_short)};
+            track_ = {best->vel.x, 0.0};
+        }
     } else {
         threat_ = -1;
         if (eyes >= 0) {
-            // Nobody here: lean toward where the QB is looking.
+            // Nobody here: lean toward where the QB is looking. Deep zones
+            // lean straight at it; underneath zones only side to side, so a
+            // read at the line doesn't pull them up before the throw.
             const Vec2 d = play.play_pos(eyes) - zone_.drop;
-            spot = zone_.drop + d.normalized() * std::min(t.drift, d.length());
+            if (zone_.deep) {
+                spot = zone_.drop + d.normalized() * std::min(t.drift, d.length());
+            } else {
+                spot = {zone_.drop.x + std::clamp(d.x, -t.drift, t.drift), zone_.drop.y};
+            }
         }
     }
-    const double m = t.zone_margin;
-    spot.x = std::clamp(spot.x, zone_.drop.x - zone_.width / 2.0 - m,
-                        zone_.drop.x + zone_.width / 2.0 + m);
-    spot.y = std::clamp(spot.y, zone_.depth_min - m, zone_.depth_max + m);
-    return spot;
+    const Vec2 kept = zone_.clamp(spot, t.zone_margin);
+    if ((kept - spot).length() > 1e-9) track_ = {};  // at the edge: don't follow him out
+    return kept;
 }
 
 Intent ZoneCoverage::decide(const PlayState& play, int self, Actions& /*actions*/) {
@@ -300,6 +351,12 @@ Intent ZoneCoverage::decide(const PlayState& play, int self, Actions& /*actions*
 
     spot_ = spot(play, self);
     in.velocity = steer::arrive(me, play.frame.to_field(spot_), me.move.top_speed, me.move.decel);
+    // Mirroring a receiver: move with him side to side, so he doesn't arrive
+    // on the spot and stop while it slides away (or overshoot it).
+    if (track_.length_squared() > 0.0) {
+        in.velocity += play.frame.dir_to_field(track_);
+        if (in.velocity.length() > me.move.top_speed) in.velocity = in.velocity.normalized() * me.move.top_speed;
+    }
     // Open toward the QB, but not so far he slows to a backpedal.
     if (in.velocity.length() > 1.5) {
         in.face = face_toward(in.velocity, qb, play.tuning().defense.face_max_deg);
@@ -310,18 +367,38 @@ Intent ZoneCoverage::decide(const PlayState& play, int self, Actions& /*actions*
 void ZoneCoverage::draw(const PlayState& play, int self, Json& shapes) const {
     const PlayFrame& f = play.frame;
     // The area (deep zones drawn only 15 yd deep, to keep the view readable),
-    // his spot, and the man he's playing.
-    const double l = zone_.drop.x - zone_.width / 2.0, r = zone_.drop.x + zone_.width / 2.0;
-    const double top = std::min(zone_.depth_max, zone_.depth_min + 15.0);
-    shapes.push_back(shapes::line("coverage",
-                                  {f.to_field({l, zone_.depth_min}), f.to_field({r, zone_.depth_min}),
-                                   f.to_field({r, top}), f.to_field({l, top}),
-                                   f.to_field({l, zone_.depth_min})},
-                                  "#8a7fff", true));
-    shapes.push_back(shapes::text("coverage", f.to_field(spot_), "x", "#8a7fff"));
+    // his spot, and the man he's playing, all in his color, with a ring on him.
+    const std::string color = coverage_color(play, self);
+    shapes.push_back(shapes::ring("coverage", self, color));
+    if (zone_.capsule()) {
+        // The outline: a half circle around each end of the segment, joined
+        // (a circle when the ends coincide).
+        const Vec2 seg = zone_.end_b - zone_.end_a;
+        const double a0 = seg.length_squared() > 0.0 ? std::atan2(seg.y, seg.x) : 0.0;
+        std::vector<Vec2> pts;
+        constexpr int kSteps = 12;
+        for (int end = 0; end < 2; ++end) {
+            const Vec2 c = end == 0 ? zone_.end_b : zone_.end_a;
+            for (int i = 0; i <= kSteps; ++i) {
+                const double a = a0 + std::numbers::pi * (static_cast<double>(end) + static_cast<double>(i) / kSteps - 0.5);
+                pts.push_back(f.to_field(c + Vec2{std::cos(a), std::sin(a)} * zone_.radius));
+            }
+        }
+        pts.push_back(pts.front());
+        shapes.push_back(shapes::line("coverage", pts, color, true));
+    } else {
+        const double l = zone_.drop.x - zone_.width / 2.0, r = zone_.drop.x + zone_.width / 2.0;
+        const double top = std::min(zone_.depth_max, zone_.depth_min + 15.0);
+        shapes.push_back(shapes::line("coverage",
+                                      {f.to_field({l, zone_.depth_min}), f.to_field({r, zone_.depth_min}),
+                                       f.to_field({r, top}), f.to_field({l, top}),
+                                       f.to_field({l, zone_.depth_min})},
+                                      color, true));
+    }
+    shapes.push_back(shapes::text("coverage", f.to_field(spot_), "x", color));
     if (threat_ >= 0) {
         Json link = {{"kind", "link"}, {"layer", "coverage"}, {"a", self}, {"b", threat_},
-                     {"color", "#8a7fff"}, {"dash", true}};
+                     {"color", color}, {"dash", true}};
         shapes.push_back(std::move(link));
     }
 }

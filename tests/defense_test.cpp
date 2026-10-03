@@ -15,6 +15,7 @@
 #include "cfbsim/log/tracking.h"
 #include "cfbsim/physics/movement.h"
 #include "cfbsim/play/play_sim.h"
+#include "agents/behaviors.h"  // internal: ZoneArea geometry
 #include "play/openness.h"  // internal: a white-box test of the arrival-time math
 
 using namespace cfbsim;
@@ -349,4 +350,73 @@ TEST(Coverage, WideDeepZonesKeepOutsideLeverage) {
         if (std::abs(w.y) > std::abs(h.y)) ++outside;
     }
     EXPECT_GE(outside, 8);
+}
+
+TEST(Coverage, CapsuleZonesCountReceiversNearTheEdge) {
+    // A tilted capsule from (10, 10) down to (17, 3).
+    ZoneArea z;
+    z.drop = z.end_a = {10.0, 10.0};
+    z.end_b = {17.0, 3.0};
+    z.radius = 5.0;
+    EXPECT_TRUE(z.contains({13.5, 6.5}));    // on the segment
+    EXPECT_TRUE(z.contains({10.0, 14.9}));   // over the curl end
+    EXPECT_FALSE(z.contains({10.0, 16.0}));
+    EXPECT_TRUE(z.contains({10.0, 16.0}, 2.0));  // within the margin
+    EXPECT_FALSE(z.contains({17.0, 13.0}, 2.0));  // the corner a box would have had
+    // Clamping pulls a spot back to the edge (grown by the margin), toward the segment.
+    const Vec2 c = z.clamp({10.0, 20.0}, 2.0);
+    EXPECT_NEAR(c.x, 10.0, 1e-9);
+    EXPECT_NEAR(c.y, 17.0, 1e-9);
+    EXPECT_EQ(z.clamp({12.0, 9.0}), (Vec2{12.0, 9.0}));  // inside: unchanged
+    // No reach: a circle.
+    ZoneArea circle;
+    circle.drop = circle.end_a = circle.end_b = {0.0, 10.0};
+    circle.radius = 6.0;
+    EXPECT_TRUE(circle.contains({4.0, 14.0}));
+    EXPECT_FALSE(circle.contains({5.0, 15.0}));
+    // A level capsule (the curl-to-flat shape): a flat top across its length.
+    ZoneArea level;
+    level.end_a = {12.0, 4.5};
+    level.end_b = {21.0, 4.5};
+    level.radius = 5.5;
+    EXPECT_TRUE(level.contains({12.0, 10.0}));
+    EXPECT_TRUE(level.contains({21.0, 10.0}));
+    EXPECT_FALSE(level.contains({16.0, 10.5}));
+    EXPECT_TRUE(level.contains({6.5, 4.5}));
+    EXPECT_TRUE(level.contains({26.5, 4.5}));
+}
+
+TEST(Coverage, EveryZoneDropIsInsideItsZone) {
+    // zone_area() refuses a capsule whose drop is outside it; every
+    // defensive play sets up (on every hash) without that error.
+    for (const Hash hash : {Hash::Left, Hash::Middle, Hash::Right}) {
+        for (const char* def : {"43_over_cover1", "43_over_cover3", "43_over_cover4", "43_over_fire_zone",
+                                "nickel_cover0", "nickel_cover1", "nickel_cover2", "nickel_cover3",
+                                "nickel_cover4", "nickel_fire_zone"}) {
+            PlayOptions o = matchup("trips_stick", def);
+            o.hash = hash;
+            EXPECT_NO_THROW(run_play(data(), o)) << def << " " << static_cast<int>(hash);
+        }
+    }
+}
+
+TEST(Coverage, UnderneathZonesDontComeUpUnderVerticals) {
+    // Four Verts against Cover 3, the QB holding the ball: every receiver
+    // runs deep, so none of the underneath defenders should come up toward
+    // the line (they used to aim 2 yd short of a receiver still at the line,
+    // and charge downhill while he ran past them).
+    int held = 0, total = 0;
+    for (std::uint64_t seed = 1; seed <= 10; ++seed) {
+        PlayOptions o = matchup("four_verts", "nickel_cover3", seed);
+        o.hold_ball = true;
+        const auto t = tracks(o, {"NB", "SS", "MIKE", "WILL"});
+        for (const auto& [slot, track] : t) {
+            const std::size_t end = std::min<std::size_t>(track.size() - 1, 50);  // 2.5 s
+            double shallowest = track.front().x;
+            for (std::size_t k = 0; k <= end; ++k) shallowest = std::min(shallowest, track[k].x);
+            ++total;
+            if (shallowest > track.front().x - 1.0) ++held;
+        }
+    }
+    EXPECT_GE(held, total * 9 / 10) << held << " of " << total;
 }

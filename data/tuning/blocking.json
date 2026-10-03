@@ -14,7 +14,7 @@
     "mass_points": 25,         // x ln(blocker lb / defender lb)
     "double_team_points": 15,
     "pass_set_fade": 0.6,      // pass sets can't hold forever: per s engaged, off the target's argument
-    "shed_rate": 2.0,          // per s x max(0, -control)
+    "shed_rate": 1.4,          // per s x max(0, -control)
     "shed_leverage": 0.5,      // x (1 - this x leverage)
     "shed_decay": 0.3,         // per s x max(0, control)
     "leverage_width": 0.8,     // yd sideways for full leverage

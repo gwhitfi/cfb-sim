@@ -1275,7 +1275,21 @@ ZoneArea PlaySim::zone_area(const std::string& zone_id) const {
     area.width = z.width;
     area.depth_min = z.depth_min;
     area.depth_max = z.depth_max;
-    area.deep = z.depth_min >= defense().deep_min_depth;
+    area.radius = z.radius;
+    area.end_a = area.end_b = area.drop;
+    if (z.ends) {
+        try {
+            area.end_a = {resolve_x((*z.ends)[0].x, ctx), resolve_y((*z.ends)[0].y, ctx)};
+            area.end_b = {resolve_x((*z.ends)[1].x, ctx), resolve_y((*z.ends)[1].y, ctx)};
+        } catch (const GeometryError& e) {
+            throw PlayError("zone " + z.id + ": " + e.what());
+        }
+    }
+    if (area.capsule() && !area.contains(area.drop, 1e-6)) {
+        throw PlayError("zone " + z.id + ": the drop is outside the zone");
+    }
+    // Capsules are the underneath zones.
+    area.deep = !area.capsule() && z.depth_min >= defense().deep_min_depth;
     return area;
 }
 
@@ -1346,11 +1360,17 @@ std::unique_ptr<Behavior> PlaySim::defense_behavior(int i) {
                          (rj.kind == JobKind::Support && rj.ref.starts_with("force")) ||
                          (pj.kind == JobKind::Rush && (pj.ref == "contain" || pj.gap == "contain"));
 
+    // A linebacker (a gap fit off the ball) whose pass job is coverage waits
+    // before playing a run; one called to blitz or rush attacks at once.
+    const bool off_ball_fit = rj.kind == JobKind::Gap && state_.play_pos(i).y > blocking().down_lineman_depth;
+    const bool attacking = pj.kind == JobKind::Blitz || pj.kind == JobKind::Rush || pj.kind == JobKind::Stunt;
+    const double run_hold = off_ball_fit && !attacking ? tackling().lb_run_delay : 0.0;
+
     std::unique_ptr<Behavior> pass = defense_job(i, pj, nullptr);
     std::unique_ptr<Behavior> run = defense_job(i, rj, &pj);
     return std::make_unique<Defender>(std::move(run), std::move(pass), delay,
                                       t.recognition_rate(skill), t.pass_prior,
-                                      pursuit(i, contain), disciplined);
+                                      pursuit(i, contain), disciplined, run_hold);
 }
 
 std::unique_ptr<Behavior> PlaySim::zone_behavior(int i, const std::string& zone_id, double late) {
@@ -1677,6 +1697,16 @@ void PlaySim::throw_ball(int qb_index, int target, bool away) {
                     {"speed", ball.vel.length()},
                     {"error", std::hypot(ex, ey)},
                     {"openness", state_.openness(target)}});
+    // Who was covering whom when the ball came out (for the record).
+    Json coverage = Json::array();
+    for (int d = state_.offense_count; d < state_.count(); ++d) {
+        const Behavior* b = state_.behavior(d);
+        const int on = b->responsible();
+        coverage.push_back({{"player", state_.slot_name(d)},
+                            {"job", b->job()},
+                            {"on", on >= 0 ? Json(state_.slot_name(on)) : Json(nullptr)}});
+    }
+    event("coverage", {{"defenders", coverage}});
 }
 
 void PlaySim::ball_phase() {

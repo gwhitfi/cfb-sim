@@ -46,13 +46,34 @@ ZoneLibrary parse_zones(const Json& json, const std::string& source) {
 
     ZoneLibrary zones;
     root.at("zones").for_each_member([&](const std::string& id, const Reader& r) {
-        r.allow_only({"drop", "width", "depth"});
+        r.allow_only({"drop", "width", "depth", "radius", "ends"});
         Zone zone;
         zone.id = id;
         const Reader drop = r.at("drop");
         drop.allow_only({"x", "y"});
         zone.drop_x = detail::parse_anchor(drop.at("x"), Unit::Defense, detail::Axis::X);
         zone.drop_y = detail::parse_anchor(drop.at("y"), Unit::Defense, detail::Axis::Y);
+        if (r.has("radius")) {
+            // A capsule: no box keys.
+            if (r.has("width") || r.has("depth")) r.fail("a zone has either a radius or width and depth, not both");
+            zone.radius = r.number("radius");
+            if (zone.radius <= 0) r.at("radius").fail("radius must be positive");
+            if (r.has("ends")) {
+                const Reader ends = r.at("ends");
+                if (!ends.is_array() || ends.size() != 2) ends.fail("ends must be [point, point]");
+                std::array<Zone::End, 2> e;
+                for (std::size_t k = 0; k < 2; ++k) {
+                    const Reader p = ends.at(k);
+                    p.allow_only({"x", "y"});
+                    e[k] = {detail::parse_anchor(p.at("x"), Unit::Defense, detail::Axis::X),
+                            detail::parse_anchor(p.at("y"), Unit::Defense, detail::Axis::Y)};
+                }
+                zone.ends = e;
+            }
+            zones.emplace(id, std::move(zone));
+            return;
+        }
+        if (r.has("ends")) r.at("ends").fail("ends need a radius");
         zone.width = r.number("width");
         const Reader depth = r.at("depth");
         if (!depth.is_array() || depth.size() != 2) depth.fail("depth must be [min, max]");

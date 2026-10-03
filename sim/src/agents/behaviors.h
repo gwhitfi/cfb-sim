@@ -334,18 +334,47 @@ std::optional<std::pair<Vec2, double>> ball_drop_spot(const PlayState& play);
 // Defense (movement-and-interaction.md#defense--coverage-phase-5)
 // ===========================================================================
 
-// A zone's area in the play frame.
+// A zone's area in the play frame: a box (width and a depth band) or, with a
+// radius, a capsule (every point within `radius` of the segment end_a..end_b;
+// equal ends make it a circle). The drop is where he goes with no threat.
 struct ZoneArea {
     std::string id;
     Vec2 drop;  // the landmark
     double width = 10.0;
     double depth_min = 0.0;
     double depth_max = 15.0;
-    bool deep = false;  // plays the deepest threat
+    Vec2 end_a, end_b;    // capsule: the segment's ends
+    double radius = 0.0;  // > 0: a capsule
+    bool deep = false;    // plays the deepest threat
 
+    bool capsule() const { return radius > 0.0; }
+
+    // The point on the capsule's segment nearest p.
+    Vec2 nearest_on_segment(Vec2 p) const {
+        const Vec2 seg = end_b - end_a;
+        const double len2 = seg.length_squared();
+        if (len2 <= 0.0) return end_a;
+        return end_a + seg * std::clamp((p - end_a).dot(seg) / len2, 0.0, 1.0);
+    }
+
+    // In the area, or within `margin` yd of its edge.
     bool contains(Vec2 p, double margin = 0.0) const {
+        if (capsule()) return (p - nearest_on_segment(p)).length() <= radius + margin;
         return std::abs(p.x - drop.x) <= width / 2.0 + margin && p.y >= depth_min - margin &&
                p.y <= depth_max + margin;
+    }
+
+    // The nearest point to p in the area grown by `margin`.
+    Vec2 clamp(Vec2 p, double margin = 0.0) const {
+        if (capsule()) {
+            const Vec2 c = nearest_on_segment(p);
+            const Vec2 d = p - c;
+            const double len = d.length();
+            const double r = radius + margin;
+            return len <= r ? p : c + d * (r / len);
+        }
+        return {std::clamp(p.x, drop.x - width / 2.0 - margin, drop.x + width / 2.0 + margin),
+                std::clamp(p.y, depth_min - margin, depth_max + margin)};
     }
 };
 
@@ -359,15 +388,19 @@ class Defender final : public Behavior {
   public:
     // `pursuit`: how he chases. `disciplined`: he stays in his run fit until
     // the carrier commits (else he chases as soon as he sees the handoff).
+    // `run_hold`: s after the snap before he plays a run (a linebacker in
+    // coverage; 0 for everyone else).
     Defender(std::unique_ptr<Behavior> run_job, std::unique_ptr<Behavior> pass_job,
              double read_delay, double read_rate, double prior, Pursuer::Setup pursuit,
-             bool disciplined);
+             bool disciplined, double run_hold = 0.0);
 
     std::string_view name() const override { return "defender"; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
     void draw(const PlayState& play, int self, Json& shapes) const override;
     int man_target() const override { return pass_job_->man_target(); }
     int covering() const override { return playing_pass() ? pass_job_->covering() : -1; }
+    std::string job() const override { return pass_job_->job(); }
+    int responsible() const override { return pass_job_->responsible(); }
 
     double belief() const { return p_pass_; }
     bool playing_pass() const { return p_pass_ >= 0.5; }
@@ -383,6 +416,7 @@ class Defender final : public Behavior {
     double read_rate_;
     double p_pass_;
     bool disciplined_;
+    double run_hold_;
     bool pursuing_ = false;
 };
 
@@ -423,6 +457,8 @@ class ZoneCoverage final : public Behavior {
     Intent decide(const PlayState& play, int self, Actions& actions) override;
     void draw(const PlayState& play, int self, Json& shapes) const override;
     int covering() const override { return threat_; }
+    std::string job() const override { return "zone:" + zone_.id; }
+    int responsible() const override { return zone_.deep ? carrying_ : threat_; }
 
   private:
     Vec2 spot(const PlayState& play, int self);  // play frame; picks his threat
@@ -433,6 +469,8 @@ class ZoneCoverage final : public Behavior {
     double late_;
     Vec2 spot_;        // play frame, for drawing
     int threat_ = -1;  // the receiver he's playing (underneath zones)
+    int carrying_ = -1;  // the deepest threat he's carrying (deep zones; for the record)
+    Vec2 track_;         // play frame: the side-to-side velocity he's mirroring (underneath zones)
 };
 
 // ---------------------------------------------------------------------------

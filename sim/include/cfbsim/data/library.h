@@ -1,6 +1,7 @@
 // Shared libraries referenced by plays: routes, zones, blocking schemes.
 #pragma once
 
+#include <array>
 #include <functional>
 #include <map>
 #include <optional>
@@ -41,13 +42,24 @@ struct Route {
 // ---------------------------------------------------------------------------
 // Zones: a drop landmark plus an area.
 // ---------------------------------------------------------------------------
+// A zone is a drop landmark plus an area: either a box (width and a depth
+// band; the deep zones) or a capsule (every point within `radius` of the
+// segment between two `ends`, or of the drop alone; the underneath zones).
 struct Zone {
     std::string id;
     Anchor drop_x;
     Anchor drop_y;
+    // Box.
     double width = 0.0;
     double depth_min = 0.0;
     double depth_max = 0.0;
+    // Capsule: radius > 0. No ends = a circle around the drop.
+    double radius = 0.0;
+    struct End {
+        Anchor x;
+        Anchor y;
+    };
+    std::optional<std::array<End, 2>> ends;
 };
 
 // ---------------------------------------------------------------------------
