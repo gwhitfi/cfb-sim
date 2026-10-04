@@ -5,10 +5,14 @@
 #include "cfbsim/sim_api.h"
 
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "cfbsim/api/match.h"
 #include "cfbsim/data/load.h"
+#include "cfbsim/field/geometry.h"
+#include "cfbsim/log/tracking.h"
+#include "cfbsim/play/play_sim.h"
 #include "cfbsim/version.h"
 
 // The opaque handle. C callers only ever hold a pointer to it.
@@ -109,6 +113,52 @@ const char* cfbsim_match_log(cfbsim_match* match) {
     if (!match) return fail("no match");
     match->out = match->match->log();
     return match->out.c_str();
+}
+
+const char* cfbsim_run_play(const char* data_dir, const char* options_json) {
+    using cfbsim::Json;
+    // There's no handle to own the result, so it lives in a per-thread string
+    // (like the last error).
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        const Json o = Json::parse(options_json ? options_json : "{}");
+        cfbsim::PlayOptions po;
+        po.team = o.value("offense", "");
+        po.play = o.value("play", "");
+        if (po.team.empty() || po.play.empty()) return fail("run_play needs \"offense\" and \"play\"");
+        po.defense = o.value("defense", "");
+        po.defense_play = o.value("def_play", "");
+        if (!po.defense.empty() && po.defense_play.empty()) return fail("a defense needs \"def_play\"");
+        po.seed = o.value("seed", std::uint64_t{1});
+        const auto hash = cfbsim::from_name(cfbsim::kHashNames, o.value("hash", "middle"));
+        if (!hash) return fail("hash must be left, middle, or right");
+        po.hash = *hash;
+        po.yard_line = o.value("yard_line", 25.0);
+        const std::string direction = o.value("direction", "right");
+        if (direction != "right" && direction != "left") return fail("direction must be right or left");
+        po.offense_right = direction == "right";
+        po.flip = o.value("flip", false);
+        po.huddle = o.value("huddle", false);
+        po.target = o.value("target", "");
+        po.hold_ball = o.value("hold", false);
+
+        cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+        if (!report.ok()) return fail("the data folder has errors: " + report.errors.front());
+        if (!report.data.teams.contains(po.team)) return fail("unknown team '" + po.team + "'");
+        if (!po.defense.empty() && !report.data.teams.contains(po.defense)) {
+            return fail("unknown team '" + po.defense + "'");
+        }
+
+        std::ostringstream tracking;
+        cfbsim::TrackingWriter writer(tracking);
+        const cfbsim::PlayResult r = cfbsim::run_play(report.data, po, &writer);
+        out = Json{{"summary", r.summary}, {"outcome", r.outcome}, {"yards", r.yards}, {"tracking", tracking.str()}}
+                  .dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
 }
 
 }  // extern "C"

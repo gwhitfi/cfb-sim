@@ -9,6 +9,9 @@
 #include <string>
 
 #include "cfbsim/api/match.h"
+#include "cfbsim/field/geometry.h"
+#include "cfbsim/log/tracking.h"
+#include "cfbsim/play/play_sim.h"
 #include "cfbsim/sim_api.h"
 
 using namespace cfbsim;
@@ -244,4 +247,38 @@ TEST(Match, CApi) {
     const std::string log = cfbsim_match_log(m);
     cfbsim_match_destroy(m);
     EXPECT_TRUE(replays(log));
+}
+
+TEST(Match, CApiRunsOnePlay) {
+    // Bad options come back as errors, not exceptions.
+    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"play": "smash"})"), nullptr);
+    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "nobody", "play": "smash"})"), nullptr);
+    EXPECT_NE(std::string(cfbsim_last_error()).find("nobody"), std::string::npos);
+    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "r80_a", "play": "smash", "defense": "r80_b"})"),
+              nullptr);
+    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "r80_a", "play": "no_such_play"})"), nullptr);
+
+    // The same play as run_play, with its tracking file.
+    const char* opts = R"({"offense": "r80_a", "play": "gun_inside_zone", "defense": "r80_b",
+                           "def_play": "43_over_cover3", "seed": 5, "hash": "left"})";
+    const char* r = cfbsim_run_play(CFBSIM_DATA_DIR, opts);
+    ASSERT_NE(r, nullptr) << cfbsim_last_error();
+    const Json got = Json::parse(r);
+
+    PlayOptions po;
+    po.team = "r80_a";
+    po.play = "gun_inside_zone";
+    po.defense = "r80_b";
+    po.defense_play = "43_over_cover3";
+    po.seed = 5;
+    po.hash = Hash::Left;
+    po.huddle = false;
+    std::ostringstream tracking;
+    TrackingWriter writer(tracking);
+    const PlayResult want = run_play(data(), po, &writer);
+    EXPECT_EQ(got["summary"], want.summary);
+    EXPECT_EQ(got["outcome"], want.outcome);
+    EXPECT_EQ(got["tracking"], tracking.str());
+    // Same options, same play.
+    EXPECT_EQ(Json::parse(cfbsim_run_play(CFBSIM_DATA_DIR, opts)), got);
 }

@@ -43,6 +43,17 @@ int cfbsim_match_command(cfbsim_match* match, const char* command_json);
 /* The game log so far (JSON Lines). */
 const char* cfbsim_match_log(cfbsim_match* match);
 
+/* Runs one play outside a game, like `cfbsim run-play`. It loads the data
+ * folder on every call, so edited data takes effect at once. `options_json`:
+ *   {"offense": "r80_a", "play": "gun_inside_zone",     required
+ *    "defense": "r80_b", "def_play": "43_over_cover3",   optional: an empty field without them
+ *    "seed": 1, "hash": "middle", "yard_line": 25, "direction": "right",
+ *    "flip": false, "huddle": false, "target": "Z", "hold": false}
+ * Returns {"summary": "...", "outcome": "...", "yards": 3.2, "tracking": "<JSON Lines>"},
+ * or NULL on error (see cfbsim_last_error). The string stays valid until the
+ * next cfbsim_run_play call on the same thread. */
+const char* cfbsim_run_play(const char* data_dir, const char* options_json);
+
 #ifdef __cplusplus
 }
 #endif

@@ -122,7 +122,18 @@ class Game {
     // --- the log and inputs ------------------------------------------------
     void line(const Json& j) {
         if (log_) *log_ << j.dump() << '\n';
-        if (opt_.observe) opt_.observe(j, state_json());
+        if (!opt_.observe) return;
+        Json state = state_json();
+        // After each play, try, and at the end: the box score so far, for the viewer's stats panel.
+        const std::string type = j.value("type", "");
+        const std::string ev = j.value("event", "");
+        if (type == "play" || type == "final" || ev == "extra_point" || ev == "two_point_try") {
+            BoxScore box = box_;
+            box.teams[0].points = g_.score[0];
+            box.teams[1].points = g_.score[1];
+            state["box"] = box_score_json(box);
+        }
+        opt_.observe(j, state);
     }
     void event(const std::string& name, Json fields = Json::object()) {
         Json j = {{"type", "event"}, {"tick", g_.tick}, {"event", name}};

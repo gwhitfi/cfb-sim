@@ -8,6 +8,11 @@
 //
 // Messages (JSON text) from the viewer:
 //   {"type": "hello"}                          -> {"type": "hello", "version", "teams": [...], "logs": [...]}
+//       (each team: {"id", "name", "abbr", "offense": [plays], "defense": [plays]},
+//        a play {"id", "name", "type", "formation", "formation_name", "tags"})
+//   {"type": "run_play", "offense", "play", "defense"?, "def_play"?, "seed"?, "hash"?, "yard_line"?, "flip"?, "huddle"?}
+//                                              -> {"type": "play", "summary", "outcome", "yards", "file", "tracking"}
+//       one play outside a game (cfbsim_run_play), saved to out/plays/ as well
 //   {"type": "new_game", "home", "away", "seed"?, "user": ["home"]}
 //   {"type": "replay", "file": "out/games/x.gamelog.jsonl"} (a file from "logs")
 //   {"type": "advance"}                        -> {"type": "advance", "result": {...}}
@@ -43,6 +48,7 @@ struct Config {
     std::string host = "127.0.0.1";
     std::string data = "data";
     std::string out = "out/games";
+    std::string plays = "out/plays";  // single plays (run_play)
 };
 
 struct MatchDeleter {
@@ -91,7 +97,7 @@ class Server {
     explicit Server(Config c) : c_(std::move(c)) {
         const cfbsim::LoadReport report = cfbsim::load_data_dir(c_.data);
         if (!report.ok()) throw std::runtime_error("data folder has errors: " + report.errors.front());
-        for (const auto& [id, t] : report.data.teams) teams_.push_back({{"id", id}, {"name", t.name}, {"abbr", t.abbr}});
+        teams_ = catalog(report.data);
     }
 
     // Handles one message; returns the replies, in order.
@@ -104,8 +110,12 @@ class Server {
         }
         const std::string type = msg.value("type", "");
         if (type == "hello") {
+            // Reload the data, so plays added since the server started show up.
+            const cfbsim::LoadReport report = cfbsim::load_data_dir(c_.data);
+            if (report.ok()) teams_ = catalog(report.data);
             return {Json{{"type", "hello"}, {"version", cfbsim_version()}, {"teams", teams_}, {"logs", list_logs(c_)}}.dump()};
         }
+        if (type == "run_play") return run_play(msg);
         if (type == "new_game") return new_game(s, msg);
         if (type == "replay") return replay(s, msg);
         if (!s.match) return {error_message("no game: send new_game or replay first")};
@@ -127,6 +137,53 @@ class Server {
     }
 
   private:
+    // The teams and the plays in their playbooks, for the viewer's menus.
+    static Json catalog(const cfbsim::DataSet& data) {
+        const auto plays = [&](const std::string& playbook, bool offense) {
+            Json out = Json::array();
+            const auto it = data.playbooks.find(playbook);
+            if (it == data.playbooks.end()) return out;
+            for (const cfbsim::Play& p : it->second.plays) {
+                if (offense && p.type != cfbsim::PlayType::Pass && p.type != cfbsim::PlayType::Run) continue;
+                if (!offense && p.type != cfbsim::PlayType::Defense) continue;
+                const auto f = data.formations.find(p.formation);
+                out.push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))},
+                               {"formation", p.formation},
+                               {"formation_name", f != data.formations.end() ? f->second.name : p.formation},
+                               {"tags", p.tags}});
+            }
+            return out;
+        };
+        Json teams = Json::array();
+        for (const auto& [id, t] : data.teams) {
+            teams.push_back({{"id", id}, {"name", t.name}, {"abbr", t.abbr},
+                             {"offense", plays(t.offense_playbook, true)}, {"defense", plays(t.defense_playbook, false)}});
+        }
+        return teams;
+    }
+
+    std::vector<std::string> run_play(const Json& msg) {
+        Json o = msg;
+        o.erase("type");
+        const char* r = cfbsim_run_play(c_.data.c_str(), o.dump().c_str());
+        if (!r) return {error_message(cfbsim_last_error())};
+        Json reply = Json::parse(r);
+        // Also save it, so it can be reopened later (Repo files, cfbsim replay tools).
+        const std::string name = o.value("offense", "") + "_" + o.value("play", "") + "_vs_" +
+                                 (o.value("defense", "").empty() ? std::string("empty")
+                                                                 : o.value("defense", "") + "_" + o.value("def_play", "")) +
+                                 "_seed" + std::to_string(o.value("seed", std::uint64_t{1})) + ".jsonl";
+        std::error_code ec;
+        fs::create_directories(c_.plays, ec);
+        const fs::path path = fs::path(c_.plays) / name;
+        std::ofstream f(path);
+        f << reply["tracking"].get<std::string>();
+        if (f) reply["file"] = path.generic_string();
+        reply["type"] = "play";
+        std::cout << "play: " << o.dump() << " -> " << reply["summary"].get<std::string>() << std::endl;
+        return {reply.dump()};
+    }
+
     std::vector<std::string> new_game(Session& s, const Json& msg) {
         // A game without a seed gets one from the wall clock (the sim itself never reads it).
         const std::uint64_t seed = msg.contains("seed") && msg["seed"].is_number_unsigned()
@@ -181,7 +238,7 @@ class Server {
 };
 
 int usage() {
-    std::cerr << "usage: cfbsim-server [--port N] [--host ADDR] [--data DIR] [--out DIR]\n"
+    std::cerr << "usage: cfbsim-server [--port N] [--host ADDR] [--data DIR] [--out DIR] [--plays DIR]\n"
                  "  Run from the repo root. The viewer (cd viewer && npm run dev) connects to ws://localhost:8765.\n";
     return 2;
 }
@@ -197,6 +254,7 @@ int main(int argc, char** argv) {
         else if (a == "--host") c.host = argv[++i];
         else if (a == "--data") c.data = argv[++i];
         else if (a == "--out") c.out = argv[++i];
+        else if (a == "--plays") c.plays = argv[++i];
         else return usage();
     }
 
