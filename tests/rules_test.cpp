@@ -98,6 +98,29 @@ TEST(Clock, TimeBetweenPlays) {
     EXPECT_DOUBLE_EQ(runoff_before_snap({ClockStart::OnSnap, true}, 20.0, t), 0.0);
 }
 
+TEST(Clock, BetweenPlaysSchedule) {
+    const GameTuning& t = data().tuning.game;
+    // A huddle on a 40-second clock: the call, the defense's call, the break, the walk up, set.
+    const BetweenPlays h = between_plays_schedule(40.0, 40.0, Tempo::Huddle, 4.0, 1.0, false, t);
+    EXPECT_DOUBLE_EQ(h.call, t.call_huddle);
+    EXPECT_DOUBLE_EQ(h.defense_call, t.call_huddle + t.defense_call_after);
+    EXPECT_DOUBLE_EQ(h.set, t.call_huddle + t.huddle_seconds + 4.0);
+    EXPECT_DOUBLE_EQ(h.earliest, h.set + 1.0);
+    // No huddle: the call comes sooner and the offense lines up at once.
+    const BetweenPlays n = between_plays_schedule(40.0, 40.0, Tempo::NoHuddle, 4.0, 1.0, false, t);
+    EXPECT_DOUBLE_EQ(n.set, std::max(n.defense_call, t.call_no_huddle + t.line_up));
+    EXPECT_LT(n.set, h.set);
+    // A 25-second clock starts after a stoppage the teams spent huddling: 15 s further along.
+    const BetweenPlays a = between_plays_schedule(25.0, 40.0, Tempo::Huddle, 4.0, 1.0, false, t);
+    EXPECT_DOUBLE_EQ(a.call, std::max(0.0, t.call_huddle - 15.0));
+    EXPECT_DOUBLE_EQ(a.set, std::max(a.defense_call, std::max(a.call, t.call_huddle + t.huddle_seconds - 15.0) + 4.0));
+    EXPECT_LT(a.earliest, 25.0);
+    // After a timeout at the line the play is in: the offense only lines up again.
+    const BetweenPlays r = between_plays_schedule(25.0, 40.0, Tempo::Huddle, 4.0, 1.0, true, t);
+    EXPECT_DOUBLE_EQ(r.set, 4.0);
+    EXPECT_DOUBLE_EQ(between_plays_schedule(25.0, 40.0, Tempo::Hurry, 4.0, 1.0, true, t).set, t.line_up);
+}
+
 // --- Downs and spots ---------------------------------------------------------
 
 TEST(Downs, GainsAndFirstDowns) {

@@ -20,7 +20,23 @@ bool has_tag(const Play& p, std::string_view tag) {
 // Each weight factor stays above zero so a setting never removes a play entirely.
 constexpr double kFloor = 0.02;
 
+bool eligible(const FormationSlot& s) {
+    return s.pos && (*s.pos == Position::WR || *s.pos == Position::TE || *s.pos == Position::RB ||
+                     *s.pos == Position::FB);
+}
+
 }  // namespace
+
+FormationLook look_of(const Formation& formation, const PlayFrame& frame, double box) {
+    const std::vector<Vec2> at = align_formation(formation, frame);
+    FormationLook look;
+    for (std::size_t k = 0; k < at.size(); ++k) {
+        if (!eligible(formation.slots[k])) continue;
+        if (at[k].x < -box) ++look.split_left;
+        if (at[k].x > box) ++look.split_right;
+    }
+    return look;
+}
 
 AutoCoach::AutoCoach(const DataSet& data, const Team& team, int side, std::uint64_t seed)
     : data_(data), tactics_(team.tactics), t_(data.tuning.coach), side_(side), rng_(seed) {
@@ -217,9 +233,49 @@ std::string AutoCoach::defense_call(const GameState& g, const Play* offense_play
     return p->id;
 }
 
+std::string AutoCoach::defense_check(const GameState& g, const Play* offense_play, const FormationLook& look,
+                                     const std::string& called) {
+    const auto package = [&](const Play& p) {
+        const auto f = data_.formations.find(p.formation);
+        return f == data_.formations.end() ? std::string() : f->second.package;
+    };
+    const auto cur = std::find_if(defense_.begin(), defense_.end(), [&](const Play* p) { return p->id == called; });
+    if (cur == defense_.end()) return called;
+    const std::string pkg = package(**cur);
+    const bool spread = look.split_left + look.split_right >= t_.check_spread;
+    const bool trips = std::max(look.split_left, look.split_right) >= t_.check_trips;
+    Weighted w;
+    for (auto [p, x] : defense_weights(g, offense_play)) {
+        if (package(*p) != pkg) continue;
+        for (const std::string& tag : p->tags) {
+            const auto times = [&](const std::map<std::string, double>& m) {
+                if (const auto it = m.find(tag); it != m.end()) x *= std::max(kFloor, it->second);
+            };
+            times(spread ? t_.check_vs_spread : t_.check_vs_tight);
+            if (trips) times(t_.check_vs_trips);
+        }
+        // (The call is in the recent calls already, so its weight carries one repeat discount.)
+        if (p == *cur) x *= t_.check_stay;
+        w.emplace_back(p, x);
+    }
+    const Play* p = draw(w);
+    if (p != *cur && !recent_defense_.empty() && recent_defense_.back() == called) recent_defense_.back() = p->id;
+    return p->id;
+}
+
 // ---------------------------------------------------------------------------
 // The clock
 // ---------------------------------------------------------------------------
+
+bool AutoCoach::milking(const GameState& g) const {
+    return !g.overtime() && g.quarter == 4 && g.margin(side_) > 0 && g.clock <= t_.late_seconds + 60.0;
+}
+
+Tempo AutoCoach::tempo(const GameState& g) const {
+    if (two_minute(g, side_)) return Tempo::Hurry;
+    if (milking(g)) return Tempo::Huddle;
+    return tactics_.offense.tempo;
+}
 
 double AutoCoach::hike(const GameState& g, double play_clock) {
     const GameTuning& t = data_.tuning.game;
@@ -228,7 +284,7 @@ double AutoCoach::hike(const GameState& g, double play_clock) {
                                                                                   : t.tempo_normal;
     if (two_minute(g, side_)) {
         range = t.tempo_hurry;
-    } else if (!g.overtime() && g.quarter == 4 && g.margin(side_) > 0 && g.clock <= t_.late_seconds + 60.0) {
+    } else if (milking(g)) {
         range = t.tempo_milk;
     }
     // The ranges are for a 40-second clock; a 25-second clock is scaled.

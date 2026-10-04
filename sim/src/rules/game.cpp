@@ -54,6 +54,10 @@ Hash mirrored(Hash h) {
     return h;
 }
 
+// The game log's format. 2: timed between plays (docs/design/game-flow.md):
+// the calls, the check, and the hike each at their own tick; kicks are calls.
+constexpr int kLogFormat = 2;
+
 class ReplayError : public GameError {
   public:
     using GameError::GameError;
@@ -152,8 +156,15 @@ class Game {
 
     // --- for an outside decider (phase 11) ----------------------------------
     Json state_json() const;
-    Json call_options(int team, bool offense, bool try_play) const;
-    Json hike_options(int team, const PlayCall& call, bool kick, double play_clock) const;
+    // `kicks`: kick plays the offense may call (punt, field_goal, extra_point);
+    // `offense_play`: for the defense, the offense's call (its personnel shows).
+    Json call_options(int team, bool offense, bool try_play, const std::vector<std::string>& kicks = {},
+                      const Play* offense_play = nullptr) const;
+    Json play_json(const Play& p, bool offense) const;
+    // The defense at the line: the plays it can check to from `called`.
+    Json check_options(int team, const std::string& called, const Formation& offense_formation) const;
+    // `earliest`: the highest play clock reading the offense can snap at.
+    Json hike_options(int team, const PlayCall& call, bool kick, double play_clock, double earliest) const;
     static Json choices(const std::string& decision, std::initializer_list<const char*> c) {
         Json j = {{"decision", decision}, {"choices", Json::array()}};
         for (const char* x : c) j["choices"].push_back(x);
@@ -169,15 +180,30 @@ class Game {
     void series(int team, int ot);
     SnapResult snap();
     void attempt_try(int team, int ot);
-    bool run_try_play(int team);
+    // `saved`: the game state to go back to after the try.
+    bool run_try_play(int team, const PlayCall& call, const GameState& saved);
     // Runs the play, writing a tracking file when the options ask for one.
     PlayResult run_tracked(const PlayOptions& o, const std::string& label);
 
     // --- one snap's pieces -------------------------------------------------
-    PlayOptions play_options(const PlayCall& call, const std::string& defense_play);
+    // The players for a snap, picked as each call comes in, then the rest.
+    void fill_offense(PlayOptions& o, const Play& play);
+    void fill_defense(PlayOptions& o, const std::string& defense_play);
+    void finish_options(PlayOptions& o, const PlayCall& call);
+    // The offense's frame for this snap.
+    PlayFrame frame(bool flip) const {
+        return PlayFrame(std::clamp(g_.s.yard_line, 0.5, 99.5), g_.hash, (g_.offense == 0) == (g_.quarter % 2 == 1), flip);
+    }
+    // A team's special teams play of `type` (`kind`: deep, squib, onside; empty: the first).
+    const Play* kick_play_of(const Team& t, PlayType type, const std::string& kind) const;
     PlayResult kneel_or_spike(const std::string& kind);
     void timeouts();
-    bool between_plays(double used);  // false: the period ended before the snap
+    // Between plays: the play clock starts (a segment: from the whistle, or a
+    // timeout); at(used) moves the game to `used` seconds into it.
+    void begin_segment(double play_clock);
+    void at(double used);
+    void recover_to(double used);
+    bool between_plays(double used);  // the snap at `used`; false: the period ended before it
     std::optional<Foul> presnap_foul(const PlayOptions& o, double hike);
     void enforce_presnap(const Foul& f);
     SnapResult punt();
@@ -221,6 +247,10 @@ class Game {
     bool pending_free_kick_ = false;
     std::array<int, 2> period_start_{};
     std::set<std::string> last_on_field_;  // both teams' players on the last snap
+    std::int64_t segment_start_ = 0;       // the tick the play clock started
+    double segment_clock_ = 40.0;          // its length
+    double segment_used_ = -1.0;           // s of it used so far (under 0: not between plays)
+    double recovered_ = 0.0;               // s of it the lineups have recovered for
 };
 
 // ---------------------------------------------------------------------------
@@ -344,14 +374,24 @@ Json Game::state_json() const {
     Json teams = Json::object();
     for (int t = 0; t < 2; ++t) {
         const Team& tm = team_of(t);
-        teams[team_key(t)] = {{"id", tm.id}, {"name", tm.name}, {"abbr", tm.abbr}};
+        teams[team_key(t)] = {{"id", tm.id}, {"name", tm.name}, {"abbr", tm.abbr},
+                              {"color", tm.color_primary}, {"color2", tm.color_secondary}};
     }
     const bool goal = g_.s.line_to_gain() >= 100.0 - 1e-9;
-    return {{"tick", g_.tick},
+    // Between plays the clocks run: the game clock as it reads now (it settles
+    // at the snap; the two-minute timeout stops it at 2:00), and the play clock.
+    double clock = g_.clock;
+    if (segment_used_ >= 0.0 && !g_.overtime() && !g_.untimed) {
+        clock = std::max(0.0, clock - runoff_before_snap(g_.clock_state, segment_used_, tuning_));
+        if (g_.second_or_fourth() && !g_.two_minute_done && g_.clock > rules_.two_minute) {
+            clock = std::max(clock, rules_.two_minute);
+        }
+    }
+    Json j = {{"tick", g_.tick},
             {"quarter", g_.quarter},
             {"overtime", g_.overtime()},
-            {"clock", r2(g_.clock)},
-            {"clock_text", clock_text(g_.clock)},
+            {"clock", r2(clock)},
+            {"clock_text", clock_text(clock)},
             {"clock_running", g_.clock_state.start == ClockStart::Running},
             {"play_clock", g_.clock_state.admin ? rules_.admin_play_clock : rules_.play_clock},
             {"teams", teams},
@@ -366,9 +406,23 @@ Json Game::state_json() const {
             {"hash", g_.hash == Hash::Left ? "left" : g_.hash == Hash::Right ? "right" : "middle"},
             // The offense moves toward +x in the field frame (the home team in odd quarters).
             {"offense_right", (g_.offense == 0) == (g_.quarter % 2 == 1)}};
+    if (segment_used_ >= 0.0) j["play_clock_left"] = r2(segment_clock_ - segment_used_);
+    return j;
 }
 
-Json Game::call_options(int team, bool offense, bool try_play) const {
+Json Game::play_json(const Play& p, bool offense) const {
+    const auto f = data_.formations.find(p.formation);
+    Json j = {{"id", p.id}, {"name", p.name}, {"formation", p.formation},
+              {"type", std::string(to_string(p.type))}, {"flip", p.flip}, {"tags", p.tags}};
+    if (f != data_.formations.end()) {
+        j["formation_name"] = f->second.name;
+        j[offense ? "personnel" : "package"] = offense ? f->second.personnel : f->second.package;
+    }
+    return j;
+}
+
+Json Game::call_options(int team, bool offense, bool try_play, const std::vector<std::string>& kicks,
+                        const Play* offense_play) const {
     const Team& t = team_of(team);
     const auto book = data_.playbooks.find(offense ? t.offense_playbook : t.defense_playbook);
     Json plays = Json::array();
@@ -376,28 +430,45 @@ Json Game::call_options(int team, bool offense, bool try_play) const {
         for (const Play& p : book->second.plays) {
             if (offense && p.type != PlayType::Pass && p.type != PlayType::Run) continue;
             if (!offense && p.type != PlayType::Defense) continue;
-            const auto f = data_.formations.find(p.formation);
-            Json j = {{"id", p.id}, {"name", p.name}, {"formation", p.formation},
-                      {"type", std::string(to_string(p.type))}, {"flip", p.flip}, {"tags", p.tags}};
-            if (f != data_.formations.end()) {
-                j["formation_name"] = f->second.name;
-                j[offense ? "personnel" : "package"] = offense ? f->second.personnel : f->second.package;
-            }
-            plays.push_back(std::move(j));
+            plays.push_back(play_json(p, offense));
         }
     }
     Json j = {{"side", offense ? "offense" : "defense"}, {"plays", plays}};
     if (offense && !try_play) j["clock_plays"] = {"kneel", "spike"};
+    if (offense && !kicks.empty()) j["kick_plays"] = kicks;
     if (try_play) j["try"] = true;
+    if (offense_play) {
+        if (const auto f = data_.formations.find(offense_play->formation); f != data_.formations.end()) {
+            j["offense_personnel"] = f->second.personnel;
+        }
+    }
     return j;
 }
 
-Json Game::hike_options(int team, const PlayCall& call, bool kick, double play_clock) const {
-    // The earliest the offense can snap: set by tempo (the ranges are for a 40-second clock).
+Json Game::check_options(int team, const std::string& called, const Formation& offense_formation) const {
+    const Team& t = team_of(team);
+    const Playbook& book = data_.playbooks.at(t.defense_playbook);
+    const auto package = [&](const Play& p) {
+        const auto f = data_.formations.find(p.formation);
+        return f == data_.formations.end() ? std::string() : f->second.package;
+    };
+    const Play* cur = book.find(called);
+    Json plays = Json::array();
+    for (const Play& p : book.plays) {
+        if (p.type == PlayType::Defense && cur && package(p) == package(*cur)) plays.push_back(play_json(p, false));
+    }
+    return {{"side", "defense"}, {"play", called}, {"formation", offense_formation.id},
+            {"formation_name", offense_formation.name}, {"plays", plays}};
+}
+
+Json Game::hike_options(int team, const PlayCall& call, bool kick, double play_clock, double earliest) const {
+    // The earliest the offense can snap is `set`; `ready` has a reading for
+    // each tempo (the ranges are for a 40-second clock), none before set.
     const auto ready = [&](const std::pair<double, double>& range) {
-        return r2(play_clock - (rules_.play_clock - range.second) * play_clock / rules_.play_clock);
+        return std::min(earliest, r2(play_clock - (rules_.play_clock - range.second) * play_clock / rules_.play_clock));
     };
     Json j = {{"play_clock", play_clock},
+              {"set", earliest},
               {"ready", {{"huddle", ready(tuning_.tempo_normal)},
                          {"no_huddle", ready(tuning_.tempo_no_huddle)},
                          {"hurry", ready(tuning_.tempo_hurry)}}},
@@ -475,28 +546,29 @@ SnapResult Game::kickoff(int kicking, bool free_kick) {
     return out;
 }
 
+const Play* Game::kick_play_of(const Team& t, PlayType type, const std::string& kind) const {
+    const auto book = data_.playbooks.find(t.special_playbook);
+    if (book == data_.playbooks.end()) throw GameError(t.id + " has no special teams playbook");
+    const Play* first = nullptr;
+    for (const Play& p : book->second.plays) {
+        if (p.type != type) continue;
+        if (!first) first = &p;
+        if (!kind.empty() && p.kick && p.kick->kind == kind) return &p;
+    }
+    if (!first) throw GameError(t.id + " has no " + std::string(to_string(type)) + " play");
+    return first;
+}
+
 KickResult Game::kick_play(int kicking, double yard_line, PlayType type, const std::string& kind, Hash hash,
                            bool timed) {
     const int receiving = 1 - kicking;
     const Team& kt = team_of(kicking);
     const Team& rt = team_of(receiving);
-    const auto find_play = [&](const Team& t, PlayType want, const std::string& k) -> const Play* {
-        const auto book = data_.playbooks.find(t.special_playbook);
-        if (book == data_.playbooks.end()) throw GameError(t.id + " has no special teams playbook");
-        const Play* first = nullptr;
-        for (const Play& p : book->second.plays) {
-            if (p.type != want) continue;
-            if (!first) first = &p;
-            if (!k.empty() && p.kick && p.kick->kind == k) return &p;
-        }
-        if (!first) throw GameError(t.id + " has no " + std::string(to_string(want)) + " play");
-        return first;
-    };
     const PlayType answer = type == PlayType::Kickoff ? PlayType::KickoffReturn
                             : type == PlayType::Punt  ? PlayType::PuntReturn
                                                       : PlayType::FieldGoalBlock;
-    const Play* kp = find_play(kt, type, kind);
-    const Play* rp = find_play(rt, answer, "");
+    const Play* kp = kick_play_of(kt, type, kind);
+    const Play* rp = kick_play_of(rt, answer, "");
     KickOptions o;
     o.kicking_team = kt.id;
     o.receiving_team = rt.id;
@@ -658,6 +730,7 @@ void Game::end_quarter() {
 GameResult Game::run() {
     line({{"type", "header"},
           {"sim_version", std::string(version())},
+          {"log_format", kLogFormat},
           {"rules", rules_.id},
           {"seed", opt_.seed},
           {"home", opt_.home},
@@ -767,52 +840,58 @@ void Game::series(int team, int ot) {
 }
 
 void Game::attempt_try(int team, int ot) {
-    // After a touchdown (or, from the 3rd overtime, on its own): a kick or a
-    // two-point play from the 3.
-    bool two = ot >= 2;
-    if (ot < 2) {
-        const Json c = ask("coaching_decision", team, [&] {
-            GameState view = g_;
-            view.offense = team;
-            return Json{{"decision", "try"}, {"choice", coach(team).go_for_two(view) ? "two" : "kick"}};
-        }, [] { return choices("try", {"kick", "two"}); });
-        two = c.value("choice", "kick") == "two";
-    }
-    if (!two) {
-        const GameState saved = g_;
-        const KickResult kick = kick_play(team, 100.0 - rules_.try_line, PlayType::FieldGoal, "", Hash::Middle, false);
-        const std::array<int, 2> score = g_.score;
-        const std::int64_t tick = g_.tick;
-        g_ = saved;  // the try is untimed and leaves the game state alone
-        g_.score = score;
-        g_.tick = tick;
-        const bool good = kick.result == "made";
-        PlayerStats& k = stat(kick.kicker_id);
-        ++k.xp_att;
-        if (good) {
-            ++k.xp_made;
-            g_.score[idx(team)] += 1;
-        }
-        event("extra_point", {{"team", team_key(team)}, {"good", good}, {"home", g_.score[0]}, {"away", g_.score[1]}});
-        return;
-    }
-    const bool good = run_try_play(team);
-    event("two_point_try", {{"team", team_key(team)}, {"good", good}, {"home", g_.score[0]}, {"away", g_.score[1]}});
-}
-
-bool Game::run_try_play(int team) {
+    // After a touchdown (or, from the 3rd overtime, on its own): the call is
+    // the try, the extra point or a two-point play from the 3 (only two-point
+    // plays from the 2nd overtime).
+    const bool kick_allowed = ot < 2;
     const GameState saved = g_;
     g_.offense = team;
     g_.s = first_down_at(100.0 - rules_.try_line, rules_);
     g_.hash = Hash::Middle;
     const Json call = ask("call_play", team, [&] {
+        if (kick_allowed) {
+            GameState view = saved;
+            view.offense = team;
+            if (!coach(team).go_for_two(view)) return Json{{"play", "extra_point"}, {"flip", false}, {"try", true}};
+        }
         const PlayCall c = coach(team).offense_call(g_, true);
         return Json{{"play", c.play}, {"flip", c.flip}, {"try", true}};
-    }, [&] { return call_options(team, true, true); });
+    }, [&] {
+        return call_options(team, true, true, kick_allowed ? std::vector<std::string>{"extra_point"} : std::vector<std::string>{});
+    });
+    const std::string play = call.value("play", "");
+    if (play != "extra_point") {
+        const bool good = run_try_play(team, {play, call.value("flip", false)}, saved);
+        event("two_point_try", {{"team", team_key(team)}, {"good", good}, {"home", g_.score[0]}, {"away", g_.score[1]}});
+        return;
+    }
+    g_ = saved;
+    const KickResult kick = kick_play(team, 100.0 - rules_.try_line, PlayType::FieldGoal, "", Hash::Middle, false);
+    const std::array<int, 2> score = g_.score;
+    const std::int64_t tick = g_.tick;
+    g_ = saved;  // the try is untimed and leaves the game state alone
+    g_.score = score;
+    g_.tick = tick;
+    const bool good = kick.result == "made";
+    PlayerStats& k = stat(kick.kicker_id);
+    ++k.xp_att;
+    if (good) {
+        ++k.xp_made;
+        g_.score[idx(team)] += 1;
+    }
+    event("extra_point", {{"team", team_key(team)}, {"good", good}, {"home", g_.score[0]}, {"away", g_.score[1]}});
+}
+
+bool Game::run_try_play(int team, const PlayCall& call, const GameState& saved) {
+    const Play* oplay = offense_play(team, call.play);
+    if (!oplay) throw GameError(team_of(team).id + " called an unknown play '" + call.play + "'");
+    PlayOptions o;
+    fill_offense(o, *oplay);
     const Json dcall = ask("call_play", 1 - team, [&] {
-        return Json{{"play", coach(1 - team).defense_call(g_, offense_play(team, call.value("play", "")))}};
-    }, [&] { return call_options(1 - team, false, true); });
-    const PlayOptions o = play_options({call.value("play", ""), call.value("flip", false)}, dcall.value("play", ""));
+        return Json{{"play", coach(1 - team).defense_call(g_, oplay)}};
+    }, [&] { return call_options(1 - team, false, true, {}, oplay); });
+    fill_defense(o, dcall.value("play", ""));
+    finish_options(o, call);
     ++snaps_;
     const PlayResult r = run_tracked(o, o.play + "_try");
     wear(r.usage, g_.offense);
@@ -857,12 +936,40 @@ PlayResult Game::run_tracked(const PlayOptions& o, const std::string& label) {
     return run_play(data_, o, &writer);
 }
 
-PlayOptions Game::play_options(const PlayCall& call, const std::string& defense_play) {
-    const int off = g_.offense, def = g_.defense();
+void Game::fill_offense(PlayOptions& o, const Play& play) {
+    const int off = g_.offense;
     const Team& ot = team_of(off);
+    const Formation& of = data_.formations.at(play.formation);
+    std::vector<std::string> slots;
+    for (const FormationSlot& sl : of.slots) slots.push_back(sl.name);
+    const auto personnel = ot.depth_chart.offense_personnel.find(of.personnel);
+    if (personnel == ot.depth_chart.offense_personnel.end()) {
+        throw GameError(ot.id + " has no '" + of.personnel + "' personnel");
+    }
+    o.offense_players = lineup(off).fill(personnel->second, slots);
+}
+
+void Game::fill_defense(PlayOptions& o, const std::string& defense_play) {
+    const int def = g_.defense();
     const Team& dt = team_of(def);
-    PlayOptions o;
-    o.team = ot.id;
+    const Playbook& dbook = data_.playbooks.at(dt.defense_playbook);
+    const Play* dplay = dbook.find(defense_play);
+    if (!dplay) throw GameError(dt.id + " called an unknown play '" + defense_play + "'");
+    const Formation& df = data_.formations.at(dplay->formation);
+    std::vector<std::string> slots;
+    for (const FormationSlot& sl : df.slots) slots.push_back(sl.name);
+    const auto package = dt.depth_chart.defense_packages.find(df.package);
+    if (package == dt.depth_chart.defense_packages.end()) {
+        throw GameError(dt.id + " has no '" + df.package + "' package");
+    }
+    o.defense = dt.id;
+    o.defense_play = defense_play;
+    o.defense_players = lineup(def).fill(package->second, slots);
+}
+
+void Game::finish_options(PlayOptions& o, const PlayCall& call) {
+    const int off = g_.offense, def = g_.defense();
+    o.team = team_of(off).id;
     o.play = call.play;
     o.flip = call.flip;
     o.hash = g_.hash;
@@ -871,37 +978,10 @@ PlayOptions Game::play_options(const PlayCall& call, const std::string& defense_
     o.offense_right = (off == 0) == (g_.quarter % 2 == 1);
     o.seed = rng_.next_u64();
     o.huddle = false;
-    o.defense = dt.id;
-    o.defense_play = defense_play;
     o.offense_home = off == 0;
-
-    const Playbook& obook = data_.playbooks.at(ot.offense_playbook);
-    const Play* play = obook.find(call.play);
-    if (!play) throw GameError(ot.id + " called an unknown play '" + call.play + "'");
-    const Formation& of = data_.formations.at(play->formation);
-    std::vector<std::string> slots;
-    for (const FormationSlot& s : of.slots) slots.push_back(s.name);
-    const auto personnel = ot.depth_chart.offense_personnel.find(of.personnel);
-    if (personnel == ot.depth_chart.offense_personnel.end()) {
-        throw GameError(ot.id + " has no '" + of.personnel + "' personnel");
-    }
-    o.offense_players = lineup(off).fill(personnel->second, slots);
-
-    const Playbook& dbook = data_.playbooks.at(dt.defense_playbook);
-    const Play* dplay = dbook.find(defense_play);
-    if (!dplay) throw GameError(dt.id + " called an unknown play '" + defense_play + "'");
-    const Formation& df = data_.formations.at(dplay->formation);
-    slots.clear();
-    for (const FormationSlot& s : df.slots) slots.push_back(s.name);
-    const auto package = dt.depth_chart.defense_packages.find(df.package);
-    if (package == dt.depth_chart.defense_packages.end()) {
-        throw GameError(dt.id + " has no '" + df.package + "' package");
-    }
-    o.defense_players = lineup(def).fill(package->second, slots);
-
+    o.modifiers.clear();
     for (const auto& [slot, id] : o.offense_players) o.modifiers[id] = lineup(off).modifiers(id);
     for (const auto& [slot, id] : o.defense_players) o.modifiers[id] = lineup(def).modifiers(id);
-    return o;
 }
 
 PlayResult Game::kneel_or_spike(const std::string& kind) {
@@ -940,6 +1020,26 @@ void Game::timeouts() {
     }
 }
 
+void Game::begin_segment(double play_clock) {
+    segment_start_ = g_.tick;
+    segment_clock_ = play_clock;
+    segment_used_ = 0.0;
+    recovered_ = 0.0;
+}
+
+void Game::at(double used) {
+    g_.tick = segment_start_ + ticks(used);
+    segment_used_ = used;
+    recover_to(used);
+}
+
+void Game::recover_to(double used) {
+    if (used <= recovered_) return;
+    lineup(0).recover(used - recovered_, last_on_field_);
+    lineup(1).recover(used - recovered_, last_on_field_);
+    recovered_ = used;
+}
+
 bool Game::between_plays(double used) {
     // Time passes between the end of the last play and the snap.
     double run = g_.overtime() || g_.untimed ? 0.0 : runoff_before_snap(g_.clock_state, used, tuning_);
@@ -955,12 +1055,12 @@ bool Game::between_plays(double used) {
         event("two_minute_timeout");
         run = runoff_before_snap(g_.clock_state, used * rules_.admin_play_clock / rules_.play_clock, tuning_);
     }
-    g_.tick += ticks(used);
+    g_.tick = segment_start_ + ticks(used);
     const double from = g_.clock;
     g_.clock = std::max(0.0, g_.clock - run);
     box_.teams[idx(g_.offense)].possession_seconds += from - g_.clock;
-    lineup(0).recover(used, last_on_field_);
-    lineup(1).recover(used, last_on_field_);
+    recover_to(used);
+    segment_used_ = -1.0;
     if (!g_.overtime() && !g_.untimed && g_.clock <= 0.0 && run > 0.0) {
         event("clock_expired", {{"quarter", g_.quarter}});
         return false;
@@ -1197,65 +1297,122 @@ void Game::count_stats(const PlayResult& r, const Situation& before, const Next&
 SnapResult Game::snap() {
     timeouts();
 
-    // A kick on 4th down (or a last-chance field goal at the end of a half).
+    // Between plays (docs/design/game-flow.md): the play clock runs from
+    // here. The offense's call, the defense's, the set, the defense's check,
+    // and the hike each come at their moment on it, and each side's players
+    // are picked when its call comes in.
+    const int off = g_.offense, def = g_.defense();
+    double play_clock = g_.clock_state.admin ? rules_.admin_play_clock : rules_.play_clock;
+    begin_segment(play_clock);
+    const Tempo tempo = coach(off).tempo(g_);
+    const double set_seconds = data_.tuning.play.set_seconds;
+    BetweenPlays when = between_plays_schedule(play_clock, rules_.play_clock, tempo, 0.0, set_seconds, false, tuning_);
+
+    // The call. On 4th down it may be a punt or a field goal, and so may a
+    // last-chance kick at the end of a half.
     const double kick_distance = 100.0 - g_.s.yard_line + 17.0;
-    const Specialists sp = specialists(g_.offense);
+    const Specialists sp = specialists(off);
     const bool last_chance =
-        g_.second_or_fourth() && g_.clock <= 8.0 && kick_distance <= coach(g_.offense).fg_range(sp);
-    KickChoice kick = KickChoice::Go;
-    if (g_.s.down == 4 || last_chance) {
-        const Json c = ask("coaching_decision", g_.offense, [&] {
-            const KickChoice k = coach(g_.offense).fourth_down(g_, sp);
-            return Json{{"decision", "fourth_down"},
-                        {"choice", k == KickChoice::Punt ? "punt" : k == KickChoice::FieldGoal ? "field_goal" : "go"}};
-        }, [] { return choices("fourth_down", {"go", "punt", "field_goal"}); });
-        const std::string choice = c.value("choice", "go");
-        kick = choice == "punt" ? KickChoice::Punt : choice == "field_goal" ? KickChoice::FieldGoal : KickChoice::Go;
+        g_.second_or_fourth() && g_.clock <= 8.0 && kick_distance <= coach(off).fg_range(sp);
+    std::vector<std::string> kicks;
+    if (g_.s.down == 4) {
+        kicks = {"punt", "field_goal"};
+    } else if (last_chance) {
+        kicks = {"field_goal"};
+    }
+    at(when.call);
+    const Json oc = ask("call_play", off, [&] {
+        if (!kicks.empty()) {
+            const KickChoice k = coach(off).fourth_down(g_, sp);
+            if (k == KickChoice::Punt && g_.s.down == 4) return Json{{"play", "punt"}, {"flip", false}};
+            if (k == KickChoice::FieldGoal) return Json{{"play", "field_goal"}, {"flip", false}};
+        }
+        const PlayCall c = coach(off).offense_call(g_, false);
+        return Json{{"play", c.play}, {"flip", c.flip}};
+    }, [&] { return call_options(off, true, false, kicks); });
+    PlayCall call = {oc.value("play", ""), oc.value("flip", false)};
+    const KickChoice kick = call.play == "punt"         ? KickChoice::Punt
+                            : call.play == "field_goal" ? KickChoice::FieldGoal
+                                                        : KickChoice::Go;
+    const bool kicking = kick != KickChoice::Go;
+    const bool clock_play = call.play == "kneel" || call.play == "spike";
+    const Play* oplay = kicking || clock_play ? nullptr : offense_play(off, call.play);
+    if (!kicking && !clock_play && !oplay) {
+        throw GameError(team_of(off).id + " called an unknown play '" + call.play + "'");
+    }
+    PlayOptions o;
+    if (oplay) fill_offense(o, *oplay);
+
+    // The defense calls once the offense's personnel is on the field.
+    std::string defense_play;
+    if (oplay) {
+        at(when.defense_call);
+        const Json dc = ask("call_play", def, [&] {
+            return Json{{"play", coach(def).defense_call(g_, oplay)}};
+        }, [&] { return call_options(def, false, false, {}, oplay); });
+        defense_play = dc.value("play", "");
+        fill_defense(o, defense_play);
     }
 
-    PlayCall call;
-    std::string defense_play;
-    if (kick == KickChoice::Go) {
-        const Json oc = ask("call_play", g_.offense, [&] {
-            const PlayCall c = coach(g_.offense).offense_call(g_, false);
-            return Json{{"play", c.play}, {"flip", c.flip}};
-        }, [&] { return call_options(g_.offense, true, false); });
-        call = {oc.value("play", ""), oc.value("flip", false)};
-        if (call.play != "kneel" && call.play != "spike") {
-            const Json dc = ask("call_play", g_.defense(), [&] {
-                return Json{{"play", coach(g_.defense()).defense_call(g_, offense_play(g_.offense, call.play))}};
-            }, [&] { return call_options(g_.defense(), false, false); });
-            defense_play = dc.value("play", "");
+    // Break, walk up, set.
+    const Formation* formation = oplay      ? &data_.formations.at(oplay->formation)
+                                 : kicking ? &data_.formations.at(
+                                                 kick_play_of(team_of(off), kick == KickChoice::Punt ? PlayType::Punt
+                                                                                                     : PlayType::FieldGoal,
+                                                              "")
+                                                     ->formation)
+                                           : nullptr;
+    double walk = 0.0;
+    if (formation && tempo == Tempo::Huddle) {
+        try {
+            walk = walk_up_seconds(*formation, frame(call.flip), data_.tuning.play);
+        } catch (const GeometryError& e) {
+            throw GameError("formation " + formation->id + ": " + e.what());
         }
     }
+    when = between_plays_schedule(play_clock, rules_.play_clock, tempo, walk, set_seconds, false, tuning_);
 
-    // The hike: how much of the play clock the offense uses. An outside
-    // decider may also audible, change routes, or call timeout first (phase 11).
-    const bool kicking = kick != KickChoice::Go;
-    double play_clock = g_.clock_state.admin ? rules_.admin_play_clock : rules_.play_clock;
+    // At the line: the defense may check, then the offense snaps (and may
+    // audible, change routes, or call timeout first).
+    const std::string called_play = call.play;
+    const std::string called_defense = defense_play;
     Json h;
     for (;;) {
-        h = ask("hike", g_.offense,
-                [&] { return Json{{"play_clock", r2(coach(g_.offense).hike(g_, play_clock))}}; },
-                [&] { return hike_options(g_.offense, call, kicking, play_clock); });
-        if (!h.value("timeout", false)) break;
-        // A timeout before the snap: the time used so far runs, then the clock stops.
-        if (!between_plays(std::min(play_clock, play_clock - h.value("play_clock", play_clock)))) {
-            return {SnapEnd::PeriodOver, -1};
+        at(when.set);
+        if (oplay) {
+            const FormationLook look = look_of(*formation, frame(call.flip), data_.tuning.coach.check_box);
+            const Json c = ask("check", def, [&] {
+                return Json{{"play", coach(def).defense_check(g_, oplay, look, defense_play)}};
+            }, [&] { return check_options(def, defense_play, *formation); });
+            const std::string to = c.value("play", defense_play);
+            if (to != defense_play) {
+                defense_play = to;
+                fill_defense(o, defense_play);
+            }
         }
-        charge_timeout(g_.offense);
+        const double earliest = std::floor((play_clock - when.earliest) * 100.0) / 100.0;
+        h = ask("hike", off,
+                [&] { return Json{{"play_clock", std::min(r2(coach(off).hike(g_, play_clock)), earliest)}}; },
+                [&] { return hike_options(off, call, kicking, play_clock, earliest); });
+        if (!h.value("timeout", false)) break;
+        // A timeout before the snap: the time used so far runs, then the clock
+        // stops, and the offense lines up again on a 25-second clock.
+        const double used = std::max(when.set, std::min(play_clock, play_clock - h.value("play_clock", play_clock)));
+        if (!between_plays(used)) return {SnapEnd::PeriodOver, -1};
+        charge_timeout(off);
         play_clock = rules_.admin_play_clock;
+        begin_segment(play_clock);
+        when = between_plays_schedule(play_clock, rules_.play_clock, tempo, walk, set_seconds, true, tuning_);
     }
     const double reading = h.value("play_clock", 10.0);
     const double used = std::min(play_clock, play_clock - reading);
-    const std::string called_play = call.play;
-    if (h.contains("audible")) call.play = h["audible"].get<std::string>();
+    if (h.contains("audible")) call.play = h["audible"].get<std::string>();  // same formation: same players
     std::map<std::string, std::string> hot_routes;
     if (h.contains("hot_routes")) hot_routes = h["hot_routes"].get<std::map<std::string, std::string>>();
     if (!between_plays(used)) return {SnapEnd::PeriodOver, -1};
     ++snaps_;
 
-    if (kick == KickChoice::Punt || kick == KickChoice::FieldGoal) {
+    if (kicking) {
         if (reading <= 0.0) {
             enforce_presnap(Foul{"delay_of_game", true, "", "", 0.0, 0.0, 0.0});
             return {};
@@ -1264,10 +1421,8 @@ SnapResult Game::snap() {
     }
 
     // The play.
-    const bool clock_play = call.play == "kneel" || call.play == "spike";
-    PlayOptions o;
     if (!clock_play) {
-        o = play_options(call, defense_play);
+        finish_options(o, call);
         o.hot_routes = hot_routes;
         if (const std::optional<Foul> f = presnap_foul(o, reading)) {
             enforce_presnap(*f);
@@ -1284,7 +1439,6 @@ SnapResult Game::snap() {
         throw GameError(std::string("play ") + call.play + " at " + situation_text() + ": " + e.what());
     }
 
-    const int off = g_.offense, def = g_.defense();
     if (const Play* called = clock_play ? nullptr : offense_play(off, call.play)) {
         ++(called->type == PlayType::Run ? g_.runs : g_.passes)[idx(off)];
     }
@@ -1484,6 +1638,7 @@ SnapResult Game::snap() {
     if (call.play != called_play) pl["audible_from"] = called_play;
     if (!hot_routes.empty()) pl["hot_routes"] = hot_routes;
     if (!defense_play.empty()) pl["defense_call"] = defense_play;
+    if (defense_play != called_defense) pl["check_from"] = called_defense;
     pl["outcome"] = r.outcome;
     pl["yards"] = r2(r.yards);
     pl["summary"] = r.summary;
@@ -1497,6 +1652,14 @@ SnapResult Game::snap() {
     }
     line(pl);
     return out;
+}
+
+// A log from before the current format can't replay: say so instead of failing on its first input.
+std::optional<std::string> format_error(const Json& header) {
+    const int format = header.value("log_format", 1);
+    if (format == kLogFormat) return std::nullopt;
+    return "this game log is format " + std::to_string(format) + " (from sim " + header.value("sim_version", "?") +
+           "); this sim replays format " + std::to_string(kLogFormat) + " logs only";
 }
 
 std::vector<Json> parse_log(std::istream& in, Json& header, std::vector<std::string>& lines) {
@@ -1534,7 +1697,9 @@ std::optional<std::string> check_answer(const Prompt& p, Json& a) {
         const bool offense = o.value("side", "offense") == "offense";
         const Json plays = list("plays");
         const auto found = std::find_if(plays.begin(), plays.end(), [&](const Json& x) { return x.value("id", "") == id; });
-        if (found == plays.end() && !in(list("clock_plays"), id)) return "no play '" + id + "' to call here";
+        if (found == plays.end() && !in(list("clock_plays"), id) && !in(list("kick_plays"), id)) {
+            return "no play '" + id + "' to call here";
+        }
         if (*flip && (found == plays.end() || !found->value("flip", false))) return "play " + id + " can't be flipped";
         out["play"] = id;
         if (offense) out["flip"] = *flip;
@@ -1548,7 +1713,7 @@ std::optional<std::string> check_answer(const Prompt& p, Json& a) {
         }
         const std::optional<bool> timeout = boolean("timeout", false);
         if (!timeout) return "timeout must be true or false";
-        const double ready = o.contains("ready") ? o["ready"].value("hurry", play_clock) : play_clock;
+        const double ready = o.value("set", play_clock);
         if (*timeout) {
             reading = std::min(reading, play_clock);  // a timeout can come before the offense is set
         } else if (reading > ready + 1e-9) {
@@ -1575,6 +1740,14 @@ std::optional<std::string> check_answer(const Prompt& p, Json& a) {
                 out["hot_routes"] = a["hot_routes"];
             }
         }
+    } else if (p.input == "check") {
+        if (!a.contains("play") || !a["play"].is_string()) return "check needs a play id";
+        const Json plays = list("plays");
+        const std::string id = a["play"].get<std::string>();
+        if (std::none_of(plays.begin(), plays.end(), [&](const Json& x) { return x.value("id", "") == id; })) {
+            return "can't check to '" + id + "' from this package";
+        }
+        out = {{"play", id}};
     } else if (p.input == "coaching_decision") {
         if (!a.contains("choice") || !in(list("choices"), a["choice"])) {
             return "choice must be one of " + list("choices").dump();
@@ -1632,6 +1805,7 @@ GameResult rerun_game(const DataSet& data, std::istream& log, GameOptions option
         throw GameError(std::string("can't read the log: ") + e.what());
     }
     if (header.is_null()) throw GameError("the log has no header line");
+    if (const std::optional<std::string> e = format_error(header)) throw GameError(*e);
     options.home = header.value("home", "");
     options.away = header.value("away", "");
     options.seed = header.value("seed", std::uint64_t{0});
@@ -1656,6 +1830,10 @@ ReplayReport replay_game(const DataSet& data, std::istream& log,
     }
     if (header.is_null()) {
         report.error = "the log has no header line";
+        return report;
+    }
+    if (const std::optional<std::string> e = format_error(header)) {
+        report.error = *e;
         return report;
     }
     GameOptions o;

@@ -292,9 +292,6 @@ void PlaySim::setup() {
         throw PlayError("formation " + f.id + ": " + e.what());
     }
 
-    const auto& huddle_slots = f.slots;
-    const double count = static_cast<double>(huddle_slots.size());
-    const double radius = tuning().huddle_spacing * count / (2.0 * std::numbers::pi);
     const Vec2 huddle{0.0, -tuning().huddle_depth};
 
     for (std::size_t k = 0; k < f.slots.size(); ++k) {
@@ -318,8 +315,7 @@ void PlaySim::setup() {
         const Vec2 down = state_.downfield();
         if (opt_.huddle) {
             // A ring around the huddle's center, everyone facing in.
-            const double angle = 2.0 * std::numbers::pi * static_cast<double>(k) / count;
-            const Vec2 spot = huddle + Vec2{std::cos(angle), std::sin(angle)} * radius;
+            const Vec2 spot = huddle_spot(k, f.slots.size(), -tuning().huddle_depth, tuning());
             a.pos = state_.frame.to_field(spot);
             a.facing = (state_.frame.to_field(huddle) - a.pos).normalized();
         } else {
@@ -410,8 +406,6 @@ void PlaySim::setup_defense() {
         throw PlayError("formation " + f.id + ": " + e.what());
     }
 
-    const double count = static_cast<double>(f.slots.size());
-    const double radius = tuning().huddle_spacing * count / (2.0 * std::numbers::pi);
     const Vec2 huddle{0.0, tuning().huddle_depth + 1.0};
     for (std::size_t k = 0; k < f.slots.size(); ++k) {
         const FormationSlot& slot = f.slots[k];
@@ -432,8 +426,7 @@ void PlaySim::setup_defense() {
         Agent a = make_agent(player, opt_.offense_home ? TeamSide::Away : TeamSide::Home, slot.name,
                              modifiers(player), state_.tuning().movement);
         if (opt_.huddle) {
-            const double angle = 2.0 * std::numbers::pi * static_cast<double>(k) / count;
-            const Vec2 spot = huddle + Vec2{std::cos(angle), std::sin(angle)} * radius;
+            const Vec2 spot = huddle_spot(k, f.slots.size(), huddle.y, tuning());
             a.pos = state_.frame.to_field(spot);
             a.facing = (state_.frame.to_field(huddle) - a.pos).normalized();
         } else {
@@ -824,6 +817,13 @@ std::unique_ptr<Behavior> PlaySim::pass_blocker(int i, const Job& job) {
     for (const double x : xs) {
         if ((x - at.x) * side > 0.3) outermost = false;
     }
+    if (outermost) {
+        s.area_x += side * 0.5;
+        s.area_half += 0.5;
+    }
+    return std::make_unique<PassBlocker>(s);
+}
+
 Vec2 PlaySim::back_scan_spot(int i) const {
     // A back scans from the B gap on the man side of the protection (away
     // from the slide; his own side with no slide), a step in front of his
@@ -852,13 +852,6 @@ Vec2 PlaySim::back_scan_spot(int i) const {
     std::sort(out.begin(), out.end());
     const double gap = out.size() >= 2 ? (out[0] + out[1]) / 2.0 : out.empty() ? 2.25 : out[0] + 0.75;
     return {cx + side * gap, at.y + t.back_step_up};
-}
-
-    if (outermost) {
-        s.area_x += side * 0.5;
-        s.area_half += 0.5;
-    }
-    return std::make_unique<PassBlocker>(s);
 }
 
 std::vector<int> PlaySim::front(bool down_linemen) const {
@@ -2498,6 +2491,22 @@ Play with_hot_routes(const DataSet& data, const Play& play, const std::map<std::
         job->options.clear();
     }
     return out;
+}
+
+Vec2 huddle_spot(std::size_t k, std::size_t count, double depth, const PlayTuning& t) {
+    const double n = static_cast<double>(count);
+    const double radius = t.huddle_spacing * n / (2.0 * std::numbers::pi);
+    const double angle = 2.0 * std::numbers::pi * static_cast<double>(k) / n;
+    return Vec2{0.0, depth} + Vec2{std::cos(angle), std::sin(angle)} * radius;
+}
+
+double walk_up_seconds(const Formation& formation, const PlayFrame& frame, const PlayTuning& t) {
+    const std::vector<Vec2> aligned = align_formation(formation, frame);
+    double far = 0.0;
+    for (std::size_t k = 0; k < aligned.size(); ++k) {
+        far = std::max(far, (aligned[k] - huddle_spot(k, aligned.size(), -t.huddle_depth, t)).length());
+    }
+    return far / t.jog_speed + t.jog_speed / (2.0 * t.arrive_decel);
 }
 
 PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWriter* out) {

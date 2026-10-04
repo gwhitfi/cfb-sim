@@ -32,6 +32,13 @@ struct Specialists {
 // A play and its weight for one call (for tests and debugging).
 using Weighted = std::vector<std::pair<const Play*, double>>;
 
+// What the defense sees of the offense's formation at the line: receivers
+// (WR, TE, RB, FB) split out past `box` yd from the ball on each side.
+struct FormationLook {
+    int split_left = 0, split_right = 0;
+};
+FormationLook look_of(const Formation& formation, const PlayFrame& frame, double box);
+
 class AutoCoach {
   public:
     AutoCoach(const DataSet& data, const Team& team, int side, std::uint64_t seed);
@@ -39,6 +46,13 @@ class AutoCoach {
     PlayCall offense_call(const GameState& g, bool try_play);
     // `offense_play`: the offense's call (its formation shows the personnel); may be null.
     std::string defense_call(const GameState& g, const Play* offense_play);
+    // The pre-snap check once the formation shows: a play in `called`'s
+    // package (most often `called` itself).
+    std::string defense_check(const GameState& g, const Play* offense_play, const FormationLook& look,
+                              const std::string& called);
+    // This snap's tempo (this coach on offense): the team's, or the hurry-up
+    // in a two-minute offense, or a huddle while milking the clock.
+    Tempo tempo(const GameState& g) const;
     // The play clock reading at the snap (under 0: delay of game).
     double hike(const GameState& g, double play_clock);
     bool timeout(const GameState& g, bool on_offense) const;
@@ -70,6 +84,7 @@ class AutoCoach {
   private:
     const Play* draw(const Weighted& w);
     double two_minute_start() const;
+    bool milking(const GameState& g) const;  // ahead late in the 4th: run the clock
 
     const DataSet& data_;
     const Tactics& tactics_;

@@ -264,3 +264,35 @@ TEST(Coach, ReturnAggressionChangesFairCatches) {
     };
     EXPECT_GT(fair_catches(0.0), fair_catches(100.0) + 8);
 }
+
+TEST(Coach, ChecksStayInThePackageAndReadTheFormation) {
+    const Formation& trips = data().formations.at("gun_trips_rt");
+    const PlayFrame frame(30.0, Hash::Middle, true, false);
+    const FormationLook look = look_of(trips, frame, data().tuning.coach.check_box);
+    EXPECT_EQ(look.split_left, 1);   // X
+    EXPECT_EQ(look.split_right, 3);  // Z, H, Y
+    const FormationLook flipped = look_of(trips, PlayFrame(30.0, Hash::Middle, true, true), data().tuning.coach.check_box);
+    EXPECT_EQ(flipped.split_left, 3);
+
+    const Play* offense = data().playbooks.at("spread_base").find("smash");
+    ASSERT_NE(offense, nullptr);
+    const auto package = [](const std::string& id) {
+        return data().formations.at(data().playbooks.at("43_base").find(id)->formation).package;
+    };
+    const auto zone = [](const std::string& id) { return has(*data().playbooks.at("43_base").find(id), "zone"); };
+    const auto checks = [&](const FormationLook& l, int& stayed, int& zones) {
+        AutoCoach c(data(), data().teams.at("clemson_2018"), 1, 3);
+        stayed = zones = 0;
+        for (int k = 0; k < 2000; ++k) {
+            const std::string to = c.defense_check(state(1, 10, 30), offense, l, "nickel_cover1");
+            EXPECT_EQ(package(to), "nickel") << to;
+            if (to == "nickel_cover1") ++stayed;
+            if (zone(to)) ++zones;
+        }
+    };
+    int stayed = 0, zones = 0, tight_stayed = 0, tight_zones = 0;
+    checks(look, stayed, zones);
+    checks(FormationLook{}, tight_stayed, tight_zones);
+    EXPECT_GT(stayed, 1000);              // most snaps keep the call
+    EXPECT_GT(zones, tight_zones + 50);   // trips draws zone checks
+}

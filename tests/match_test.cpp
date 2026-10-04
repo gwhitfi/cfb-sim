@@ -206,6 +206,74 @@ TEST(Match, TimeoutsAndTheAutoToggle) {
     EXPECT_TRUE(replays(m.log()));
 }
 
+TEST(Match, TheDefenseChecksAtTheLine) {
+    MatchOptions o = options(19, false);
+    o.user = {false, true};  // the away team: on defense half the game
+    Match m(data(), o);
+    int checks = 0, changed = 0;
+    const Played p = play(m, [&](const Json& prompt) -> Json {
+        if (prompt["input"] != "check") return take_suggestion(prompt);
+        ++checks;
+        const Json& opt = prompt["options"];
+        EXPECT_TRUE(opt.contains("formation_name"));
+        // Check to the last play in the package every other time.
+        const Json& last = opt["plays"].back();
+        for (const Json& pl : opt["plays"]) EXPECT_EQ(pl["package"], last["package"]);
+        if (checks % 2 == 0 && last["id"] != opt["play"]) {
+            ++changed;
+            return {{"type", "answer"}, {"play", last["id"]}};
+        }
+        return {{"type", "answer"}, {"play", opt["play"]}};
+    });
+    EXPECT_TRUE(p.error.empty()) << p.error;
+    EXPECT_GT(checks, 30);
+    ASSERT_GT(changed, 5);
+    int logged = 0;
+    for (const Json& l : p.lines) {
+        if (l["type"] == "play" && l.contains("check_from")) ++logged;
+    }
+    EXPECT_GE(logged, changed - 3);  // (a pre-snap penalty can take the play away)
+    EXPECT_TRUE(replays(m.log()));
+}
+
+TEST(Match, KicksAreCalls) {
+    Match m(data(), options(21, true));
+    int fourth = 0, tries = 0, twos = 0;
+    const Played p = play(m, [&](const Json& prompt) -> Json {
+        if (prompt["input"] != "call_play" || prompt["options"]["side"] != "offense") return take_suggestion(prompt);
+        const Json& o = prompt["options"];
+        const Json kicks = o.value("kick_plays", Json::array());
+        if (o.value("try", false)) {
+            // Go for two on every other try.
+            if (++tries % 2 == 0 || kicks.empty()) {
+                ++twos;
+                return {{"type", "answer"}, {"play", o["plays"].front()["id"]}};
+            }
+            return {{"type", "answer"}, {"play", "extra_point"}};
+        }
+        if (prompt["state"]["down"] == 4) {
+            ++fourth;
+            EXPECT_EQ(kicks, Json({"punt", "field_goal"}));
+            return {{"type", "answer"}, {"play", "punt"}};
+        }
+        return take_suggestion(prompt);
+    });
+    EXPECT_TRUE(p.error.empty()) << p.error;
+    ASSERT_GT(fourth, 2);
+    ASSERT_GT(tries, 1);
+    int punts = 0, two_point = 0;
+    for (const Json& l : p.lines) {
+        if (l["type"] == "input" && l["input"] == "coaching_decision") {
+            EXPECT_NE(l["decision"], "fourth_down");
+        }
+        if (l["type"] == "play" && l.value("kicking", "") == "home" && l.value("summary", "").find("Punt") == 0) ++punts;
+        if (l["type"] == "event" && l["event"] == "two_point_try" && l["team"] == "home") ++two_point;
+    }
+    EXPECT_GE(punts, fourth - 2);  // (a pre-snap penalty can take the kick away)
+    EXPECT_EQ(two_point, twos);
+    EXPECT_TRUE(replays(m.log()));
+}
+
 TEST(Match, WatchALoggedGame) {
     const std::string log = log_of(data(), 13);
     MatchOptions o = options(0, false);

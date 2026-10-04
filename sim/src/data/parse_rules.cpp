@@ -89,7 +89,7 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     using detail::parse_curve;
     using detail::Reader;
     const Reader root(json, source);
-    root.allow_only({"format_version", "tempo", "fatigue", "subs", "injuries", "fouls"});
+    root.allow_only({"format_version", "tempo", "between_plays", "fatigue", "subs", "injuries", "fouls"});
     detail::require_format_version(root);
     GameTuning t;
 
@@ -100,6 +100,17 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.tempo_hurry = pair_of(te.at("hurry"));
     t.tempo_milk = pair_of(te.at("milk"));
     t.ready_delay = te.number("ready_delay");
+
+    const Reader bp = root.at("between_plays");
+    bp.allow_only({"call", "huddle", "defense_call", "line_up"});
+    const Reader call = bp.at("call");
+    call.allow_only({"huddle", "no_huddle", "hurry"});
+    t.call_huddle = call.number("huddle");
+    t.call_no_huddle = call.number("no_huddle");
+    t.call_hurry = call.number("hurry");
+    t.huddle_seconds = bp.number("huddle");
+    t.defense_call_after = bp.number("defense_call");
+    t.line_up = bp.number("line_up");
 
     const Reader f = root.at("fatigue");
     f.allow_only({"drain_base", "drain_per_yard", "drain_per_engaged", "drain_per_contact", "stamina",
@@ -231,7 +242,7 @@ CoachTuning parse_coach_tuning(const Json& json, const std::string& source) {
     using detail::parse_curve;
     using detail::Reader;
     const Reader root(json, source);
-    root.allow_only({"format_version", "calls", "fourth_down", "tries"});
+    root.allow_only({"format_version", "calls", "checks", "fourth_down", "tries"});
     detail::require_format_version(root);
     CoachTuning t;
 
@@ -247,6 +258,19 @@ CoachTuning parse_coach_tuning(const Json& json, const std::string& source) {
     });
     t.tendency_min = c.integer("tendency_min");
     t.tendency_gain = c.number("tendency_gain");
+
+    const Reader ch = root.at("checks");
+    ch.allow_only({"stay", "box", "spread", "trips", "vs_spread", "vs_tight", "vs_trips"});
+    t.check_stay = ch.number("stay");
+    t.check_box = ch.number("box");
+    t.check_spread = ch.integer("spread");
+    t.check_trips = ch.integer("trips");
+    const auto tags = [&](const char* key, std::map<std::string, double>& out) {
+        ch.at(key).for_each_member([&](const std::string& tag, const Reader& w) { out[tag] = w.as_number(); });
+    };
+    tags("vs_spread", t.check_vs_spread);
+    tags("vs_tight", t.check_vs_tight);
+    tags("vs_trips", t.check_vs_trips);
 
     const Reader f = root.at("fourth_down");
     f.allow_only({"convert", "fg_make", "accuracy_yards", "fg_range", "net_punt", "go_bias", "late_seconds"});

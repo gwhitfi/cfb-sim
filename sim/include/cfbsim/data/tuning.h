@@ -539,6 +539,17 @@ struct GameTuning {
         tempo_milk{0.5, 3.0};
     double ready_delay = 7.0;
 
+    // Between plays (docs/design/game-flow.md): play clock seconds used (on a
+    // 40-second clock; on a 25-second clock 15 s earlier) when the offense's call
+    // comes in, by tempo; how long the huddle lasts after it; when the
+    // defense calls (its look at the offense's personnel); and the time to
+    // get set at the line with no huddle (with a huddle, the walk-up comes
+    // from the formation).
+    double call_huddle = 10.0, call_no_huddle = 7.0, call_hurry = 3.0;
+    double huddle_seconds = 6.0;
+    double defense_call_after = 2.0;
+    double line_up = 3.0;
+
     // Fatigue.
     double drain_base = 0.012, drain_per_yard = 0.0006, drain_per_engaged = 0.008,
            drain_per_contact = 0.01;
@@ -612,6 +623,15 @@ struct CoachTuning {
     std::map<std::string, std::map<std::string, double>> personnel;
     int tendency_min = 8;
     double tendency_gain = 1.0;
+
+    // The defense's pre-snap check (docs/design/game-flow.md): plays in the
+    // called play's package, reweighted by the offense's formation.
+    double check_stay = 24.0;     // the called play's weight x this
+    double check_box = 5.0;       // yd from the ball: a receiver outside this is split out
+    int check_spread = 3;         // split-out receivers (both sides) for a spread look
+    int check_trips = 3;          // split-out receivers to one side for a trips look
+    // Defensive play tag -> weight multiplier, by look (a tight look: fewer than check_spread split out).
+    std::map<std::string, double> check_vs_spread, check_vs_tight, check_vs_trips;
 
     // 4th down.
     Curve convert;         // yards to go -> conversion chance

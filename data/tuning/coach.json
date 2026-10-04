@@ -19,6 +19,18 @@
     "tendency_gain": 1.0            // vs_run x (1 + gain x tendency/100 x (2 x run share - 1))
   },
 
+  // The defense's pre-snap check, once it sees the formation: a play in the
+  // called play's package, drawn from the call weights x these (by play tag).
+  "checks": {
+    "stay": 24,                     // the called play's weight x this (about 1 snap in 5 checks)
+    "box": 5.0,                     // yd from the ball: a receiver outside it is split out
+    "spread": 3,                    // split out (both sides) for a spread look; fewer is a tight look
+    "trips": 3,                     // split out to one side for a trips look
+    "vs_spread": {"vs_pass": 1.5, "vs_run": 0.7},
+    "vs_tight": {"vs_run": 1.5, "vs_pass": 0.8},
+    "vs_trips": {"zone": 1.4, "man": 0.7}
+  },
+
   "fourth_down": {
     "convert": {"curve": "linear", "points": [[1, 0.68], [2, 0.6], [3, 0.53], [5, 0.43], [10, 0.25], [15, 0.15], [25, 0.05]]},
     "fg_make": {"curve": "linear", "points": [[17, 0.99], [30, 0.9], [40, 0.78], [50, 0.6], [55, 0.45], [60, 0.25], [65, 0.1]]},

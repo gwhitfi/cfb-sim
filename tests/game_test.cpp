@@ -166,3 +166,66 @@ TEST(Lineup, WorkDrainsEnergyAndRestRestoresIt) {
     lineup.recover(120.0, {});
     EXPECT_GT(lineup.energy(de), tired);
 }
+
+TEST(Game, BetweenPlaysComeInOrderOnThePlayClock) {
+    const std::string log = game_log(data(), 2);
+    std::istringstream in(log);
+    std::int64_t last = 0, whistle = 0, call = -1, defense = -1, check = -1;
+    int snaps = 0, punts = 0, extra_points = 0;
+    bool in_try = false;
+    for (std::string text; std::getline(in, text);) {
+        const Json j = Json::parse(text);
+        if (!j.contains("tick")) continue;
+        const std::int64_t tick = j["tick"];
+        EXPECT_GE(tick, last) << text;  // time only moves forward
+        last = tick;
+        const std::string input = j.value("input", "");
+        EXPECT_NE(j.value("decision", ""), "fourth_down");  // 4th-down kicks are calls now
+        EXPECT_NE(j.value("decision", ""), "try");
+        if (input == "call_play" && j.value("play", "") == "punt") ++punts;
+        if (input == "call_play" && j.value("play", "") == "extra_point") ++extra_points;
+        if (j.value("type", "") == "play") {
+            whistle = tick;
+            call = defense = check = -1;
+            in_try = false;
+        } else if (input == "call_play" && (in_try || j.value("try", false))) {
+            in_try = true;  // tries are untimed: the call and the defense's come at once
+        } else if (input == "call_play" && call < 0) {
+            call = tick;
+            EXPECT_GE(call, whistle);
+        } else if (input == "call_play") {
+            defense = tick;
+            EXPECT_GT(defense, call) << "the defense calls after it sees the personnel";
+        } else if (input == "check") {
+            check = tick;
+            EXPECT_GT(check, defense) << "the check comes once the offense is set";
+        } else if (input == "hike" && check >= 0) {
+            EXPECT_EQ(tick, check) << "the hike is asked once the offense is set";
+            EXPECT_GE(tick, whistle + 2 * 20) << "it takes a few seconds to call a play and get set";
+            ++snaps;
+        }
+    }
+    EXPECT_GT(snaps, 100);
+    EXPECT_GT(punts, 0);
+    EXPECT_GT(extra_points, 0);
+}
+
+TEST(Game, CheckAndKickAnswers) {
+    Prompt check;
+    check.input = "check";
+    check.options = {{"plays", Json::array({{{"id", "a"}}, {{"id", "b"}}})}, {"play", "a"}};
+    Json a = {{"play", "b"}};
+    EXPECT_FALSE(check_answer(check, a).has_value());
+    a = {{"play", "z"}};
+    EXPECT_TRUE(check_answer(check, a).has_value());
+
+    Prompt call;
+    call.input = "call_play";
+    call.options = {{"side", "offense"}, {"plays", Json::array()}, {"kick_plays", {"punt"}}};
+    a = {{"play", "punt"}};
+    EXPECT_FALSE(check_answer(call, a).has_value());
+    a = {{"play", "field_goal"}};
+    EXPECT_TRUE(check_answer(call, a).has_value());
+    a = {{"play", "punt"}, {"flip", true}};
+    EXPECT_TRUE(check_answer(call, a).has_value());
+}

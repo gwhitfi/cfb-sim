@@ -11,6 +11,16 @@
     "ready_delay": 7                // s after the whistle the ready signal comes (40-s clock)
   },
 
+  // Between plays (docs/design/game-flow.md). Play clock seconds used on a
+  // 40-second clock; a 25-second clock starts on the ready signal, after the
+  // stoppage, so the call and the break come 15 s earlier on it.
+  "between_plays": {
+    "call": {"huddle": 10, "no_huddle": 7, "hurry": 3},   // the offense's call comes in, by tempo
+    "huddle": 6,                    // s from the call to the break (huddle tempo); then the walk-up, from the formation
+    "defense_call": 2,              // s after the offense's call: its personnel is on the field, the defense calls
+    "line_up": 3                    // s to get set at the line with no huddle
+  },
+
   "fatigue": {
     "drain_base": 0.02,            // energy per snap
     "drain_per_yard": 0.001,
