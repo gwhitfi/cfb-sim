@@ -15,7 +15,8 @@
 //       one play outside a game (cfbsim_run_play), saved to out/plays/ as well
 //   {"type": "new_game", "home", "away", "seed"?, "user": ["home"]}
 //   {"type": "replay", "file": "out/games/x.gamelog.jsonl"} (a file from "logs")
-//   {"type": "advance"}                        -> {"type": "advance", "result": {...}}
+//   {"type": "advance", "to_tick"?: N}         -> {"type": "advance", "result": {...}}
+//                                                (to_tick: between plays, run the clock this far)
 //   {"type": "command", "command": {...}}      -> {"type": "command", "ok": bool, "error"?}
 // A finished live game's log is saved to out/games/ and announced with
 // {"type": "saved", "path": "..."}. Errors come back as {"type": "error", "message"}.
@@ -120,6 +121,10 @@ class Server {
         if (type == "replay") return replay(s, msg);
         if (!s.match) return {error_message("no game: send new_game or replay first")};
         if (type == "advance") {
+            if (msg.contains("to_tick") && msg["to_tick"].is_number()) {
+                const std::string run = Json{{"type", "run_to"}, {"tick", msg["to_tick"]}}.dump();
+                if (cfbsim_match_command(s.match.get(), run.c_str()) != 0) return {error_message(cfbsim_last_error())};
+            }
             const char* r = cfbsim_match_advance(s.match.get());
             if (!r) return {error_message(cfbsim_last_error())};
             std::vector<std::string> out{std::string(R"({"type":"advance","result":)") + r + "}"};

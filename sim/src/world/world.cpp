@@ -11,7 +11,7 @@ Vec3 carry_spot(const Agent& carrier) {
 }
 
 int World::add_agent(Agent agent) {
-    if (tick_ != 0) throw std::logic_error("World::add_agent: agents must be added before step()");
+    if (stepped_) throw std::logic_error("World::add_agent: agents must be added before step()");
     agents_.push_back(std::move(agent));
     return static_cast<int>(agents_.size()) - 1;
 }
@@ -20,6 +20,7 @@ void World::step(std::span<const Intent> intents) {
     if (intents.size() != agents_.size()) {
         throw std::invalid_argument("World::step: need exactly one Intent per agent");
     }
+    stepped_ = true;
 
     // Phases 1-2, Perceive and Decide, happen in the caller for now (it built
     // `intents`). Player behaviors move in here in phase 4.

@@ -79,6 +79,7 @@ class World {
     std::vector<Agent> agents_;
     Ball ball_;
     std::int64_t tick_ = 0;
+    bool stepped_ = false;  // (agents are added before the first step)
 };
 
 }  // namespace cfbsim

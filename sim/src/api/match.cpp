@@ -2,6 +2,7 @@
 
 #include "cfbsim/api/match.h"
 
+#include <algorithm>
 #include <functional>
 
 namespace cfbsim {
@@ -32,9 +33,18 @@ Match::Match(const DataSet& data, MatchOptions options) : data_(data), opt_(std:
     // baton, so they can touch the Match's members freely.
     opt_.game.decide = [this](const Prompt& p) { return decide(p); };
     opt_.game.observe = [this](const Json& line, const Json& state) { observe(line, state); };
+    opt_.game.live = [this](int team) { return opt_.user[static_cast<std::size_t>(team)]; };
+    opt_.game.window = [this](std::int64_t tick) { window_tick(tick); };
     if (opt_.tracking) {
         opt_.game.tracking = [this](const std::string& name) -> std::unique_ptr<std::ostream> {
-            return std::make_unique<CaptureStream>([this, name](std::string text) { tracked(name, std::move(text)); });
+            auto s = std::make_unique<CaptureStream>([this, name](std::string text) { tracked(name, std::move(text)); });
+            if (name.find("_between") != std::string::npos) {
+                // Between plays: streamed in parts as it's written (flush_live).
+                live_stream_ = s.get();
+                live_name_ = name;
+                live_sent_ = 0;
+            }
+            return s;
         };
     }
 }
@@ -86,6 +96,7 @@ void Match::yield_to_caller(std::unique_lock<std::mutex>& lock) {
 }
 
 std::optional<Json> Match::decide(const Prompt& p) {
+    if (p.live) return decide_live(p);
     std::unique_lock lock(m_);
     const std::size_t t = static_cast<std::size_t>(p.team);
     if (p.optional) {
@@ -113,6 +124,86 @@ std::optional<Json> Match::decide(const Prompt& p) {
     return std::move(answer_);
 }
 
+std::optional<Json> Match::decide_live(const Prompt& p) {
+    std::lock_guard lock(m_);
+    const std::size_t t = static_cast<std::size_t>(p.team);
+    if (!opt_.user[t]) return p.suggestion.is_null() ? std::nullopt : std::optional<Json>(p.suggestion);
+    if (p.input == "timeout") {
+        if (timeout_requests_[t] <= 0) return std::nullopt;
+        --timeout_requests_[t];
+        return Json::object();
+    }
+    // The user's answer, if one is waiting; otherwise the decision stays open.
+    const Key key{p.input, p.team};
+    live_next_[key] = p;  // (open this tick either way: answered, it stays answered while open)
+    const auto it = std::find_if(queue_.begin(), queue_.end(), [&](const auto& q) { return q.first == key; });
+    if (it != queue_.end()) {
+        Json a = std::move(it->second);
+        queue_.erase(it);
+        return a;
+    }
+    return std::nullopt;
+}
+
+void Match::flush_live() {
+    if (!live_stream_) return;
+    std::string text = live_stream_->str();
+    if (text.size() <= live_sent_) return;
+    outbox_.push_back({{"type", "tracking"}, {"name", live_name_}, {"data", text.substr(live_sent_)}, {"partial", true}});
+    live_sent_ = text.size();
+}
+
+void Match::window_tick(std::int64_t tick) {
+    std::unique_lock lock(m_);
+    flush_live();
+    if (tick < 0) {
+        // The window closed: nothing in it can be answered any more.
+        live_.clear();
+        live_next_.clear();
+        answered_live_.clear();
+        queue_.clear();
+        paused_for_.reset();
+        in_window_ = false;
+        return;
+    }
+    tick_ = tick;
+    in_window_ = true;
+    // The decisions open after this tick; a new one stops the game so the
+    // caller sees it (and with no pace set, each waits for its answer).
+    std::map<Key, Prompt> open = std::move(live_next_);
+    live_next_.clear();
+    std::optional<Key> fresh;
+    for (const auto& [key, p] : open) {
+        if (!live_.contains(key) && !fresh) fresh = key;
+    }
+    for (auto it = answered_live_.begin(); it != answered_live_.end();) {
+        it = open.contains(*it) ? std::next(it) : answered_live_.erase(it);
+    }
+    live_ = std::move(open);
+    if (fresh) paused_for_ = fresh;
+    const auto unanswered = [&] {
+        return std::any_of(live_.begin(), live_.end(), [&](const auto& kv) { return !answered_live_.contains(kv.first); });
+    };
+    for (bool stop = fresh.has_value();; stop = false) {
+        // A side handed to the coach stops waiting for its user.
+        std::erase_if(live_, [&](const auto& kv) { return !opt_.user[static_cast<std::size_t>(kv.first.second)]; });
+        if (!queue_.empty() || timeout_requests_[0] > 0 || timeout_requests_[1] > 0) return;  // on to the next tick
+        const bool hold = clocked_ ? tick >= to_tick_ : unanswered();
+        if (!stop && !hold) return;
+        yield_to_caller(lock);
+    }
+}
+
+Json Match::prompt_json(const Prompt& p) {
+    Json j = {{"input", p.input},
+              {"team", p.team == 0 ? "home" : "away"},
+              {"suggestion", p.live ? p.hint : p.suggestion},
+              {"options", p.options},
+              {"state", p.state}};
+    if (p.live) j["live"] = true;
+    return j;
+}
+
 void Match::observe(const Json& line, const Json& state) {
     std::unique_lock lock(m_);
     outbox_.push_back({{"type", "line"}, {"line", line}, {"state", state}});
@@ -121,6 +212,13 @@ void Match::observe(const Json& line, const Json& state) {
 
 void Match::tracked(const std::string& name, std::string text) {
     std::lock_guard lock(m_);
+    if (live_stream_ && name == live_name_) {
+        // The rest of a streamed file.
+        outbox_.push_back({{"type", "tracking"}, {"name", name}, {"data", text.substr(std::min(live_sent_, text.size()))},
+                           {"partial", false}});
+        live_stream_ = nullptr;
+        return;
+    }
     outbox_.push_back({{"type", "tracking"}, {"name", name}, {"data", std::move(text)}});
 }
 
@@ -136,14 +234,24 @@ Json Match::advance() {
         cv_.notify_all();
         cv_.wait(lock, [this] { return !game_turn_; });
     }
-    Json out = {{"messages", std::move(outbox_)}, {"prompt", nullptr}, {"done", done_}};
+    Json out = {{"messages", std::move(outbox_)}, {"prompt", nullptr}, {"done", done_}, {"tick", tick_}};
     outbox_ = Json::array();
+    Json live = Json::array();
+    if (!done_) {
+        for (const auto& [key, p] : live_) live.push_back(prompt_json(p));
+    }
+    out["live"] = live;
+    out["window"] = in_window_ && !done_;
     if (pending_ && !answered_) {
-        out["prompt"] = {{"input", pending_->input},
-                         {"team", pending_->team == 0 ? "home" : "away"},
-                         {"suggestion", pending_->suggestion},
-                         {"options", pending_->options},
-                         {"state", pending_->state}};
+        out["prompt"] = prompt_json(*pending_);
+    } else if (!done_) {
+        // Stopped between plays: the decision it stopped for (or one still waiting).
+        const Prompt* p = nullptr;
+        if (paused_for_ && live_.contains(*paused_for_) && !answered_live_.contains(*paused_for_)) p = &live_.at(*paused_for_);
+        for (const auto& [key, q] : live_) {
+            if (!p && !answered_live_.contains(key)) p = &q;
+        }
+        if (p) out["prompt"] = prompt_json(*p);
     }
     if (!error_.empty()) out["error"] = error_;
     return out;
@@ -153,6 +261,42 @@ std::optional<std::string> Match::command(const Json& cmd) {
     std::lock_guard lock(m_);
     if (!cmd.is_object()) return "a command must be a JSON object";
     const std::string type = cmd.value("type", "");
+    if (type == "answer" && (!pending_ || answered_)) {
+        // Between plays: a live decision (named, or the one advance() returned).
+        const Prompt* p = nullptr;
+        const std::string input = cmd.value("input", "");
+        const int team = team_index(cmd);  // (needed only when both sides are the user's)
+        for (const auto& [key, q] : live_) {
+            if (input.empty() ? (paused_for_ && key == *paused_for_) : key.first == input && (team < 0 || key.second == team)) {
+                p = &q;
+            }
+        }
+        if (!p && input.empty()) {
+            for (const auto& [key, q] : live_) {
+                if (!p && !answered_live_.contains(key)) p = &q;
+            }
+        }
+        if (!p) return input.empty() ? "nothing to answer" : "no " + input + " to answer now";
+        Json a = cmd;
+        a.erase("type");
+        a.erase("input");
+        a.erase("team");
+        if (cmd.value("auto", false)) {
+            if (p->hint.is_null()) return "the coach has no call here";
+            a = p->hint;
+        }
+        if (const std::optional<std::string> error = check_answer(*p, a)) return error;
+        const Key key{p->input, p->team};
+        queue_.emplace_back(key, std::move(a));
+        answered_live_.insert(key);
+        return std::nullopt;
+    }
+    if (type == "run_to") {
+        if (!cmd.contains("tick") || !cmd["tick"].is_number()) return "run_to needs a tick";
+        to_tick_ = cmd["tick"].get<std::int64_t>();
+        clocked_ = true;
+        return std::nullopt;
+    }
     if (type == "answer") {
         if (!pending_ || answered_) return "nothing to answer";
         if (cmd.value("auto", false)) {

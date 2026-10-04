@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { playerAt } from "./playback";
 import { frameAtTick, parseTracking, STRIDE, Z } from "./tracking";
 
 const header = {
@@ -32,6 +33,33 @@ const tick = (n: number, x: number, extra: object = {}) => ({
 const file = (...lines: object[]) => lines.map((l) => JSON.stringify(l)).join("\n") + "\n";
 
 describe("parseTracking", () => {
+  it("adds a player who joins after the header, standing where he first shows up until then", () => {
+    const rec = parseTracking(
+      [
+        { type: "header", format_version: 2, tick_rate: 20, players: [{ id: "a", team: "home" }] },
+        { type: "tick", tick: 0, p: [[1, 1, 0, 0, 0]], ball: null },
+        { type: "player", id: "b", team: "away", name: "B. Late" },
+        { type: "tick", tick: 4, p: [[2, 1, 0, 0, 0], [9, 50, 0, 0, 90]], ball: null },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join("\n"),
+    );
+    expect(rec.header.players.map((p) => p.id)).toEqual(["a", "b"]);
+    // Named, but in no frame yet (a file still coming in): not shown yet.
+    const early = parseTracking(
+      [
+        { type: "header", format_version: 2, tick_rate: 20, players: [{ id: "a", team: "home" }] },
+        { type: "tick", tick: 0, p: [[1, 1, 0, 0, 0]], ball: null },
+        { type: "player", id: "b", team: "away" },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join("\n"),
+    );
+    expect(early.header.players.length).toBe(1);
+    expect(playerAt(rec, 1, 0).y).toBe(50);
+    expect(playerAt(rec, 0, 1).x).toBe(2);
+  });
+
   it("reads the header, ticks, overlays, and events", () => {
     const rec = parseTracking(
       file(
@@ -44,6 +72,17 @@ describe("parseTracking", () => {
     );
     expect(rec.frameCount).toBe(3);
     expect(rec.header.players.map((p) => p.id)).toEqual(["a", "b"]);
+    // Named, but in no frame yet (a file still coming in): not shown yet.
+    const early = parseTracking(
+      [
+        { type: "header", format_version: 2, tick_rate: 20, players: [{ id: "a", team: "home" }] },
+        { type: "tick", tick: 0, p: [[1, 1, 0, 0, 0]], ball: null },
+        { type: "player", id: "b", team: "away" },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join("\n"),
+    );
+    expect(early.header.players.length).toBe(1);
     expect(rec.state.length).toBe(3 * 2 * STRIDE);
     expect(rec.state[(2 * 2 + 1) * STRIDE]).toBe(17); // frame 2, player b, x
     expect(rec.ball[1]).toBeNull();

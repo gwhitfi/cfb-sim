@@ -6,6 +6,7 @@
 //   {"type":"tick", "tick":0, "p":[[x, y, vx, vy, facing_deg(, z)], ...], "ball":[x, y, z] or null,
 //    "dbg":[shape, ...]}
 //   {"type":"event", "tick":87, "event":"split", ...}
+//   {"type":"player", "id":..., ...}   (joins: later frames have a row for him)
 //
 // Players in "p" are in the same order as the header's "players" list. A
 // player in the air has a sixth value, z (his feet's height); format 2.
@@ -60,6 +61,10 @@ class TrackingWriter {
     // `debug`: this tick's overlay shapes (an array), if any.
     void frame(const World& world, Json debug = Json::array());
     void event(const World& world, std::string_view name, Json fields = Json::object());
+    // A player who joins after the header (between plays, someone coming on):
+    // {"type":"player", ...the header's player fields}. Frames before it have
+    // no row for him.
+    void player(const Agent& a);
 
   private:
     void write(const Json& line);

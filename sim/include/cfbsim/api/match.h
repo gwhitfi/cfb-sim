@@ -13,7 +13,9 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <map>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -42,7 +44,8 @@ class Match {
 
     // Runs the game until a user must decide, a play ends (pause_each_play),
     // or the game is over. Returns what happened since the last call:
-    //   {"messages": [...], "prompt": {...} | null, "done": bool, "error": "..."}
+    //   {"messages": [...], "prompt": {...} | null, "done": bool, "error": "...",
+    //    "live": [open decisions between plays], "window": bool (stopped between plays), "tick": game tick}
     // messages: {"type": "line", "line": {game log line}, "state": {...}} and
     //           {"type": "tracking", "name": "...", "data": "tracking file text"}
     // While a prompt is unanswered, advance() returns it again and does nothing.
@@ -52,7 +55,13 @@ class Match {
     //   {"type": "answer", ...fields}  answer the pending prompt ({"type": "answer", "auto": true}:
     //                                   take the coach's suggestion)
     //   {"type": "auto", "team": "home", "on": true}  let the coach take over a side (or give it back)
-    //   {"type": "timeout", "team": "home"}           call a timeout at the next dead ball
+    //   {"type": "timeout", "team": "home"}           call a timeout (between plays: at once)
+    //   {"type": "run_to", "tick": 1234}              between plays, run the clock this far, no
+    //                                                  further (a live viewer's pace; without it,
+    //                                                  each open decision waits for its answer)
+    // Between plays a user side's decisions are live prompts ("live" in
+    // advance()): an answer may name its "input" ("call_play", "check",
+    // "hike"); without one it goes to the prompt advance() returned.
     // Returns an error message, or nullopt.
     std::optional<std::string> command(const Json& cmd);
 
@@ -66,6 +75,10 @@ class Match {
     // Game thread: hand control to the caller and wait to get it back.
     void yield_to_caller(std::unique_lock<std::mutex>& lock);
     std::optional<Json> decide(const Prompt& p);
+    std::optional<Json> decide_live(const Prompt& p);
+    void window_tick(std::int64_t tick);
+    void flush_live();  // the between-plays file written so far, as a part
+    static Json prompt_json(const Prompt& p);
     void observe(const Json& line, const Json& state);
     void tracked(const std::string& name, std::string text);
 
@@ -86,6 +99,20 @@ class Match {
     std::optional<Json> answer_;      // nullopt with answered_: take the suggestion
     std::array<int, 2> timeout_requests_{};
     Json outbox_ = Json::array();
+
+    // Between plays (live).
+    using Key = std::pair<std::string, int>;  // (input, team)
+    std::map<Key, Prompt> live_, live_next_;  // open decisions of user sides (this tick, the next)
+    std::set<Key> answered_live_;             // answered while open
+    std::optional<Key> paused_for_;           // the new decision the game stopped for
+    std::vector<std::pair<Key, Json>> queue_; // answers waiting for the next tick
+    std::int64_t tick_ = 0;
+    bool in_window_ = false;                  // stopped between plays (the clock is the caller's)
+    std::int64_t to_tick_ = 0;
+    bool clocked_ = false;                    // a caller sets the pace (run_to)
+    std::ostringstream* live_stream_ = nullptr;  // the between-plays file being written
+    std::string live_name_;
+    std::size_t live_sent_ = 0;
     std::ostringstream log_;
 };
 

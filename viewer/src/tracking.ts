@@ -131,6 +131,10 @@ export function parseTracking(text: string): Recording {
         debug.push(shapes.length > 0 ? shapes : undefined);
         break;
       }
+      case "player":
+        // Joins after the header (between plays, coming on): later frames have a row for him.
+        header.players.push(parsePlayer(j, `${where}: player`));
+        break;
       case "event": {
         const { type: _type, tick, event, ...fields } = j;
         rawEvents.push({
@@ -149,9 +153,18 @@ export function parseTracking(text: string): Recording {
   if (header === null) throw new TrackingError("the file is empty");
   if (tickNumbers.length === 0) throw new TrackingError("the file has no tick lines");
 
+  // (A file still streaming in can name a player before any frame has him: not yet.)
+  header.players.length = Math.min(header.players.length, stateChunks[stateChunks.length - 1]!.length / STRIDE);
   const perFrame = header.players.length * STRIDE;
   const state = new Float32Array(tickNumbers.length * perFrame);
   stateChunks.forEach((chunk, f) => state.set(chunk, f * perFrame));
+  // A player who joined later stands where he first shows up until then.
+  for (let i = 0; i < header.players.length; i++) {
+    const first = stateChunks.findIndex((c) => c.length > i * STRIDE);
+    for (let f = 0; f < first; f++) {
+      state.copyWithin(f * perFrame + i * STRIDE, first * perFrame + i * STRIDE, first * perFrame + (i + 1) * STRIDE);
+    }
+  }
   const ticks = Int32Array.from(tickNumbers);
 
   return {
@@ -194,22 +207,23 @@ function parseHeader(j: any, where: string): Header {
       away: parseTeam(j.teams?.away, "Away", "#1D4F91"),
     },
     details: j.details ?? {},
-    players: players.map((p, i) => {
-      const at = `${where}: players[${i}]`;
-      const team = need(p.team, "string", `${at}.team`);
-      if (team !== "home" && team !== "away") {
-        throw new TrackingError(`${at}.team: expected "home" or "away", got "${team}"`);
-      }
-      return {
-        id: need(p.id, "string", `${at}.id`),
-        name: String(p.name ?? p.id),
-        label: String(p.label ?? ""),
-        team,
-        jersey: Number(p.jersey ?? 0),
-        position: String(p.position ?? ""),
-        radius: Number(p.radius ?? 0.4),
-      };
-    }),
+    players: players.map((p, i) => parsePlayer(p, `${where}: players[${i}]`)),
+  };
+}
+
+function parsePlayer(p: any, at: string): PlayerInfo {
+  const team = need(p.team, "string", `${at}.team`);
+  if (team !== "home" && team !== "away") {
+    throw new TrackingError(`${at}.team: expected "home" or "away", got "${team}"`);
+  }
+  return {
+    id: need(p.id, "string", `${at}.id`),
+    name: String(p.name ?? p.id),
+    label: String(p.label ?? ""),
+    team,
+    jersey: Number(p.jersey ?? 0),
+    position: String(p.position ?? ""),
+    radius: Number(p.radius ?? 0.4),
   };
 }
 

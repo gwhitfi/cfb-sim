@@ -43,18 +43,28 @@ export interface Prompt {
   suggestion: any;
   options: any;
   state: GameState;
+  live?: boolean; // between plays: open while the play clock runs (game-flow.md)
 }
 
 export interface AdvanceResult {
-  messages: ({ type: "line"; line: any; state: GameState } | { type: "tracking"; name: string; data: string })[];
+  messages: (
+    | { type: "line"; line: any; state: GameState }
+    // A tracking file, or (between plays, streamed) a part of one: `partial`
+    // true while more is coming, false on the last part.
+    | { type: "tracking"; name: string; data: string; partial?: boolean }
+  )[];
   prompt: Prompt | null;
   done: boolean;
   error?: string;
+  live?: Prompt[]; // the user's open decisions between plays
+  window?: boolean; // stopped between plays: the viewer sets the pace (advance with to_tick)
+  tick?: number; // the game tick it stopped at
 }
 
 // One thing to show, in order: a snap to animate, or a log line to apply.
+// `streaming`: a between-plays file still coming in.
 export type Step =
-  | { kind: "tracking"; name: string; data: string }
+  | { kind: "tracking"; name: string; data: string; streaming?: boolean }
   | { kind: "line"; line: any; state: GameState };
 
 // The game's snaps and log lines waiting to be shown. Lines between snaps
@@ -64,8 +74,18 @@ export class StepQueue {
 
   push(result: AdvanceResult): void {
     for (const m of result.messages) {
-      if (m.type === "tracking") this.steps.push({ kind: "tracking", name: m.name, data: m.data });
-      else this.steps.push({ kind: "line", line: m.line, state: m.state });
+      if (m.type !== "tracking") {
+        this.steps.push({ kind: "line", line: m.line, state: m.state });
+        continue;
+      }
+      // A later part of a file still waiting in the queue joins it.
+      const waiting = this.steps.find((s) => s.kind === "tracking" && s.name === m.name && s.streaming);
+      if (waiting && waiting.kind === "tracking") {
+        waiting.data += m.data;
+        waiting.streaming = m.partial === true;
+        continue;
+      }
+      this.steps.push({ kind: "tracking", name: m.name, data: m.data, streaming: m.partial === true });
     }
   }
 
@@ -232,7 +252,3 @@ export const CHOICE_NAMES: Record<string, string> = {
   defer: "Defer",
 };
 
-// The play clock reading when the offense is set: the earliest it may snap.
-export function setReading(options: any): number {
-  return Number(options.set ?? options.ready?.huddle ?? options.play_clock ?? 40);
-}

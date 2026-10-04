@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byFormation, describeLine, downText, periodText, setReading, StepQueue, type GameState } from "./game";
+import { byFormation, describeLine, downText, periodText, StepQueue, type GameState } from "./game";
 
 const state: GameState = {
   tick: 0,
@@ -58,9 +58,13 @@ describe("prompts", () => {
     expect(byFormation(plays).map(([f, ps]) => [f, ps.map((p) => p.id)])).toEqual([["f1", ["a", "c"]], ["f2", ["b"]]]);
   });
 
-  it("starts the play clock where the offense is set", () => {
-    expect(setReading({ play_clock: 40, set: 17.65, ready: { huddle: 16 } })).toBe(17.65);
-    expect(setReading({ play_clock: 25 })).toBe(25);
+  it("joins the parts of a streamed file still in the queue", () => {
+    const q = new StepQueue();
+    const part = (data: string, partial: boolean) => ({ type: "tracking" as const, name: "007_0_between", data, partial });
+    q.push({ messages: [part("a", true)], prompt: null, done: false });
+    q.push({ messages: [part("b", true), part("c", false)], prompt: null, done: false });
+    expect(q.length).toBe(1);
+    expect(q.shift()).toEqual({ kind: "tracking", name: "007_0_between", data: "abc", streaming: false });
   });
 });
 

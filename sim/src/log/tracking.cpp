@@ -26,6 +26,16 @@ void round_numbers(Json& j) {
     }
 }
 
+Json player_json(const Agent& a) {
+    return {{"id", a.id},
+            {"name", a.name},
+            {"label", a.label},
+            {"team", std::string(to_name(kTeamSideNames, a.team))},
+            {"jersey", a.jersey},
+            {"position", std::string(to_name(kPositionNames, a.position))},
+            {"radius", rounded(a.body.radius, 100.0)}};
+}
+
 Json team_json(const TrackingTeam& t) {
     return {{"name", t.name}, {"abbr", t.abbr}, {"color", t.color}};
 }
@@ -36,15 +46,7 @@ void TrackingWriter::write(const Json& line) { out_ << line.dump() << '\n'; }
 
 void TrackingWriter::header(const TrackingInfo& info, const World& world) {
     Json players = Json::array();
-    for (const Agent& a : world.agents()) {
-        players.push_back({{"id", a.id},
-                           {"name", a.name},
-                           {"label", a.label},
-                           {"team", std::string(to_name(kTeamSideNames, a.team))},
-                           {"jersey", a.jersey},
-                           {"position", std::string(to_name(kPositionNames, a.position))},
-                           {"radius", rounded(a.body.radius, 100.0)}});
-    }
+    for (const Agent& a : world.agents()) players.push_back(player_json(a));
     Json line = {{"type", "header"},
                  {"format_version", 2},
                  {"sim_version", std::string(version())},
@@ -82,6 +84,12 @@ void TrackingWriter::frame(const World& world, Json debug) {
         round_numbers(debug);
         line["dbg"] = std::move(debug);
     }
+    write(line);
+}
+
+void TrackingWriter::player(const Agent& a) {
+    Json line = player_json(a);
+    line["type"] = "player";
     write(line);
 }
 

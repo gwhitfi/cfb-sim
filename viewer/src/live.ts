@@ -13,7 +13,6 @@ import {
   penaltyName,
   periodText,
   promptTitle,
-  setReading,
   StepQueue,
   type AdvanceResult,
   type GameState,
@@ -47,6 +46,21 @@ export interface GameSetup {
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const HOLD_AFTER_SNAP = 0.9; // s to linger on a play's last frame
+const LOOKAHEAD = 8; // ticks: between plays, the game runs this far ahead of the screen
+
+// A between-plays file streaming in while the play clock runs (game-flow.md).
+interface LiveWindow {
+  name: string;
+  text: string;
+  done: boolean; // the last part is in
+  start: number; // the game tick its tick 0 is
+  playClock: number;
+  shown: boolean; // loaded in the viewer
+  dirty: boolean; // new parts since
+  hiddenTick?: number; // skip animations or dev mode: the clock we keep instead (file ticks)
+}
+
+const key = (p: { input: string; team: string }) => `${p.input}/${p.team}`;
 const SERVER_KEY = "cfbsim.server";
 export const DEFAULT_SERVER = "ws://localhost:8765";
 
@@ -92,9 +106,12 @@ export class Live {
   private mode: "live" | "replay" | null = null;
   private user = new Set<TeamKey>();
   private auto = new Set<TeamKey>(); // user sides handed to the coach
-  private clockReading = 0; // the hike prompt's play clock
-  private clockFrozen = false;
-  private hikeSent = false;
+  private live: Prompt[] = []; // the user's open decisions between plays
+  private answeredLive = new Set<string>(); // answered (still open on the server until it's applied)
+  private lastLive = ""; // the decision an answer is in flight for
+  private inWindow = false; // the game is stopped between plays, waiting for the clock
+  private simTick = 0;
+  private win: LiveWindow | null = null;
   private names = new Map<string, string>(); // player id -> name, from the tracking files
   private plays: PlayRunner;
   private stats = new StatsPanel($("game-stats"));
@@ -196,8 +213,8 @@ export class Live {
       case "command":
         this.waiting = false;
         if (!m.ok) {
+          this.answeredLive.delete(this.lastLive);
           this.promptError(m.error);
-          this.hikeSent = false;
           return;
         }
         this.advance();
@@ -244,6 +261,10 @@ export class Live {
     this.mode = mode;
     this.queue.clear();
     this.prompt = this.shownPrompt = null;
+    this.live = [];
+    this.answeredLive.clear();
+    this.win = null;
+    this.inWindow = false;
     this.done = false;
     this.animating = false;
     this.auto.clear();
@@ -260,12 +281,16 @@ export class Live {
       this.setAuto(true);
     }
     this.setup = null;
+    // Coaching: the screen sets the pace between plays from the first one.
+    if (mode === "live" && this.user.size > 0) this.send({ type: "command", command: { type: "run_to", tick: 0 } });
     this.advance();
   }
 
   private stop(): void {
     this.mode = null;
     this.queue.clear();
+    this.win = null;
+    this.live = [];
     this.hidePrompt();
     $("scoreboard").hidden = true;
     $("game").hidden = true;
@@ -287,10 +312,30 @@ export class Live {
   }
 
   private onAdvance(r: AdvanceResult): void {
-    this.queue.push(r);
-    this.prompt = r.prompt;
+    // More of the between-plays file on screen goes straight to it.
+    const rest = r.messages.filter((m) => {
+      if (m.type !== "tracking" || !this.win || m.name !== this.win.name) return true;
+      this.win.text += m.data;
+      this.win.dirty = true;
+      if (m.partial === false) this.win.done = true;
+      return false;
+    });
+    this.queue.push({ ...r, messages: rest });
+    this.prompt = r.prompt && !r.prompt.live ? r.prompt : null;
+    this.live = (r.live ?? []).filter((p) => this.user.has(p.team) && !this.auto.has(p.team));
+    const open = new Set(this.live.map(key));
+    for (const k of [...this.answeredLive]) if (!open.has(k)) this.answeredLive.delete(k);
+    this.inWindow = !!r.window;
+    if (r.tick !== undefined) this.simTick = r.tick;
     this.done = r.done;
     if (r.error) this.feed(`Error: ${r.error}`, "bad");
+  }
+
+  // Asks the game to run to `toTick` (between plays), or just on.
+  private advanceTo(toTick: number): void {
+    if (this.waiting || !this.mode) return;
+    this.waiting = true;
+    this.send({ type: "advance", to_tick: Math.floor(toTick) });
   }
 
   // ---------------------------------------------------------------------
@@ -299,7 +344,11 @@ export class Live {
 
   tick(dt: number): void {
     if (!this.mode) return;
-    if (this.shownPrompt?.input === "hike") this.tickHike(dt);
+    if (this.win) {
+      if (!this.windowTick(dt)) return;
+      this.win = null;
+      this.hideLive();
+    }
     if (this.animating) {
       const pb = this.host.playback();
       if (this.between && pb) this.betweenClock(pb);
@@ -317,10 +366,13 @@ export class Live {
       }
       const skip = $<HTMLInputElement>("game-skip").checked;
       // Between plays (the walk back, the huddle, lining up: docs/design/game-flow.md).
-      // Skipped with skip animations and in dev mode, and while coaching: the
-      // calls were made before the file comes (until the live clock, step 3).
       const between = step.name.includes("_between");
-      if (between && (skip || this.host.devMode() || (this.mode === "live" && this.user.size > 0))) continue;
+      if (between && step.streaming !== undefined && this.mode === "live" && this.user.size > 0) {
+        // A live window: it streams in while the play clock runs.
+        this.win = { name: step.name, text: step.data, done: !step.streaming, start: 0, playClock: 0, shown: false, dirty: true };
+        return;
+      }
+      if (between && (skip || this.host.devMode())) continue;
       if (this.host.show(step.data, `${step.name}.jsonl`)) {
         const pb = this.host.playback()!;
         for (const p of pb.rec.header.players) this.names.set(p.id, p.name);
@@ -345,6 +397,91 @@ export class Live {
       return;
     }
     this.advance();
+  }
+
+  // A live window: shows the file as it comes, keeps the game running just
+  // ahead of the screen, and puts the user's decisions up. True when it's over.
+  private windowTick(dt: number): boolean {
+    const w = this.win!;
+    const hidden = $<HTMLInputElement>("game-skip").checked || this.host.devMode();
+    const deciding = this.live.length > 0;
+    const nl = w.text.indexOf("\n");
+    if (!w.playClock && nl > 0) {
+      const head = JSON.parse(w.text.slice(0, nl));
+      w.start = Number(head.details?.start_tick ?? 0);
+      w.playClock = Number(head.details?.play_clock ?? 0);
+    }
+    let pb = this.host.playback();
+    if (!hidden && w.dirty && w.text.includes('"type":"tick"')) {
+      // Reload with the new frames, where we were (paused stays paused).
+      const paused = w.shown && pb !== null && !pb.playing && !pb.atEnd;
+      if (this.host.show(w.text, `${w.name}.jsonl`)) {
+        pb = this.host.playback()!;
+        for (const p of pb.rec.header.players) this.names.set(p.id, p.name);
+        pb.playing = !paused;
+        w.shown = true;
+      }
+      w.dirty = false;
+    }
+    if (!hidden && w.shown && pb && deciding) pb.speed = 1; // your 40 seconds are real seconds
+
+    // The play clock on the scoreboard.
+    let fileTick = this.simTick - w.start;
+    if (!hidden && w.shown && pb) {
+      this.betweenClock(pb);
+      fileTick = pb.tick;
+    } else if (w.playClock) {
+      const pc = document.getElementById("sb-play-clock");
+      const left = w.playClock - (this.simTick - w.start) / 20;
+      if (pc) pc.textContent = `:${Math.max(0, Math.ceil(left)).toString().padStart(2, "0")}`;
+    }
+
+    // The pace: just ahead of the screen; paused, not at all; hidden, on to
+    // the next decision and then in real time while it's open.
+    if (this.inWindow && !this.waiting) {
+      let want = -1;
+      if (hidden) {
+        if (!deciding) {
+          want = this.simTick + 100000;
+          w.hiddenTick = undefined;
+        } else {
+          w.hiddenTick = (w.hiddenTick ?? this.simTick - w.start) + dt * 20;
+          want = w.start + w.hiddenTick;
+        }
+      } else if (!w.shown || !pb) {
+        want = this.simTick + LOOKAHEAD;
+      } else if (pb.playing || pb.atEnd) {
+        want = w.start + fileTick + LOOKAHEAD;
+      }
+      if (want > this.simTick) this.advanceTo(want);
+    } else if (!this.inWindow && !this.waiting && !w.done) {
+      this.advance();
+    }
+
+    this.showLive();
+    if (!w.done) return false;
+    return hidden || !w.shown || !pb || pb.atEnd;
+  }
+
+  // The user's open decision between plays, over the field: at the line
+  // first, then the call.
+  private showLive(): void {
+    if (this.prompt) return;
+    const order = ["hike", "check", "call_play"];
+    const open = this.live
+      .filter((p) => !this.answeredLive.has(key(p)))
+      .sort((a, b) => order.indexOf(a.input) - order.indexOf(b.input));
+    const p = open[0];
+    if (!p) {
+      this.hideLive();
+      return;
+    }
+    if (!this.shownPrompt || key(this.shownPrompt) !== key(p) || !this.shownPrompt.live) this.showPrompt(p);
+    else this.shownPrompt = p; // (the same decision: fresh options, the same menu)
+  }
+
+  private hideLive(): void {
+    if (this.shownPrompt?.live) this.hidePrompt();
   }
 
   // The play clock on the scoreboard while the teams get to the line.
@@ -397,6 +534,16 @@ export class Live {
   // ---------------------------------------------------------------------
 
   private answer(fields: Record<string, unknown>): void {
+    const p = this.shownPrompt;
+    if (p?.live) {
+      // Between plays: it names its decision; the game takes it on its next tick.
+      this.lastLive = key(p);
+      this.answeredLive.add(this.lastLive);
+      this.send({ type: "command", command: { type: "answer", input: p.input, team: p.team, ...fields } });
+      this.answering = p;
+      this.hidePrompt();
+      return;
+    }
     if (this.waiting) return;
     this.waiting = true;
     this.send({ type: "command", command: { type: "answer", ...fields } });
@@ -415,7 +562,7 @@ export class Live {
   private promptError(message: string): void {
     // The prompt is still pending on the server: show it again with the error.
     this.errorText = message;
-    if (!this.prompt && this.answering) this.prompt = this.answering;
+    if (!this.prompt && this.answering && !this.answering.live) this.prompt = this.answering;
     this.shownPrompt = null;
   }
 
@@ -532,17 +679,13 @@ export class Live {
 
   private hike(p: Prompt, body: HTMLElement): void {
     const o = p.options;
-    this.hikeSent = false;
-    // The offense is set: the clock runs from the earliest snap.
-    this.clockReading = setReading(o);
-    const freeze = el("input", { type: "checkbox", checked: this.clockFrozen });
-    freeze.addEventListener("change", () => (this.clockFrozen = freeze.checked));
+    // The offense is set and the play clock is running (on the scoreboard):
+    // snap it when you like. Pause (the transport) stops the clock.
     const hikeBtn = button("Hike (H)", () => this.sendHike(), "hike");
     hikeBtn.id = "hike-button";
     body.append(
       el("div", { className: "prompt-tools" },
         hikeBtn,
-        el("label", {}, freeze, " Freeze play clock"),
         el("span", { className: "muted", textContent: o.play ? `Called: ${o.play}` : "Kick" }),
       ),
     );
@@ -579,29 +722,14 @@ export class Live {
       if (hot.size) f.hot_routes = Object.fromEntries(hot);
       return f;
     };
-    this.updatePlayClock();
   }
 
   private hikeFields: () => Record<string, unknown> = () => ({});
 
-  private sendHike(delay = false): void {
-    if (this.hikeSent || this.shownPrompt?.input !== "hike") return;
-    this.hikeSent = true;
-    const reading = delay ? -0.1 : Math.round(this.clockReading * 100) / 100;
-    this.answer({ play_clock: reading, ...this.hikeFields() });
-  }
-
-  private tickHike(dt: number): void {
-    if (this.hikeSent) return;
-    if (!this.clockFrozen) this.clockReading -= dt;
-    this.updatePlayClock();
-    if (this.clockReading <= 0) this.sendHike(true); // delay of game
-  }
-
-  private updatePlayClock(): void {
-    const pc = document.getElementById("sb-play-clock");
-    if (pc) pc.textContent = `:${Math.max(0, Math.ceil(this.clockReading)).toString().padStart(2, "0")}`;
-    pc?.classList.toggle("low", this.clockReading < 5);
+  // Snap it now (with the audible or hot routes picked).
+  private sendHike(): void {
+    if (this.shownPrompt?.input !== "hike") return;
+    this.answer({ snap: true, ...this.hikeFields() });
   }
 
   // ---------------------------------------------------------------------
@@ -618,15 +746,8 @@ export class Live {
   private timeout(): void {
     const team = this.mySide();
     if (!team) return;
-    const cmd: Record<string, unknown> = { type: "timeout", team };
-    if (this.shownPrompt?.input === "hike") {
-      cmd.play_clock = Math.max(0, Math.round(this.clockReading * 100) / 100);
-      this.hikeSent = true;
-      this.prompt = null;
-      this.hidePrompt();
-    }
-    this.waiting = true;
-    this.send({ type: "command", command: cmd });
+    // Between plays it's taken at once (on the game's next tick).
+    this.send({ type: "command", command: { type: "timeout", team } });
     this.feed(`${team === "home" ? "Home" : "Away"} calls timeout`, "note");
   }
 

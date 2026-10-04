@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <functional>
+#include <map>
 #include <sstream>
 #include <string>
 
@@ -349,4 +350,39 @@ TEST(Match, CApiRunsOnePlay) {
     EXPECT_EQ(got["tracking"], tracking.str());
     // Same options, same play.
     EXPECT_EQ(Json::parse(cfbsim_run_play(CFBSIM_DATA_DIR, opts)), got);
+}
+
+TEST(Match, ALiveClockKeepsPace) {
+    // A viewer sets the pace between plays (run_to): the game never runs past
+    // it, and the between-plays file comes in parts as it's written.
+    Match m(data(), options(23, true, true));
+    std::int64_t to = 0;
+    int parts = 0, windows = 0;
+    std::string streaming, paced;
+    for (int k = 0; k < 20000 && windows < 6; ++k) {
+        const Json r = m.advance();
+        ASSERT_FALSE(r.contains("error")) << r["error"];
+        for (const Json& msg : r["messages"]) {
+            if (msg["type"] != "tracking" || !msg.contains("partial")) continue;
+            if (msg["partial"] == true) ++parts;
+            if (msg["partial"] == false && msg["name"] == streaming) ++windows;
+            streaming = msg["name"];
+        }
+        if (r["done"]) break;
+        if (!r["prompt"].is_null()) {
+            const std::optional<std::string> e = m.command({{"type", "answer"}, {"auto", true}});
+            EXPECT_FALSE(e.has_value()) << *e;
+        }
+        if (r["window"] == true) {
+            // (A new window starts after the play, past the last one's clock, and holds there.)
+            if (streaming == paced) {
+                EXPECT_LE(r["tick"].get<std::int64_t>(), to) << "ran past the clock";
+            }
+            paced = streaming;
+            to = r["tick"].get<std::int64_t>() + 8;
+            ASSERT_FALSE(m.command({{"type", "run_to"}, {"tick", to}}).has_value());
+        }
+    }
+    EXPECT_GE(windows, 6);
+    EXPECT_GT(parts, 6 * 20);  // a part every 8 ticks or so
 }

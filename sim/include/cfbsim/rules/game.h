@@ -27,7 +27,11 @@ struct Prompt {
     std::string input;   // "call_play", "hike", "coaching_decision", "penalty_decision", "runoff", "timeout"
     int team = 0;        // 0 home, 1 away
     bool optional = false;  // may go unanswered (timeouts between plays)
-    Json suggestion;     // the auto coach's answer (null: none, on an optional prompt)
+    // Between plays (game-flow.md): asked every tick while the decision is
+    // open, for a side coached live; unanswered, the game goes on.
+    bool live = false;
+    Json suggestion;     // the auto coach's answer (null: none, on an optional prompt; live: not now)
+    Json hint;           // live: what the coach would do (for "Coach's call")
     Json options;        // what an answer may say (plays, choices, fouls, ...)
     Json state;          // the game state (score, clock, down and distance, ...)
 };
@@ -53,6 +57,13 @@ struct GameOptions {
     std::function<std::optional<Json>(const Prompt&)> decide;
     // Optional: every game log line as it's written, with the game state after it.
     std::function<void(const Json& line, const Json& state)> observe;
+    // Optional (game-flow.md, step 3): sides coached live between plays. The
+    // game then steps those windows tick by tick, asking each open decision
+    // (Prompt::live), and calls `window` after each tick (the caller may wait
+    // there: that's how a live game keeps pace with the screen), and with -1
+    // when the window closes (the snap, a flag, the end of the period).
+    std::function<bool(int team)> live;
+    std::function<void(std::int64_t tick)> window;
 };
 
 // GameSetup (a data/games/*.json file) -> options. A setup without a seed

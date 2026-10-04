@@ -81,11 +81,13 @@ TEST(Game, ReplayReproducesTheLog) {
 
 TEST(Game, ReplayCatchesAChangedInput) {
     std::string log = game_log(data(), 2);
-    // Change the first hike: the offense now snaps with a different play clock.
+    // Move the first hike a tick later: the offense now snaps with a different play clock.
     const std::size_t at = log.find(R"("input":"hike")");
     ASSERT_NE(at, std::string::npos);
-    const std::size_t clock = log.find(R"("play_clock":)", at);
-    log.insert(clock + std::string(R"("play_clock":)").size(), "1");
+    const std::size_t line = log.rfind('\n', at) + 1;
+    const std::size_t tick = log.find(R"("tick":)", line) + std::string(R"("tick":)").size();
+    const std::size_t end = log.find(',', tick);
+    log.replace(tick, end - tick, std::to_string(std::stoll(log.substr(tick, end - tick)) + 1));
     std::istringstream in(log);
     const ReplayReport r = replay_game(data(), in);
     EXPECT_FALSE(r.ok);
@@ -201,9 +203,10 @@ TEST(Game, BetweenPlaysComeInOrderOnThePlayClock) {
         } else if (input == "check") {
             check = tick;
             EXPECT_GT(check, defense) << "the check comes once the offense is set";
-        } else if (input == "hike" && check >= 0) {
-            EXPECT_EQ(tick, check) << "the hike is asked once the offense is set";
+        } else if (input == "hike" && defense >= 0) {
+            EXPECT_GE(tick, std::max(defense, check) + 20) << "the snap comes a second after the offense is set";
             EXPECT_GE(tick, whistle + 2 * 20) << "it takes a few seconds to call a play and get set";
+            EXPECT_TRUE(j.value("snap", false));
             ++snaps;
         }
     }
@@ -258,12 +261,14 @@ std::map<std::string, std::pair<double, double>> frame_spots(const std::string& 
         Json j = Json::parse(text);
         if (j["type"] == "header") {
             for (const Json& p : j["players"]) ids.push_back(p["id"]);
+        } else if (j["type"] == "player") {
+            ids.push_back(j["id"]);  // came on after the header
         } else if (j["type"] == "tick") {
             if (frame.is_null() || last) frame = std::move(j);
         }
     }
     std::map<std::string, std::pair<double, double>> out;
-    for (std::size_t k = 0; k < ids.size(); ++k) out[ids[k]] = {frame["p"][k][0], frame["p"][k][1]};
+    for (std::size_t k = 0; k < ids.size() && k < frame["p"].size(); ++k) out[ids[k]] = {frame["p"][k][0], frame["p"][k][1]};
     return out;
 }
 
