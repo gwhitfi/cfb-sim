@@ -18,15 +18,49 @@ export interface PlayerState {
 
 export const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4] as const;
 
+// The events that end a play: the sim's whistle outcomes (run_play) and kick
+// results (run_kick). Anything else (a tackle try, a catch) happens during it.
+export const DEAD_BALL_EVENTS = new Set([
+  // plays
+  "tackled", "sack", "safety", "touchdown", "out_of_bounds", "incomplete", "down",
+  "fumble_out_of_bounds", "recovered", "whistle",
+  // kicks
+  "returned", "touchback", "fair_catch", "downed", "made", "missed", "blocked",
+  "recovered_kicking", "recovered_receiving",
+]);
+
+// The frames from the snap to the whistle (dev mode), or null for a recording
+// with no snap (a drill). A play with no dead-ball event runs to the end.
+export function snapToWhistle(rec: Recording): [number, number] | null {
+  const snap = rec.events.find((e) => e.event === "snap");
+  if (!snap) return null;
+  const end = rec.events.find((e) => e.frame >= snap.frame && e.event !== "snap" && DEAD_BALL_EVENTS.has(e.event));
+  return [snap.frame, end ? Math.max(end.frame, snap.frame) : rec.frameCount - 1];
+}
+
 export class Playback {
   frame = 0; // fractional
   playing = false;
   speed = 1;
 
+  // Plays only these frames (first, last), e.g. snap to whistle; null: all.
+  private range: [number, number] | null = null;
+
   constructor(public readonly rec: Recording) {}
 
+  get firstFrame(): number {
+    return this.range ? this.range[0] : 0;
+  }
+
   get lastFrame(): number {
-    return this.rec.frameCount - 1;
+    return this.range ? this.range[1] : this.rec.frameCount - 1;
+  }
+
+  // Limits playback to frames [first, last] (null: the whole recording) and
+  // keeps the clock inside them.
+  setRange(range: [number, number] | null): void {
+    this.range = range;
+    this.seek(this.frame);
   }
 
   get atEnd(): boolean {
@@ -41,7 +75,7 @@ export class Playback {
   }
 
   seek(frame: number): void {
-    this.frame = Math.min(Math.max(frame, 0), this.lastFrame);
+    this.frame = Math.min(Math.max(frame, this.firstFrame), this.lastFrame);
   }
 
   // One recorded frame forward or back, landing exactly on a frame.
@@ -52,7 +86,7 @@ export class Playback {
   }
 
   togglePlay(): void {
-    if (!this.playing && this.atEnd) this.frame = 0; // play again from the start
+    if (!this.playing && this.atEnd) this.frame = this.firstFrame; // play again from the start
     this.playing = !this.playing;
   }
 

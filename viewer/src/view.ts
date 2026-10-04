@@ -63,6 +63,10 @@ export function followPoint(rec: Recording, frame: number): [number, number] | n
   return [sx / n, sy / n];
 }
 
+// The vertical view looks this many yards up the screen past the ball (the
+// way the offense is going): the space behind the play is mostly empty.
+export const VERTICAL_LEAD = 10;
+
 // Fixed zoom's default, in yards of the field's width on screen: sideline to
 // sideline with a little room, which is what fitting a normal 5-10 yard play
 // shows (every player in view). Saved separately per view once zoomed.

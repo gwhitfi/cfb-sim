@@ -2,12 +2,15 @@
 // keyboard controls, and the side panel.
 
 import { Camera } from "./camera";
-import { Playback, SPEEDS } from "./playback";
+import { DEAD_BALL_EVENTS, Playback, snapToWhistle, SPEEDS } from "./playback";
 import { drawScene, layerColor, playerAtPoint, type ViewOptions } from "./render";
-import { describeEvent, text as valueText } from "./events";
+import { describeEvent, eventDetails, eventTime, text as valueText } from "./events";
+import { buildCommentary, lineAt, teamColors, type Line } from "./commentary";
 import { parseTracking, TrackingError, X, Y, STRIDE, type Recording } from "./tracking";
 import { Live } from "./live";
-import { DEFAULT_YARDS, followPoint, followX, viewTurns, type Behind, type ViewMode } from "./view";
+import { TopBar } from "./topbar";
+import type { Defaults } from "./settings";
+import { DEFAULT_YARDS, VERTICAL_LEAD, followPoint, followX, viewTurns, type Behind, type ViewMode } from "./view";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -17,7 +20,6 @@ const stage = $<HTMLDivElement>("stage");
 const scrub = $<HTMLInputElement>("scrub");
 const playButton = $<HTMLButtonElement>("play");
 const speedSelect = $<HTMLSelectElement>("speed");
-const repoFiles = $<HTMLSelectElement>("repo-files");
 const reloadButton = $<HTMLButtonElement>("reload");
 const tooltip = $<HTMLDivElement>("tooltip");
 const viewSelect = $<HTMLSelectElement>("view");
@@ -65,6 +67,7 @@ function load(text: string, name: string, repoPath?: string): boolean {
   source = { name, repoPath };
   pb = new Playback(rec);
   pb.speed = Number(speedSelect.value);
+  applyDevMode();
   pb.seek(keepFrame);
   if (!sameFile) panOffset = [0, 0];
   if (!sameFile) {
@@ -77,12 +80,11 @@ function load(text: string, name: string, repoPath?: string): boolean {
   $("empty").hidden = true;
   $("error").hidden = true;
   reloadButton.disabled = !repoPath;
-  const h = rec.header;
-  $("title").textContent = `${name} — ${h.kind} "${h.name}"`;
-  scrub.max = String(rec.frameCount - 1);
   buildInfo(rec);
   buildLayers(rec);
   buildEvents(rec);
+  commentary = buildCommentary(rec);
+  shownLine = null;
   updatePanel();
   return true;
 }
@@ -96,11 +98,29 @@ const live = new Live({
     return true;
   },
   playback: () => pb,
-  coaching(sides) {
-    // Coaching one side: sit behind your team. Otherwise behind the offense.
-    behindSelect.value = sides.length === 1 ? sides[0]! : "offense";
+  serverInfo: () => topBar.serverInfo(),
+});
+
+// The top bar's New Game, Replays, and Settings (topbar.ts).
+const topBar = new TopBar({
+  live,
+  speeds: SPEEDS,
+  gameView(view, behind, speed) {
+    speedSelect.value = String(speed);
+    if (pb) pb.speed = speed;
+    viewSelect.value = view;
+    behindSelect.value = behind;
+    behindSelect.hidden = view !== "vertical";
     saveView();
-    applyView(false);
+    applyView(true);
+  },
+  trackingFiles,
+  currentFile: () => source?.repoPath,
+  openRepoFile: (path) => void loadRepoFile(path),
+  openFile: (file) => void loadFile(file),
+  defaultsChanged(d) {
+    applyDefaultView(d);
+    openSections(d);
   },
 });
 
@@ -115,18 +135,15 @@ async function loadFile(file: File): Promise<void> {
 }
 
 // The dev server (vite.config.ts) lists and serves tracking files from the
-// repo, so you can rerun the CLI and hit Reload. A production build has no
-// such endpoint, and the picker stays hidden.
-async function refreshRepoFiles(): Promise<void> {
+// repo (Replays → Play), so you can rerun the CLI and hit Reload. A
+// production build has no such endpoint: null.
+async function trackingFiles(): Promise<string[] | null> {
   try {
     const res = await fetch("/api/tracking");
-    if (!res.ok) return;
-    const files: string[] = await res.json();
-    repoFiles.replaceChildren(new Option("Repo files…", ""), ...files.map((f) => new Option(f, f)));
-    repoFiles.value = source?.repoPath ?? "";
-    repoFiles.hidden = false;
+    if (!res.ok || !res.headers.get("content-type")?.includes("json")) return null;
+    return (await res.json()) as string[];
   } catch {
-    // Not running under the dev server.
+    return null;
   }
 }
 
@@ -137,17 +154,8 @@ async function loadRepoFile(path: string): Promise<void> {
     return;
   }
   load(await res.text(), path.split("/").pop()!, path);
-  repoFiles.value = path;
 }
 
-$<HTMLInputElement>("file-input").addEventListener("change", (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (file) void loadFile(file);
-});
-repoFiles.addEventListener("focus", () => void refreshRepoFiles());
-repoFiles.addEventListener("change", () => {
-  if (repoFiles.value) void loadRepoFile(repoFiles.value);
-});
 reloadButton.addEventListener("click", () => {
   if (source?.repoPath) void loadRepoFile(source.repoPath);
 });
@@ -216,17 +224,91 @@ function buildLayers(rec: Recording): void {
   );
 }
 
+// The events that matter most to how a play went, highlighted in the list.
+const KEY_EVENTS = new Set([
+  ...DEAD_BALL_EVENTS, "snap", "handoff", "throw", "catch", "interception", "fumble", "tackle",
+  "broken_tackle", "missed_tackle", "drag_down", "bust",
+]);
+
+const detailBox = $<HTMLInputElement>("events-detail");
+
+// ---------------------------------------------------------------------------
+// Highlights: the play's key moments as commentary along the bottom of the
+// field (commentary.ts), in the colors of the team with the ball
+// ---------------------------------------------------------------------------
+
+const highlightsBox = $<HTMLInputElement>("opt-highlights");
+const highlights = $<HTMLDivElement>("highlights");
+let commentary: Line[] = [];
+let shownLine: string | null = null; // what's on the bar now ("" = hidden)
+
+function updateHighlights(): void {
+  const i = pb && highlightsBox.checked ? lineAt(commentary, pb.wholeFrame) : -1;
+  const line = i >= 0 ? commentary[i]! : null;
+  const key = line ? `${i}` : "";
+  if (key === shownLine) return;
+  shownLine = key;
+  highlights.hidden = !line;
+  if (!line || !pb) return;
+  const team = pb.rec.header.teams[line.team];
+  const c = teamColors(team.color);
+  highlights.style.setProperty("--team", c.base);
+  highlights.style.setProperty("--team-dark", c.dark);
+  highlights.style.setProperty("--team-ink", c.ink);
+  $("hl-badge").textContent = team.abbr;
+  // The line before it stays above, smaller, while it's the same play.
+  const prev = i > 0 ? commentary[i - 1]! : null;
+  $("hl-prev").textContent = prev?.text ?? "";
+  const el = $("hl-line");
+  el.textContent = line.text;
+  el.classList.toggle("big", !!line.big);
+  el.classList.toggle("final", !!line.final);
+  // Restart the entrance animation for the new line.
+  el.classList.remove("enter");
+  void el.offsetWidth;
+  el.classList.add("enter");
+}
+
+highlightsBox.addEventListener("change", () => {
+  shownLine = null;
+  updateHighlights();
+  saveView();
+  highlightsBox.blur();
+});
+
+// The event list: times from the snap, each event's line, and (Details) every
+// field it carries, with player names next to slots.
 function buildEvents(rec: Recording): void {
   const list = $("events");
+  const names = new Map(rec.header.players.map((p) => [p.label, p.name]));
+  const snap = rec.events.find((e) => e.event === "snap");
+  const detail = detailBox.checked;
   list.replaceChildren(
     ...rec.events.map((ev) => {
       const li = document.createElement("li");
+      if (KEY_EVENTS.has(ev.event)) li.classList.add("key-event");
       const t = document.createElement("span");
       t.className = "t";
-      t.textContent = `${((ev.tick - rec.ticks[0]!) / rec.header.tickRate).toFixed(2)}s`;
+      t.textContent = eventTime(ev, snap?.tick ?? null, rec.ticks[0]!, rec.header.tickRate);
+      const what = document.createElement("div");
+      what.className = "what";
       const text = document.createElement("span");
       text.textContent = describeEvent(ev);
-      li.append(t, text);
+      what.append(text);
+      const fields = detail ? eventDetails(ev, names) : [];
+      if (fields.length) {
+        const d = document.createElement("div");
+        d.className = "detail";
+        for (const [k, v] of fields) {
+          const item = document.createElement("span");
+          const key = document.createElement("b");
+          key.textContent = k;
+          item.append(key, v);
+          d.append(item);
+        }
+        what.append(d);
+      }
+      li.append(t, what);
       li.addEventListener("click", () => {
         pb?.seek(ev.frame);
         if (pb) pb.playing = false;
@@ -243,6 +325,7 @@ let lastPanelFrame = -1;
 function updatePanel(): void {
   if (!pb) return;
   const rec = pb.rec;
+  updateHighlights();
   if (playButton.dataset.playing !== String(pb.playing)) {
     playButton.dataset.playing = String(pb.playing);
     playButton.innerHTML = pb.playing ? PAUSE_ICON : PLAY_ICON;
@@ -325,6 +408,38 @@ $("fit").addEventListener("click", (e) => {
   else fitPlayers();
 });
 
+detailBox.addEventListener("change", () => {
+  if (pb) buildEvents(pb.rec);
+  lastPanelFrame = -1; // re-mark the past and current events
+  saveView();
+  detailBox.blur();
+});
+
+// The side panel's sections start open or folded as the Defaults say.
+function openSections(d: Defaults): void {
+  for (const [id, open] of Object.entries(d.open)) {
+    const el = document.getElementById(id);
+    if (el instanceof HTMLDetailsElement) el.open = open;
+  }
+}
+openSections(topBar.defaults);
+
+// Dev mode: play only from the snap to the whistle (no huddle, no pull-up).
+const devBox = $<HTMLInputElement>("dev-mode");
+
+function applyDevMode(): void {
+  if (!pb) return;
+  pb.setRange(devBox.checked ? snapToWhistle(pb.rec) : null);
+  scrub.min = String(pb.firstFrame);
+  scrub.max = String(pb.lastFrame);
+}
+
+devBox.addEventListener("change", () => {
+  applyDevMode();
+  saveView();
+  devBox.blur(); // so the keyboard shortcuts keep working
+});
+
 const velocityBox = $<HTMLInputElement>("opt-velocity");
 const trailsBox = $<HTMLInputElement>("opt-trails");
 const namesBox = $<HTMLInputElement>("opt-names");
@@ -347,7 +462,7 @@ window.addEventListener("keydown", (e) => {
   if (key === " ") pb?.togglePlay();
   else if (key === "ArrowRight") e.shiftKey ? pb?.seek(pb.frame + pb.rec.header.tickRate) : pb?.step(1);
   else if (key === "ArrowLeft") e.shiftKey ? pb?.seek(pb.frame - pb.rec.header.tickRate) : pb?.step(-1);
-  else if (key === "Home") pb?.seek(0);
+  else if (key === "Home") pb?.seek(pb.firstFrame);
   else if (key === "End") pb?.seek(pb.lastFrame);
   else if (key === "]") changeSpeed(1);
   else if (key === "[") changeSpeed(-1);
@@ -361,6 +476,8 @@ window.addEventListener("keydown", (e) => {
   else if (key === "t") trailsBox.click();
   else if (key === "n") namesBox.click();
   else if (key === "r") reloadButton.click();
+  else if (key === "d") devBox.click();
+  else if (key === "l") highlightsBox.click();
   else if (key === "Escape") opts.selected = null;
   else handled = false;
   if (handled) e.preventDefault();
@@ -455,11 +572,10 @@ function saveView(): void {
     localStorage.setItem(
       VIEW_KEY,
       JSON.stringify({
-        mode: viewSelect.value,
-        behind: behindSelect.value,
-        speed: Number(speedSelect.value),
-        zoom: zoomSelect.value,
         yards: zoomYards,
+        dev: devBox.checked,
+        highlights: highlightsBox.checked,
+        detail: detailBox.checked,
       }),
     );
   } catch {
@@ -470,10 +586,9 @@ function saveView(): void {
 function restoreView(): void {
   try {
     const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null");
-    if (saved?.mode === "horizontal" || saved?.mode === "vertical") viewSelect.value = saved.mode;
-    if (["offense", "home", "away"].includes(saved?.behind)) behindSelect.value = saved.behind;
-    if (SPEEDS.includes(saved?.speed)) speedSelect.value = String(saved.speed);
-    if (saved?.zoom === "fixed" || saved?.zoom === "fit") zoomSelect.value = saved.zoom;
+    if (typeof saved?.dev === "boolean") devBox.checked = saved.dev;
+    if (typeof saved?.highlights === "boolean") highlightsBox.checked = saved.highlights;
+    if (typeof saved?.detail === "boolean") detailBox.checked = saved.detail;
     for (const mode of ["horizontal", "vertical"] as const) {
       const y = Number(saved?.yards?.[mode]);
       if (Number.isFinite(y) && y > 2) zoomYards[mode] = y;
@@ -481,7 +596,18 @@ function restoreView(): void {
   } catch {
     // Nothing saved, or no storage.
   }
+  applyDefaultView(topBar.defaults);
+}
+
+// The view, view position, game speed, and zoom the Defaults start with.
+function applyDefaultView(d: Defaults): void {
+  speedSelect.value = String(d.speed);
+  if (pb) pb.speed = d.speed;
+  zoomSelect.value = d.zoom;
+  viewSelect.value = d.view;
+  behindSelect.value = d.behind;
   behindSelect.hidden = viewMode() !== "vertical";
+  applyView(true);
 }
 
 // Turns the camera for the current file and view. `refit` also reframes it
@@ -506,8 +632,23 @@ function fitView(): void {
     panOffset = [0, 0];
     saveView();
     frameFixed();
-  } else if (viewMode() === "vertical") cam.fitWidthAt((pb && followX(pb.rec, pb.frame)) ?? 60);
+  } else if (viewMode() === "vertical") cam.fitWidthAt(verticalX());
   else cam.fitField();
+}
+
+// The point the camera centers on: the ball (or the players), and in the
+// vertical view VERTICAL_LEAD yards up the screen from it.
+function anchor(): [number, number] {
+  const [x, y] = (pb && followPoint(pb.rec, pb.frame)) ?? [cam.cx, cam.cy];
+  if (viewMode() !== "vertical") return [x, y];
+  const [dx, dy] = cam.upBy(VERTICAL_LEAD);
+  return [x + dx, y + dy];
+}
+
+// The unzoomed vertical view's center along the field.
+function verticalX(): number {
+  const x = pb && followX(pb.rec, pb.frame);
+  return x == null ? 60 : x + cam.upBy(VERTICAL_LEAD)[0];
 }
 
 function fixedZoom(): boolean {
@@ -517,7 +658,7 @@ function fixedZoom(): boolean {
 // Fixed zoom: the saved zoom for this view, following the ball (plus any drag).
 function frameFixed(): void {
   if (!pb) return;
-  const [x, y] = followPoint(pb.rec, pb.frame) ?? [cam.cx, cam.cy];
+  const [x, y] = anchor();
   cam.frameOn(x + panOffset[0], y + panOffset[1], zoomYards[viewMode()]);
 }
 
@@ -525,7 +666,7 @@ function frameFixed(): void {
 // relative to the ball, so it keeps following from there.
 function keepPanOffset(): void {
   if (!pb) return;
-  const [x, y] = followPoint(pb.rec, pb.frame) ?? [cam.cx, cam.cy];
+  const [x, y] = anchor();
   panOffset = [cam.cx - x, cam.cy - y];
 }
 
@@ -588,7 +729,7 @@ function loop(now: number): void {
     pb.advance(dt);
     // Fixed zoom follows the ball; so does the vertical camera, yard for yard.
     if (fixedZoom()) frameFixed();
-    else if (viewMode() === "vertical") cam.cx = followX(pb.rec, pb.frame) ?? cam.cx;
+    else if (viewMode() === "vertical") cam.cx = pb.rec.header.players.length ? verticalX() : cam.cx;
     updateHover();
     drawScene(ctx, cam, pb, opts);
     updatePanel();
@@ -607,7 +748,7 @@ const emptyPlayback = new Playback(
 );
 
 requestAnimationFrame(loop);
-void refreshRepoFiles().then(() => {
+{
   const m = /#file=(.+)$/.exec(location.hash);
   if (m) void loadRepoFile(decodeURIComponent(m[1]!));
-});
+}

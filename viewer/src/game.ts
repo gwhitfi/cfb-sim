@@ -12,7 +12,7 @@ export interface GameState {
   clock_text: string;
   clock_running: boolean;
   play_clock: number;
-  teams: Record<TeamKey, { id: string; name: string; abbr: string }>;
+  teams: Record<TeamKey, { id: string; name: string; abbr: string; color?: string; color2?: string }>;
   score: Record<TeamKey, number>;
   timeouts: Record<TeamKey, number>;
   offense: TeamKey;
@@ -38,7 +38,7 @@ export interface PlayOption {
 }
 
 export interface Prompt {
-  input: "call_play" | "hike" | "coaching_decision" | "penalty_decision" | "runoff" | "timeout";
+  input: "call_play" | "check" | "hike" | "coaching_decision" | "penalty_decision" | "runoff" | "timeout";
   team: TeamKey;
   suggestion: any;
   options: any;
@@ -130,6 +130,7 @@ export function describeLine(line: any, state: GameState, names: Map<string, str
       const who = line.kicking ? abbr(line.kicking) : abbr(line.offense);
       const extra = [
         line.audible_from ? `audible from ${line.audible_from}` : "",
+        line.check_from ? `defense checked from ${line.check_from}` : "",
         line.hot_routes ? `hot routes ${Object.entries(line.hot_routes).map(([s, r]) => `${s} ${r}`).join(", ")}` : "",
       ].filter(Boolean);
       const fouls = (line.fouls ?? [])
@@ -203,13 +204,13 @@ export function byFormation(plays: PlayOption[]): [string, PlayOption[]][] {
 export function promptTitle(p: Prompt): string {
   switch (p.input) {
     case "call_play":
-      return p.options.side === "offense" ? (p.options.try ? "Two-point play" : "Call the play") : "Call the defense";
+      return p.options.side === "offense" ? (p.options.try ? "The try" : "Call the play") : "Call the defense";
+    case "check":
+      return "Check at the line";
     case "hike":
       return "At the line";
     case "coaching_decision":
-      return (
-        { fourth_down: "Fourth down", try: "After the touchdown", kickoff: "Kickoff", coin_toss: "You won the toss" } as Record<string, string>
-      )[p.options.decision] ?? p.options.decision;
+      return ({ kickoff: "Kickoff", coin_toss: "You won the toss" } as Record<string, string>)[p.options.decision] ?? p.options.decision;
     case "penalty_decision":
       return "Flag on the play";
     case "runoff":
@@ -220,11 +221,10 @@ export function promptTitle(p: Prompt): string {
 }
 
 export const CHOICE_NAMES: Record<string, string> = {
-  go: "Go for it",
+  // Kick plays in the call menu (4th down, the try).
   punt: "Punt",
   field_goal: "Field goal",
-  kick: "Kick the PAT",
-  two: "Go for two",
+  extra_point: "Extra point",
   deep: "Deep kick",
   squib: "Squib",
   onside: "Onside",
@@ -232,8 +232,7 @@ export const CHOICE_NAMES: Record<string, string> = {
   defer: "Defer",
 };
 
-// The play clock reading when the offense is set, by tempo.
-export function readyReading(options: any, tempo: string): number {
-  const r = options.ready ?? {};
-  return Number(r[tempo] ?? r.huddle ?? options.play_clock ?? 40);
+// The play clock reading when the offense is set: the earliest it may snap.
+export function setReading(options: any): number {
+  return Number(options.set ?? options.ready?.huddle ?? options.play_clock ?? 40);
 }

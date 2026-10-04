@@ -91,6 +91,12 @@ export class Camera {
     this.cy = keep(y, alongY, FIELD_WIDTH);
   }
 
+  // The field offset (in yards) that moves the view `yards` up the screen.
+  upBy(yards: number): [number, number] {
+    const { x: ax, y: ay } = AXES[this.turns];
+    return [ax[1] * yards, ay[1] * yards];
+  }
+
   // The screen dimension that runs across the field (sideline to sideline).
   get acrossPixels(): number {
     return this.turns % 2 === 0 ? this.height : this.width;

@@ -13,7 +13,7 @@ import {
   penaltyName,
   periodText,
   promptTitle,
-  readyReading,
+  setReading,
   StepQueue,
   type AdvanceResult,
   type GameState,
@@ -21,20 +21,41 @@ import {
   type Prompt,
   type TeamKey,
 } from "./game";
+import { PlayRunner, type PlayReply, type TeamInfo } from "./plays";
+import { StatsPanel } from "./stats";
 
 // What the live mode needs from the page.
 export interface Host {
   // Loads a snap's tracking file and starts playing it. False if it can't be read.
   show(text: string, name: string): boolean;
   playback(): Playback | null;
-  // The sides the user coaches, when a game starts (none when watching).
-  coaching(sides: TeamKey[]): void;
+  // The teams and game logs from the server's hello.
+  serverInfo(teams: TeamInfo[], logs: string[]): void;
+}
+
+// What New Game asks for.
+export interface GameSetup {
+  home: string;
+  away: string;
+  user: TeamKey[]; // the sides the user coaches (none: watch)
+  seed?: number;
+  auto: boolean; // the coach calls the user's plays
+  skip: boolean; // skip animations
 }
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const HOLD_AFTER_SNAP = 0.9; // s to linger on a play's last frame
 const SERVER_KEY = "cfbsim.server";
+export const DEFAULT_SERVER = "ws://localhost:8765";
+
+export function serverUrl(): string {
+  try {
+    return localStorage.getItem(SERVER_KEY) || DEFAULT_SERVER;
+  } catch {
+    return DEFAULT_SERVER;
+  }
+}
 
 // A new element with properties (textContent, className, ...) and children.
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -72,18 +93,30 @@ export class Live {
   private clockReading = 0; // the hike prompt's play clock
   private clockFrozen = false;
   private hikeSent = false;
-  private tempo = "huddle";
   private names = new Map<string, string>(); // player id -> name, from the tracking files
+  private plays: PlayRunner;
+  private stats = new StatsPanel($("game-stats"));
+  private setup: GameSetup | null = null; // the game being started
+  teams: TeamInfo[] = [];
+  logs: string[] = [];
+  statusText = "";
+  statusBad = false;
 
   constructor(private host: Host) {
-    $("game-toggle").addEventListener("click", () => this.togglePanel());
-    $<HTMLInputElement>("game-server").value = localStorage.getItem(SERVER_KEY) ?? "ws://localhost:8765";
-    $("game-connect").addEventListener("click", () => this.connect());
-    $("game-start").addEventListener("click", () => this.start());
-    $("game-watch").addEventListener("click", () => this.watch());
     $("game-stop").addEventListener("click", () => this.stop());
     $("game-timeout").addEventListener("click", () => this.timeout());
-    $<HTMLInputElement>("game-auto").addEventListener("change", (e) => this.setAuto((e.target as HTMLInputElement).checked));
+    const auto = $<HTMLInputElement>("game-auto");
+    auto.addEventListener("change", () => {
+      this.setAuto(auto.checked);
+      auto.blur(); // so the keyboard shortcuts keep working
+    });
+    $("game-skip").addEventListener("change", (e) => (e.target as HTMLElement).blur());
+    // Plays mode (plays.ts) shares this connection.
+    this.plays = new PlayRunner({
+      send: (msg) => this.send(msg),
+      connect: () => this.ensureConnected(),
+      show: (text, name) => this.host.show(text, name),
+    });
   }
 
   get active(): boolean {
@@ -94,15 +127,24 @@ export class Live {
   // Connection
   // ---------------------------------------------------------------------
 
-  private togglePanel(): void {
-    const panel = $("game");
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden && !this.ws) this.connect();
+  get connected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  private connect(): void {
-    const url = $<HTMLInputElement>("game-server").value.trim();
-    localStorage.setItem(SERVER_KEY, url);
+  // Connects unless already connected (or connecting); if connected, asks for
+  // the teams and game logs again.
+  ensureConnected(): void {
+    if (!this.ws || this.ws.readyState > WebSocket.OPEN) this.connect();
+    else this.send({ type: "hello" });
+  }
+
+  // Connects to `url` (and remembers it), or to the saved server.
+  connect(url = serverUrl()): void {
+    try {
+      localStorage.setItem(SERVER_KEY, url);
+    } catch {
+      // Not remembered.
+    }
     this.ws?.close();
     this.status(`Connecting to ${url}…`);
     const ws = new WebSocket(url);
@@ -123,25 +165,23 @@ export class Live {
   }
 
   private status(text: string, bad = false): void {
-    const s = $("game-status");
-    s.textContent = text;
-    s.classList.toggle("bad", bad);
+    this.statusText = text;
+    this.statusBad = bad;
+    for (const s of document.querySelectorAll<HTMLElement>("[data-status]")) {
+      s.textContent = text;
+      s.classList.toggle("bad", bad);
+    }
+    this.plays.serverStatus(text, bad);
   }
 
   private receive(m: any): void {
     switch (m.type) {
       case "hello": {
         this.status(`Connected · sim v${m.version}`);
-        const teams = m.teams as { id: string; name: string }[];
-        for (const [id, def] of [["game-home", 0], ["game-away", 1]] as const) {
-          const sel = $<HTMLSelectElement>(id);
-          sel.replaceChildren(...teams.map((t) => new Option(t.name, t.id)));
-          sel.selectedIndex = Math.min(def, teams.length - 1);
-        }
-        $<HTMLSelectElement>("game-logs").replaceChildren(
-          new Option(m.logs.length ? "Pick a game log…" : "No logs yet", ""),
-          ...(m.logs as string[]).map((f) => new Option(f, f)),
-        );
+        this.teams = m.teams as TeamInfo[];
+        this.logs = m.logs as string[];
+        this.plays.setTeams(this.teams);
+        this.host.serverInfo(this.teams, this.logs);
         break;
       }
       case "started":
@@ -160,10 +200,14 @@ export class Live {
         }
         this.advance();
         break;
+      case "play":
+        this.plays.onResult(m as PlayReply);
+        break;
       case "saved":
         this.feed(`Game log saved: ${m.path}`, "note");
         break;
       case "error":
+        if (this.plays.onError(m.message)) break;
         this.waiting = false;
         this.status(m.message, true);
         break;
@@ -174,28 +218,24 @@ export class Live {
   // Starting and stopping
   // ---------------------------------------------------------------------
 
-  private start(): void {
-    const side = $<HTMLSelectElement>("game-side").value;
-    const user: TeamKey[] = side === "both" ? ["home", "away"] : side === "none" ? [] : [side as TeamKey];
-    this.user = new Set(user);
-    this.host.coaching(user);
-    const seedText = $<HTMLInputElement>("game-seed").value.trim();
-    const msg: any = {
-      type: "new_game",
-      home: $<HTMLSelectElement>("game-home").value,
-      away: $<HTMLSelectElement>("game-away").value,
-      user,
-    };
-    if (seedText) msg.seed = Number(seedText);
+  // Kicks off a live game. False if there's no connection.
+  start(g: GameSetup): boolean {
+    if (!this.connected) return false;
+    this.setup = g;
+    this.user = new Set(g.user);
+    const msg: Record<string, unknown> = { type: "new_game", home: g.home, away: g.away, user: g.user };
+    if (g.seed !== undefined) msg.seed = g.seed;
     this.send(msg);
+    return true;
   }
 
-  private watch(): void {
-    const file = $<HTMLSelectElement>("game-logs").value;
-    if (!file) return;
+  // Watches a game log (one of `logs`). False if there's no connection.
+  watch(file: string, skip: boolean): boolean {
+    if (!this.connected) return false;
+    this.setup = { home: "", away: "", user: [], auto: false, skip };
     this.user.clear();
-    this.host.coaching([]);
     this.send({ type: "replay", file });
+    return true;
   }
 
   private begin(mode: "live" | "replay"): void {
@@ -206,11 +246,18 @@ export class Live {
     this.animating = false;
     this.auto.clear();
     $("feed").replaceChildren();
-    $("game-setup").hidden = true;
-    $("game-live").hidden = false;
-    $("game-mine").hidden = this.user.size === 0;
+    this.stats.clear();
+    $("game").hidden = false;
+    this.showMine(this.user.size > 0);
+    $("tb-skip").hidden = false;
     $<HTMLInputElement>("game-auto").checked = false;
+    $<HTMLInputElement>("game-skip").checked = this.setup?.skip ?? false;
     this.hidePrompt();
+    if (this.setup?.auto && this.user.size) {
+      $<HTMLInputElement>("game-auto").checked = true;
+      this.setAuto(true);
+    }
+    this.setup = null;
     this.advance();
   }
 
@@ -219,9 +266,16 @@ export class Live {
     this.queue.clear();
     this.hidePrompt();
     $("scoreboard").hidden = true;
-    $("game-setup").hidden = false;
-    $("game-live").hidden = true;
+    $("game").hidden = true;
+    $("tb-skip").hidden = true;
+    this.showMine(false);
     this.send({ type: "hello" }); // refresh the logs list
+  }
+
+  // The controls for the user's own side: Timeout, and Auto coach in the transport bar.
+  private showMine(show: boolean): void {
+    $("game-timeout").hidden = !show;
+    $("tb-auto").hidden = !show;
   }
 
   private advance(): void {
@@ -277,7 +331,7 @@ export class Live {
       return;
     }
     if (this.done) {
-      $("game-mine").hidden = true;
+      this.showMine(false);
       return;
     }
     this.advance();
@@ -286,6 +340,7 @@ export class Live {
   private applyLine(line: any, state: GameState): void {
     this.state = state;
     this.scoreboard(state);
+    this.stats.apply(line, state);
     const text = describeLine(line, state, this.names);
     if (text) this.feed(text, line.type === "play" ? (isScore(line) ? "score" : "play") : "event");
   }
@@ -366,6 +421,9 @@ export class Live {
       case "call_play":
         this.callPlay(p, body);
         break;
+      case "check":
+        this.check(p, body);
+        break;
       case "hike":
         this.hike(p, body);
         break;
@@ -402,11 +460,15 @@ export class Live {
     const flip = el("input", { type: "checkbox" });
     const tools = el("div", { className: "prompt-tools" });
     if (o.side === "offense") tools.append(el("label", {}, flip, " Flip"));
+    const sug = p.suggestion?.play;
+    for (const k of (o.kick_plays ?? []) as string[]) {
+      tools.append(button(CHOICE_NAMES[k] ?? k, () => this.answer({ play: k }), k === sug ? "suggested" : ""));
+    }
     if (o.clock_plays) {
       for (const c of o.clock_plays as string[]) tools.append(button(c === "kneel" ? "Kneel" : "Spike", () => this.answer({ play: c })));
     }
-    const sug = p.suggestion?.play;
-    tools.append(el("span", { className: "muted", textContent: sug ? `Coach likes: ${sug}${p.suggestion.flip ? " (flipped)" : ""}` : "" }));
+    if (o.offense_personnel) tools.append(el("span", { className: "muted", textContent: `Offense: ${o.offense_personnel} personnel` }));
+    tools.append(el("span", { className: "muted", textContent: sug ? `Coach likes: ${CHOICE_NAMES[sug] ?? sug}${p.suggestion.flip ? " (flipped)" : ""}` : "" }));
     body.append(tools);
     const grid = el("div", { className: "play-grid" });
     for (const [formation, plays] of byFormation(o.plays as PlayOption[])) {
@@ -424,17 +486,35 @@ export class Live {
     body.append(grid);
   }
 
+  // The defense at the line: stay with the call, or check to another play in its package.
+  private check(p: Prompt, body: HTMLElement): void {
+    const o = p.options;
+    const sug = p.suggestion?.play;
+    const called = (o.plays as PlayOption[]).find((x) => x.id === o.play);
+    body.append(
+      el("div", { className: "prompt-tools" },
+        button(`Stay: ${called?.name ?? o.play}`, () => this.answer({ play: o.play }), sug === o.play ? "suggested" : ""),
+        el("span", { className: "muted", textContent: `Offense shows ${o.formation_name ?? o.formation}` }),
+      ),
+    );
+    const grid = el("div", { className: "play-grid" });
+    for (const [formation, plays] of byFormation((o.plays as PlayOption[]).filter((x) => x.id !== o.play))) {
+      const col = el("div", { className: "play-group" }, el("div", { className: "group-name", textContent: formation }));
+      for (const play of plays) {
+        const b = button(play.name || play.id, () => this.answer({ play: play.id }), play.id === sug ? "suggested" : "");
+        b.title = `${play.id}${play.tags.length ? " · " + play.tags.join(", ") : ""}`;
+        col.append(b);
+      }
+      grid.append(col);
+    }
+    body.append(grid);
+  }
+
   private hike(p: Prompt, body: HTMLElement): void {
     const o = p.options;
     this.hikeSent = false;
-    this.clockReading = readyReading(o, this.tempo);
-    const tempo = el("select", {}, ...["huddle", "no_huddle", "hurry"].map((t) => new Option(t.replace("_", "-"), t)));
-    tempo.value = this.tempo;
-    tempo.addEventListener("change", () => {
-      this.tempo = tempo.value;
-      this.clockReading = Math.min(this.clockReading, readyReading(o, this.tempo));
-      if (tempo.value !== "huddle") this.clockReading = readyReading(o, this.tempo);
-    });
+    // The offense is set: the clock runs from the earliest snap.
+    this.clockReading = setReading(o);
     const freeze = el("input", { type: "checkbox", checked: this.clockFrozen });
     freeze.addEventListener("change", () => (this.clockFrozen = freeze.checked));
     const hikeBtn = button("Hike (H)", () => this.sendHike(), "hike");
@@ -442,7 +522,6 @@ export class Live {
     body.append(
       el("div", { className: "prompt-tools" },
         hikeBtn,
-        el("label", {}, "Tempo ", tempo),
         el("label", {}, freeze, " Freeze play clock"),
         el("span", { className: "muted", textContent: o.play ? `Called: ${o.play}` : "Kick" }),
       ),
@@ -545,6 +624,7 @@ export class Live {
 
   // Keyboard shortcuts while a prompt is up. Returns true if handled.
   key(e: KeyboardEvent): boolean {
+    if (!this.mode && this.plays.key(e)) return true;
     if (!this.shownPrompt) return false;
     if ((e.key === "h" || e.key === "Enter") && this.shownPrompt.input === "hike") {
       this.sendHike();

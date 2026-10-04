@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ballAt, ballHeading, lerpAngleDeg, Playback } from "./playback";
+import { ballAt, ballHeading, lerpAngleDeg, Playback, snapToWhistle } from "./playback";
 import { parseTracking } from "./tracking";
 
 // One player running +x at 1 yd per tick, facing swinging across ±180°.
@@ -87,5 +87,48 @@ describe("ballHeading", () => {
     const rec = lines([[10, 10, 0], [10, 10, 0], [10, 9, 1], [10, 9, 1], [10, 9, 1]]);
     expect(ballHeading(rec, 0)).toBeNull();
     expect(ballHeading(rec, 4)).toEqual([0, -1]);
+  });
+});
+
+// A play: huddle (ticks 0-2), the snap at 3, a tackle try at 5, the whistle at
+// 6, then the pull-up (7-9).
+function play(events: { tick: number; event: string }[]) {
+  const lines: object[] = [{ type: "header", format_version: 1, tick_rate: 20, players: [{ id: "a", team: "home" }] }];
+  for (let t = 0; t < 10; t++) lines.push({ type: "tick", tick: t, p: [[t, 5, 0, 0, 0]], ball: null });
+  for (const e of events) lines.push({ type: "event", ...e });
+  return parseTracking(lines.map((l) => JSON.stringify(l)).join("\n"));
+}
+
+describe("dev mode (snap to whistle)", () => {
+  it("finds the snap and the dead ball", () => {
+    const rec = play([
+      { tick: 3, event: "snap" },
+      { tick: 5, event: "drag_down" },
+      { tick: 6, event: "tackled" },
+    ]);
+    expect(snapToWhistle(rec)).toEqual([3, 6]);
+  });
+
+  it("plays a whole drill (no snap), and a play with no whistle to the end", () => {
+    expect(snapToWhistle(play([]))).toBeNull();
+    expect(snapToWhistle(play([{ tick: 3, event: "snap" }]))).toEqual([3, 9]);
+    expect(snapToWhistle(play([{ tick: 3, event: "snap" }, { tick: 8, event: "touchback" }]))).toEqual([3, 8]);
+  });
+
+  it("keeps playback inside the range", () => {
+    const pb = new Playback(play([{ tick: 3, event: "snap" }, { tick: 6, event: "incomplete" }]));
+    pb.setRange(snapToWhistle(pb.rec));
+    expect(pb.frame).toBe(3); // moved up to the snap
+    pb.seek(0);
+    expect(pb.frame).toBe(3);
+    pb.togglePlay();
+    pb.advance(10);
+    expect(pb.frame).toBe(6); // stops at the whistle
+    expect(pb.playing).toBe(false);
+    pb.togglePlay(); // again from the snap
+    expect(pb.frame).toBe(3);
+    pb.setRange(null);
+    pb.seek(9);
+    expect(pb.frame).toBe(9);
   });
 });

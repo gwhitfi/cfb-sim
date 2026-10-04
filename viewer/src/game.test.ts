@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byFormation, describeLine, downText, periodText, readyReading, StepQueue, type GameState } from "./game";
+import { byFormation, describeLine, downText, periodText, setReading, StepQueue, type GameState } from "./game";
 
 const state: GameState = {
   tick: 0,
@@ -32,10 +32,12 @@ describe("game text", () => {
 
   it("describes plays and events", () => {
     const play = { type: "play", offense: "home", situation: "3rd & 6 at TECH 40", summary: "Complete to X", audible_from: "smash",
+      check_from: "nickel_cover1",
       fouls: [{ foul: "offensive_holding", team: "home", flagged: true }] };
     const text = describeLine(play, state)!;
     expect(text).toContain("STU 3rd & 6 at TECH 40: Complete to X");
     expect(text).toContain("audible from smash");
+    expect(text).toContain("defense checked from nickel_cover1");
     expect(text).toContain("FLAG: Holding (offense) STU (declined)");
     expect(describeLine({ type: "event", event: "timeout", team: "away", left: 1, clock: "1:02" }, state)).toBe(
       "Timeout TECH (1 left) at 1:02",
@@ -56,10 +58,9 @@ describe("prompts", () => {
     expect(byFormation(plays).map(([f, ps]) => [f, ps.map((p) => p.id)])).toEqual([["f1", ["a", "c"]], ["f2", ["b"]]]);
   });
 
-  it("starts the play clock at the tempo's ready reading", () => {
-    const o = { play_clock: 40, ready: { huddle: 16, no_huddle: 22, hurry: 33 } };
-    expect(readyReading(o, "hurry")).toBe(33);
-    expect(readyReading(o, "nonsense")).toBe(16);
+  it("starts the play clock where the offense is set", () => {
+    expect(setReading({ play_clock: 40, set: 17.65, ready: { huddle: 16 } })).toBe(17.65);
+    expect(setReading({ play_clock: 25 })).toBe(25);
   });
 });
 

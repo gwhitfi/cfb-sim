@@ -128,3 +128,38 @@ export function text(v: unknown): string {
 function round(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2);
 }
+
+// Every field of an event as "key value" pairs, for the detailed event list.
+// Slots get the player's name ("RB T. Leigh"); a tackle's outcome odds are
+// spelled out. `names`: slot label -> player name.
+export function eventDetails(ev: TrackingEvent, names: Map<string, string>): [string, string][] {
+  const out: [string, string][] = [];
+  for (const [k, v] of Object.entries(ev.fields)) {
+    if (k === "odds" && Array.isArray(v) && v.length === 4) {
+      const [clean, drag, broken, missed] = v.map((x) => pct(Number(x)));
+      out.push(["odds", `clean ${clean} · drag ${drag} · broken ${broken} · missed ${missed}`]);
+      continue;
+    }
+    if (k === "chance" || k === "quality") {
+      out.push([k, k === "chance" ? pct(Number(v)) : Number(v).toFixed(2)]);
+      continue;
+    }
+    if (typeof v === "string" && names.has(v)) {
+      out.push([k, `${v} ${names.get(v)}`]);
+      continue;
+    }
+    out.push([k, typeof v === "number" ? round(v) : text(v)]);
+  }
+  return out;
+}
+
+function pct(v: number): string {
+  return `${Math.round(v * 100)}%`;
+}
+
+// Seconds from the snap ("+1.25", "-3.10"), or from the start with no snap.
+export function eventTime(ev: TrackingEvent, snapTick: number | null, firstTick: number, tickRate: number): string {
+  if (snapTick === null) return `${((ev.tick - firstTick) / tickRate).toFixed(2)}s`;
+  const s = (ev.tick - snapTick) / tickRate;
+  return `${s >= 0 ? "+" : "−"}${Math.abs(s).toFixed(2)}`;
+}

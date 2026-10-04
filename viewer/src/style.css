@@ -23,7 +23,8 @@ body {
 
 body {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto; /* topbar, main, plays bar, transport */
+  grid-template-columns: minmax(0, 1fr); /* a long title can't widen the page */
 }
 
 button,
@@ -73,17 +74,13 @@ kbd {
   color: var(--accent);
   margin-right: 8px;
 }
-.title {
-  color: var(--muted);
-  margin-left: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.spacer {
+  flex: 1;
 }
 
 .main {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 340px;
   min-height: 0;
 }
 
@@ -150,15 +147,30 @@ canvas.panning {
   min-height: 0;
   overflow: auto;
 }
-.side section {
+.side section,
+.side-section {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
-.side section.grow {
+.side-section > summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.side-section[open] > summary {
+  margin-bottom: 6px;
+}
+/* The Events section fills what's left of the panel while it's open. */
+.side-section.grow[open] {
   flex: 1;
-  min-height: 120px;
+  min-height: 260px;
   display: flex;
   flex-direction: column;
+}
+.side-section.grow[open]::details-content {
+  display: contents;
 }
 .side h2 {
   margin: 0 0 6px;
@@ -210,6 +222,32 @@ canvas.panning {
   cursor: pointer;
   display: flex;
   gap: 8px;
+}
+.events .what {
+  min-width: 0;
+}
+.events .detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px 10px;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.events .detail b {
+  font-weight: 400;
+  color: #6b7480;
+  margin-right: 3px;
+}
+.events li.current .detail {
+  color: #c9c0a0;
+}
+.events li.key-event .what > span:first-child {
+  color: var(--accent);
+}
+.events-opt {
+  font-size: 11px;
+  color: var(--muted);
 }
 .events li:hover {
   background: #2a3038;
@@ -272,6 +310,20 @@ canvas.panning {
 .game .row label {
   display: inline;
 }
+.game select {
+  max-width: 100%;
+}
+#play-seed {
+  width: 6em;
+}
+#play-yard {
+  width: 3.5em;
+}
+#play-result {
+  margin-top: 4px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 .game input:not([type="checkbox"]) {
   background: var(--bg);
   color: var(--text);
@@ -280,7 +332,7 @@ canvas.panning {
   padding: 3px 6px;
   font: inherit;
 }
-#game-status.bad,
+#play-result.bad,
 .feed .bad {
   color: #ff6b6b;
 }
@@ -430,4 +482,771 @@ canvas.panning {
 }
 .play-group button {
   text-align: left;
+}
+
+/* Dev mode toggle in the transport bar */
+/* Auto coach and Skip animations: on/off switches (checkboxes drawn as a track and knob). */
+.switch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  cursor: pointer;
+}
+.switch-toggle[hidden] {
+  display: none;
+}
+.switch {
+  appearance: none;
+  position: relative;
+  width: 30px;
+  height: 16px;
+  margin: 0;
+  border-radius: 8px;
+  background: var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s;
+}
+.switch:checked {
+  background: var(--accent);
+}
+.switch:checked::after {
+  transform: translateX(14px);
+  background: #111;
+}
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* ------------------------------------------------------------------------
+   Plays mode (plays.ts): the play pickers along the bottom
+   ------------------------------------------------------------------------ */
+.topbar button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.plays-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 216px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  height: 32vh;
+  min-height: 200px;
+}
+.plays-bar[hidden] {
+  display: none;
+}
+
+/* The two pickers: a header (side and team), then the formations, scrolling. */
+.picker,
+.plays-center {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.picker-head select {
+  flex: 0 1 200px;
+  min-width: 0;
+}
+.side-tag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.picker-plays {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.formation {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.formation .group-name {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.formation-plays {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 5px;
+}
+.formation-plays button {
+  text-align: left;
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Runs carry a green edge (a shadow, so the text lines up with the passes). */
+.formation-plays button.run {
+  box-shadow: inset 3px 0 0 #4caf50;
+}
+.formation-plays button.picked {
+  background: #3a3418;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The middle: the seed, then the options in even two-column rows. */
+.plays-center {
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+.plays-center .side-tag {
+  text-align: center;
+}
+.seed-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 6px;
+}
+.seed-arrow {
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+}
+.plays-center input:not([type="checkbox"]),
+.plays-center select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.plays-center #play-seed {
+  width: 100%;
+  text-align: center;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 4px;
+}
+.center-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  align-items: end;
+}
+.plays-center .field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+.plays-center .field select,
+.plays-center .field input,
+.plays-center #play-yard {
+  width: 100%;
+  font-size: 13px;
+  color: var(--text);
+  height: 28px;
+}
+.plays-center .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.plays-center #play-result {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------------
+   Highlights (commentary.ts): the play's key moments along the bottom of the
+   field, in the colors of the team with the ball (--team, set per line)
+   ------------------------------------------------------------------------ */
+.highlights {
+  --team: #555555;
+  --team-dark: #222222;
+  --team-ink: #ffffff;
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100% - 32px));
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(90deg, var(--team-dark), color-mix(in srgb, var(--team-dark) 70%, #000));
+  border: 1px solid color-mix(in srgb, var(--team) 55%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  pointer-events: none;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+.highlights[hidden],
+.prompt:not([hidden]) ~ .highlights {
+  display: none;
+}
+.hl-badge {
+  flex: 0 0 auto;
+  min-width: 64px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--team);
+  color: var(--team-ink);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.hl-text {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.hl-prev {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hl-prev:empty {
+  display: none;
+}
+.hl-line {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.3;
+}
+.hl-line.big {
+  font-weight: 800;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.hl-line.final:not(.big) {
+  font-weight: 700;
+}
+.hl-line.enter {
+  animation: hl-in 0.25s ease-out;
+}
+@keyframes hl-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   The live game's play-by-play and stats (stats.ts)
+   ------------------------------------------------------------------------ */
+.game-sub {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.game-sub > summary,
+.st-section > summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.game-sub > .feed {
+  margin-top: 6px;
+  max-height: 32vh;
+}
+.stats {
+  margin-top: 4px;
+}
+.st-section {
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.st-section > summary {
+  color: var(--text);
+  letter-spacing: 0.04em;
+  display: list-item;
+}
+.st-section[open] > summary {
+  margin-bottom: 6px;
+}
+.st-badge {
+  display: inline-block;
+  min-width: 38px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.st-table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11px;
+  text-align: right;
+  padding: 2px 3px;
+  border-bottom: 1px solid var(--border);
+}
+.st-table td {
+  text-align: right;
+  padding: 2px 3px;
+}
+.st-table th:first-child,
+.st-table td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+.st-table tr + tr td {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.st-line .st-total {
+  font-weight: 700;
+  color: var(--accent);
+}
+.st-team td:not(:first-child),
+.st-team th:not(:first-child) {
+  width: 27%;
+}
+.st-team tr.head td {
+  border-top: 1px solid var(--border);
+}
+.st-team tr.head td:first-child {
+  color: var(--text);
+}
+.st-team tr.sub td {
+  color: var(--muted);
+  font-size: 11px;
+}
+.st-team tr.sub td:first-child {
+  padding-left: 10px;
+}
+.st-scores {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12px;
+}
+.st-scores li {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+.st-scores li + li:not(.st-period) {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.st-scores .st-period {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+.st-clock,
+.st-after {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.st-after {
+  font-weight: 600;
+  color: var(--text);
+}
+.st-players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.st-ind th:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+.st-ind td:first-child {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-sub {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 11px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.st-leader {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 6px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+.st-leader > span:first-child {
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------------
+   The top bar: icon buttons, the settings menu, and the dialogs (topbar.ts)
+   ------------------------------------------------------------------------ */
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
+}
+.topbar button.active,
+.topbar .icon-button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.menu-wrap {
+  position: relative;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 170px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+.menu[hidden] {
+  display: none;
+}
+.menu button {
+  border: none;
+  text-align: left;
+  background: none;
+  padding: 6px 10px;
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.menu-toggle:hover,
+.menu button:hover {
+  background: #2a3038;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #111;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  border-color: #fff;
+}
+
+.dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  padding: 0;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+.dialog.wide {
+  width: min(640px, calc(100vw - 32px));
+}
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+.dialog form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 66px);
+}
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+}
+.dlg-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.dlg-head .icon-button {
+  border: none;
+  background: none;
+  font-size: 18px;
+  color: var(--muted);
+}
+.dlg-body {
+  padding: 4px 16px 12px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dlg-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+.dlg-foot button:first-child {
+  margin-right: auto;
+}
+.dialog fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px 10px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dialog legend {
+  padding: 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.dialog .field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dialog .check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dialog input:not([type="checkbox"]):not([type="radio"]) {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: inherit;
+}
+.dialog select {
+  min-width: 170px;
+}
+.about {
+  margin: 0;
+  font-size: 12px;
+}
+.about code {
+  font-size: 11px;
+}
+.server-status {
+  font-size: 12px;
+  min-height: 1.4em;
+}
+.server-status.bad {
+  color: #ff6b6b;
+}
+
+.team-pick {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 8px;
+}
+.team-pick .field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.team-pick select {
+  min-width: 0;
+  width: 100%;
+}
+
+/* A segmented control: radio buttons drawn as one row of buttons. */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.seg label {
+  position: relative;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+}
+.seg label:first-child {
+  border-left: none;
+}
+.seg input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.seg label:has(input:checked) {
+  background: var(--accent);
+  color: #111;
+  font-weight: 600;
+}
+.seg label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.check-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 6px 14px;
+  color: var(--muted);
+}
+.tabs button[aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.dlg-body [data-panel] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dlg-body [data-panel][hidden] {
+  display: none;
+}
+.replay-tools {
+  display: flex;
+  gap: 8px;
+}
+.replay-tools input {
+  flex: 1;
+}
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 120px;
+  max-height: 52vh;
+  overflow: auto;
+}
+.file-group {
+  margin: 8px 0 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.file-group:first-child {
+  margin-top: 0;
+}
+.file-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  border-color: transparent;
+  background: none;
+  padding: 5px 8px;
+}
+.file-row:hover {
+  background: #2a3038;
+}
+.file-row.current {
+  background: #3a3418;
+}
+.file-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.file-note {
+  margin: 8px 0;
 }

@@ -1,124 +1,423 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CFB Sim Viewer</title>
-    <link rel="stylesheet" href="/src/style.css" />
-  </head>
-  <body>
-    <header class="topbar">
-      <strong class="brand">CFB Sim</strong>
-      <label class="button">
-        Open file…
-        <input id="file-input" type="file" accept=".jsonl,.json" hidden />
-      </label>
-      <select id="repo-files" title="Tracking files in the repo (dev server only)" hidden></select>
-      <button id="reload" title="Reload this file from disk (R)" disabled>Reload</button>
-      <button id="game-toggle" title="Play or watch a full game (needs cfbsim-server)">Game…</button>
-      <span id="title" class="title">Drop a tracking file anywhere</span>
-    </header>
-
-    <main class="main">
-      <div id="stage" class="stage">
-        <canvas id="canvas"></canvas>
-        <div id="empty" class="empty">
-          <p><strong>Drop a tracking file here</strong> (<code>*.jsonl</code>)</p>
-          <p>Make one with <code>./build/debug/cli/cfbsim run-drill forty --out forty.jsonl</code></p>
-        </div>
-        <div id="error" class="error" hidden></div>
-        <div id="tooltip" class="tooltip" hidden></div>
-        <div id="scoreboard" class="scoreboard" hidden></div>
-        <div id="prompt" class="prompt" hidden></div>
-      </div>
-
-      <aside class="side">
-        <section id="game" class="game" hidden>
-          <h2>Game</h2>
-          <div class="row"><input id="game-server" size="22" /> <button id="game-connect">Connect</button></div>
-          <div id="game-status" class="muted"></div>
-          <div id="game-setup">
-            <label>Home <select id="game-home"></select></label>
-            <label>Away <select id="game-away"></select></label>
-            <label>You coach
-              <select id="game-side">
-                <option value="home">Home</option>
-                <option value="away">Away</option>
-                <option value="both">Both</option>
-                <option value="none">Neither (watch)</option>
-              </select>
-            </label>
-            <label>Seed <input id="game-seed" size="8" placeholder="random" /></label>
-            <button id="game-start">Kick off</button>
-            <h2>Watch a game log</h2>
-            <select id="game-logs"></select>
-            <button id="game-watch">Watch</button>
-          </div>
-          <div id="game-live" hidden>
-            <div id="game-mine" class="row">
-              <label><input type="checkbox" id="game-auto" /> Coach calls my plays</label>
-              <button id="game-timeout" title="At the line: right away. Otherwise at the next dead ball.">Timeout</button>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CFB Sim Viewer</title>
+        <link rel="stylesheet" href="/src/style.css" />
+    </head>
+    <body>
+        <header class="topbar">
+            <strong class="brand">CFB Sim</strong>
+            <button id="new-game" title="Play or watch a full game (needs cfbsim-server)">New Game</button>
+            <button id="replays" title="Watch a saved play or game">Replays</button>
+            <button id="plays-toggle" title="Run any play against any defense, any seed (needs cfbsim-server)">
+                Plays…
+            </button>
+            <span class="spacer"></span>
+            <button id="reload" class="icon-button" title="Reload this file from disk (R)" aria-label="Reload" disabled>
+                <svg viewBox="0 0 16 16" width="15" height="15">
+                    <path d="M13.6 3.2V7H9.8l1.5-1.5A4.2 4.2 0 1 0 12.2 9h1.5a5.7 5.7 0 1 1-1.4-4.6z" fill="currentColor" />
+                </svg>
+            </button>
+            <div class="menu-wrap">
+                <button
+                    id="settings"
+                    class="icon-button"
+                    title="Settings"
+                    aria-label="Settings"
+                    aria-haspopup="menu"
+                    aria-expanded="false"
+                >
+                    <svg viewBox="0 0 16 16" width="16" height="16">
+                        <path
+                            fill="currentColor"
+                            fill-rule="evenodd"
+                            d="M6.9 1h2.2l.4 1.9c.4.1.8.3 1.1.5l1.6-1 1.6 1.5-1.1 1.6c.2.4.4.7.5 1.1L15 7v2.2l-1.8.4c-.1.4-.3.8-.5 1.1l1 1.6-1.5 1.6-1.6-1.1c-.4.2-.7.4-1.1.5L9.1 15H6.9l-.4-1.8c-.4-.1-.8-.3-1.1-.5l-1.6 1-1.6-1.5 1.1-1.6c-.2-.4-.4-.7-.5-1.1L1 9.1V6.9l1.8-.4c.1-.4.3-.8.5-1.1l-1-1.6 1.5-1.6 1.6 1.1c.4-.2.7-.4 1.1-.5zM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"
+                        />
+                    </svg>
+                </button>
+                <div id="settings-menu" class="menu" role="menu" hidden>
+                    <button role="menuitem" data-open="dlg-defaults">Defaults…</button>
+                    <button role="menuitem" data-open="dlg-host">Game host…</button>
+                    <div class="menu-sep"></div>
+                    <label class="menu-toggle" title="Dev mode: play only from the snap to the whistle (D)"
+                        >Dev mode <input type="checkbox" role="switch" class="switch" id="dev-mode"
+                    /></label>
+                </div>
             </div>
-            <div class="row">
-              <label><input type="checkbox" id="game-skip" /> Skip animations</label>
-              <button id="game-stop">End</button>
+        </header>
+
+        <main class="main">
+            <div id="stage" class="stage">
+                <canvas id="canvas"></canvas>
+                <div id="empty" class="empty">
+                    <p><strong>New Game</strong> to play one, or <strong>Replays</strong> to watch a play or a game</p>
+                    <p>or drop a tracking file here (<code>*.jsonl</code>)</p>
+                </div>
+                <div id="error" class="error" hidden></div>
+                <div id="tooltip" class="tooltip" hidden></div>
+                <div id="scoreboard" class="scoreboard" hidden></div>
+                <div id="prompt" class="prompt" hidden></div>
+                <div id="highlights" class="highlights" hidden>
+                    <div id="hl-badge" class="hl-badge"></div>
+                    <div class="hl-text">
+                        <div id="hl-prev" class="hl-prev"></div>
+                        <div id="hl-line" class="hl-line"></div>
+                    </div>
+                </div>
             </div>
-            <ol id="feed" class="feed"></ol>
-          </div>
+
+            <aside class="side">
+                <section id="game" class="game" hidden>
+                    <div id="game-live">
+                        <div class="row">
+                            <button id="game-timeout" title="At the line: right away. Otherwise at the next dead ball.">
+                                Timeout
+                            </button>
+                            <button id="game-stop">End</button>
+                        </div>
+                        <details class="game-sub" id="sec-stats" open>
+                            <summary>Game stats</summary>
+                            <div id="game-stats" class="stats"></div>
+                        </details>
+                        <details class="game-sub" id="sec-feed" open>
+                            <summary>Play-by-play</summary>
+                            <ol id="feed" class="feed"></ol>
+                        </details>
+                    </div>
+                </section>
+                <details class="side-section" id="sec-recording">
+                    <summary>Recording</summary>
+                    <dl id="info" class="info"></dl>
+                </details>
+                <details class="side-section" id="sec-overlays">
+                    <summary>Overlays</summary>
+                    <label><input type="checkbox" id="opt-velocity" /> Velocity <kbd>V</kbd></label>
+                    <label><input type="checkbox" id="opt-trails" /> Trails <kbd>T</kbd></label>
+                    <label><input type="checkbox" id="opt-names" /> Names <kbd>N</kbd></label>
+                    <label
+                        >Labels
+                        <select id="opt-labels">
+                            <option value="label">Slot / label</option>
+                            <option value="jersey">Jersey</option>
+                            <option value="position">Position</option>
+                            <option value="none">None</option>
+                        </select>
+                    </label>
+                    <div id="layers"></div>
+                </details>
+                <details class="side-section" id="sec-player" open>
+                    <summary>Player</summary>
+                    <div id="player" class="muted">Click a player</div>
+                </details>
+                <details class="side-section grow" id="sec-events">
+                    <summary>Events</summary>
+                    <label
+                        class="events-opt"
+                        title="Every field of each event (tackle odds, contact quality, move chances, ...)"
+                        ><input type="checkbox" id="events-detail" checked /> Details</label
+                    >
+                    <ol id="events" class="events"></ol>
+                </details>
+            </aside>
+        </main>
+
+        <section id="plays-bar" class="plays-bar" hidden>
+            <div class="picker">
+                <div class="picker-head">
+                    <span class="side-tag">Offense</span>
+                    <select id="play-offense"></select>
+                </div>
+                <div id="play-offense-grid" class="picker-plays"></div>
+            </div>
+            <div class="plays-center">
+                <div class="side-tag">Seed</div>
+                <div class="seed-row">
+                    <button id="play-prev" class="seed-arrow" title="Previous seed and run (,)">&#8249;</button>
+                    <input id="play-seed" type="number" min="1" value="1" aria-label="Seed" />
+                    <button id="play-next" class="seed-arrow" title="Next seed and run (.)">&#8250;</button>
+                </div>
+                <div class="center-pair">
+                    <button id="play-run" title="Run it again (P), e.g. after editing data/">Run</button>
+                    <button id="play-random" title="A random seed and run">Random</button>
+                </div>
+                <div class="center-pair">
+                    <label class="field"
+                        >Hash
+                        <select id="play-hash">
+                            <option value="left">Left</option>
+                            <option value="middle" selected>Middle</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </label>
+                    <label class="field"
+                        >Own yard line <input id="play-yard" type="number" min="1" max="99" value="25"
+                    /></label>
+                </div>
+                <div class="center-pair">
+                    <label class="check"><input type="checkbox" id="play-flip" /> Flip</label>
+                    <label class="check"><input type="checkbox" id="play-huddle" /> Huddle</label>
+                </div>
+                <div id="play-result" class="muted"></div>
+            </div>
+            <div class="picker">
+                <div class="picker-head">
+                    <span class="side-tag">Defense</span>
+                    <select id="play-defense"></select>
+                </div>
+                <div id="play-defense-grid" class="picker-plays"></div>
+            </div>
         </section>
-        <section>
-          <h2>Recording</h2>
-          <dl id="info" class="info"></dl>
-        </section>
-        <section>
-          <h2>Overlays</h2>
-          <label><input type="checkbox" id="opt-velocity" /> Velocity <kbd>V</kbd></label>
-          <label><input type="checkbox" id="opt-trails" /> Trails <kbd>T</kbd></label>
-          <label><input type="checkbox" id="opt-names" /> Names <kbd>N</kbd></label>
-          <label>Labels
-            <select id="opt-labels">
-              <option value="label">Slot / label</option>
-              <option value="jersey">Jersey</option>
-              <option value="position">Position</option>
-              <option value="none">None</option>
+
+        <footer class="transport">
+            <button id="back" title="Back one tick (←, Shift+← for 1 s)">
+                <svg viewBox="0 0 16 16" width="14" height="14">
+                    <path d="M3 2h2v12H3zM14 2v12L6 8z" fill="currentColor" />
+                </svg>
+            </button>
+            <button id="play" title="Play / pause (Space)"></button>
+            <button id="fwd" title="Forward one tick (→, Shift+→ for 1 s)">
+                <svg viewBox="0 0 16 16" width="14" height="14">
+                    <path d="M11 2h2v12h-2zM2 2v12l8-6z" fill="currentColor" />
+                </svg>
+            </button>
+            <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
+            <span id="clock" class="clock">0.00 s · tick 0</span>
+            <label class="switch-toggle" title="Highlights: the play's key moments along the bottom of the field (L)"
+                ><input type="checkbox" role="switch" class="switch" id="opt-highlights" checked /> Highlights</label
+            >
+            <label class="switch-toggle" id="tb-auto" title="Auto coach: the coach calls your plays" hidden
+                ><input type="checkbox" role="switch" class="switch" id="game-auto" /> Auto coach</label
+            >
+            <label class="switch-toggle" id="tb-skip" title="Skip animations: jump to the end of each play" hidden
+                ><input type="checkbox" role="switch" class="switch" id="game-skip" /> Skip animations</label
+            >
+            <select id="speed" title="Playback speed ([ and ])"></select>
+            <select id="view" title="Camera: sideline or vertical (C)">
+                <option value="horizontal">Sideline</option>
+                <option value="vertical">Vertical</option>
             </select>
-          </label>
-          <div id="layers"></div>
-        </section>
-        <section>
-          <h2>Player</h2>
-          <div id="player" class="muted">Click a player</div>
-        </section>
-        <section class="grow">
-          <h2>Events</h2>
-          <ol id="events" class="events"></ol>
-        </section>
-      </aside>
-    </main>
+            <select id="view-behind" title="Vertical view: the team attacking up the screen" hidden>
+                <option value="offense">Behind offense</option>
+                <option value="home">Behind home</option>
+                <option value="away">Behind away</option>
+            </select>
+            <select
+                id="zoom"
+                title="Zoom: fixed (the same zoom every play, following the ball; scroll to change it) or fit each play"
+            >
+                <option value="fixed">Fixed zoom</option>
+                <option value="fit">Fit play</option>
+            </select>
+            <button
+                id="fit"
+                title="Fixed zoom: back to the default zoom (F), recenter on the ball (Shift+F). Fit play: fit the field (F), fit the players (Shift+F)"
+            >
+                Fit
+            </button>
+        </footer>
 
-    <footer class="transport">
-      <button id="back" title="Back one tick (←, Shift+← for 1 s)"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 2h2v12H3zM14 2v12L6 8z" fill="currentColor"/></svg></button>
-      <button id="play" title="Play / pause (Space)"></button>
-      <button id="fwd" title="Forward one tick (→, Shift+→ for 1 s)"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M11 2h2v12h-2zM2 2v12l8-6z" fill="currentColor"/></svg></button>
-      <input id="scrub" type="range" min="0" max="0" step="1" value="0" />
-      <span id="clock" class="clock">0.00 s · tick 0</span>
-      <select id="speed" title="Playback speed ([ and ])"></select>
-      <select id="view" title="Camera: sideline or vertical (C)">
-        <option value="horizontal">Sideline</option>
-        <option value="vertical">Vertical</option>
-      </select>
-      <select id="view-behind" title="Vertical view: the team attacking up the screen" hidden>
-        <option value="offense">Behind offense</option>
-        <option value="home">Behind home</option>
-        <option value="away">Behind away</option>
-      </select>
-      <select id="zoom" title="Zoom: fixed (the same zoom every play, following the ball; scroll to change it) or fit each play">
-        <option value="fixed">Fixed zoom</option>
-        <option value="fit">Fit play</option>
-      </select>
-      <button id="fit" title="Fixed zoom: back to the default zoom (F), recenter on the ball (Shift+F). Fit play: fit the field (F), fit the players (Shift+F)">Fit</button>
-    </footer>
+        <dialog id="dlg-game" class="dialog">
+            <form>
+                <header class="dlg-head">
+                    <h2>New Game</h2>
+                    <button type="button" data-close class="icon-button" aria-label="Close">&times;</button>
+                </header>
+                <div class="dlg-body">
+                    <fieldset>
+                        <legend>Teams</legend>
+                        <div class="team-pick">
+                            <label class="field"
+                                >Away
+                                <select id="ng-away"></select
+                            ></label>
+                            <button
+                                type="button"
+                                id="ng-swap"
+                                class="icon-button"
+                                title="Swap home and away"
+                                aria-label="Swap home and away"
+                            >
+                                &#8644;
+                            </button>
+                            <label class="field"
+                                >Home
+                                <select id="ng-home"></select
+                            ></label>
+                        </div>
+                        <div class="field">
+                            You coach
+                            <div class="seg" id="ng-side">
+                                <label><input type="radio" name="ng-side" value="home" checked /> Home</label>
+                                <label><input type="radio" name="ng-side" value="away" /> Away</label>
+                                <label><input type="radio" name="ng-side" value="both" /> Both</label>
+                                <label><input type="radio" name="ng-side" value="none" /> Watch</label>
+                            </div>
+                        </div>
+                        <label class="field"
+                            >Seed <input id="ng-seed" size="10" placeholder="random" inputmode="numeric"
+                        /></label>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Game day</legend>
+                        <label class="field"
+                            >Game speed
+                            <select id="ng-speed"></select
+                        ></label>
+                        <label class="field"
+                            >View
+                            <select id="ng-view">
+                                <option value="horizontal">Sideline</option>
+                                <option value="vertical">Vertical</option>
+                            </select>
+                        </label>
+                        <label class="field"
+                            >View position
+                            <select id="ng-behind">
+                                <option value="offense">Offense</option>
+                                <option value="home">Home side</option>
+                                <option value="away">Away side</option>
+                            </select>
+                        </label>
+                        <label class="check"
+                            ><input type="checkbox" id="ng-auto" /> Auto coach
+                            <span class="muted">(the coach calls your plays)</span></label
+                        >
+                        <label class="check"><input type="checkbox" id="ng-skip" /> Skip animations</label>
+                    </fieldset>
+                    <div class="server-status muted" data-status></div>
+                </div>
+                <footer class="dlg-foot">
+                    <button type="button" data-close>Cancel</button>
+                    <button type="submit" id="ng-start" class="primary">Kick off</button>
+                </footer>
+            </form>
+        </dialog>
 
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+        <dialog id="dlg-replays" class="dialog wide">
+            <form>
+                <header class="dlg-head">
+                    <h2>Replays</h2>
+                    <button type="button" data-close class="icon-button" aria-label="Close">&times;</button>
+                </header>
+                <div class="tabs" role="tablist">
+                    <button type="button" role="tab" data-tab="play" aria-selected="true">Play</button>
+                    <button type="button" role="tab" data-tab="game" aria-selected="false">Game</button>
+                </div>
+                <div class="dlg-body">
+                    <div data-panel="play">
+                        <p class="muted about">
+                            One play, tick by tick: every player's position, the ball, and the play's events and overlays.
+                            Plays mode saves each play it runs to <code>out/plays/</code>; the CLI's <code>--out</code> and
+                            <code>--tracking</code> write them too.
+                        </p>
+                        <div class="replay-tools">
+                            <input id="rp-filter" type="search" placeholder="Filter" aria-label="Filter plays" />
+                            <label class="button"
+                                >Open from disk… <input id="file-input" type="file" accept=".jsonl,.json" hidden
+                            /></label>
+                        </div>
+                        <div id="rp-plays" class="file-list"></div>
+                    </div>
+                    <div data-panel="game" hidden>
+                        <p class="muted about">
+                            A full game, re-simulated from its log (the seed and every decision) with the scoreboard,
+                            play-by-play, and game stats. Finished live games are saved to <code>out/games/</code>. Needs
+                            cfbsim-server.
+                        </p>
+                        <div id="rp-games" class="file-list"></div>
+                        <div class="server-status muted" data-status></div>
+                    </div>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog id="dlg-defaults" class="dialog">
+            <form>
+                <header class="dlg-head">
+                    <h2>Defaults</h2>
+                    <button type="button" data-close class="icon-button" aria-label="Close">&times;</button>
+                </header>
+                <div class="dlg-body">
+                    <p class="muted about">How the viewer starts. New Game starts from these too.</p>
+                    <div class="field">
+                        View
+                        <div class="seg">
+                            <label><input type="radio" name="df-view" value="horizontal" /> Sideline</label>
+                            <label><input type="radio" name="df-view" value="vertical" /> Vertical</label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        View position
+                        <div class="seg">
+                            <label><input type="radio" name="df-behind" value="offense" /> Offense</label>
+                            <label><input type="radio" name="df-behind" value="home" /> Home side</label>
+                            <label><input type="radio" name="df-behind" value="away" /> Away side</label>
+                        </div>
+                    </div>
+                    <label class="field"
+                        >Game speed
+                        <select id="df-speed"></select
+                    ></label>
+                    <div class="field">
+                        Zoom
+                        <div class="seg">
+                            <label title="The same zoom every play, following the ball"
+                                ><input type="radio" name="df-zoom" value="fixed" /> Fixed zoom</label
+                            >
+                            <label title="Reframe each play"
+                                ><input type="radio" name="df-zoom" value="fit" /> Fit play</label
+                            >
+                        </div>
+                    </div>
+                    <div class="field">
+                        Auto coach
+                        <div class="seg">
+                            <label><input type="radio" name="df-auto" value="off" /> Off</label>
+                            <label><input type="radio" name="df-auto" value="on" /> On</label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        Skip animations
+                        <div class="seg">
+                            <label><input type="radio" name="df-skip" value="off" /> Off</label>
+                            <label><input type="radio" name="df-skip" value="on" /> On</label>
+                        </div>
+                    </div>
+                    <fieldset>
+                        <legend>Sidebar: open at start</legend>
+                        <div id="df-sections" class="check-grid"></div>
+                    </fieldset>
+                </div>
+                <footer class="dlg-foot">
+                    <button type="button" id="df-reset">Reset</button>
+                    <button type="button" data-close class="primary">Done</button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog id="dlg-host" class="dialog">
+            <form>
+                <header class="dlg-head">
+                    <h2>Game host</h2>
+                    <button type="button" data-close class="icon-button" aria-label="Close">&times;</button>
+                </header>
+                <div class="dlg-body">
+                    <p class="muted about">
+                        Where cfbsim-server runs. Start it from the repo root:
+                        <code>./build/release/server/cfbsim-server</code>
+                    </p>
+                    <label class="field">Server <input id="game-server" size="28" spellcheck="false" /></label>
+                    <div class="server-status muted" data-status></div>
+                </div>
+                <footer class="dlg-foot">
+                    <button type="button" id="host-reset">Default</button>
+                    <button type="submit" id="game-connect" class="primary">Connect</button>
+                </footer>
+            </form>
+        </dialog>
+
+        <script type="module" src="/src/main.ts"></script>
+    </body>
 </html>

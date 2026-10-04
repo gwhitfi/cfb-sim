@@ -63,6 +63,12 @@ describe("Camera", () => {
     expect(left).toBeCloseTo(0);
     expect(right).toBeCloseTo(800);
   });
+
+  it("names the field offset that moves the view up the screen", () => {
+    expect(camera(1).upBy(10)).toEqual([10, 0]);
+    expect(camera(3).upBy(10)).toEqual([-10, 0]);
+    expect(camera(0).upBy(10)).toEqual([0, 10]);
+  });
 });
 
 describe("Camera.frameOn (fixed zoom)", () => {
