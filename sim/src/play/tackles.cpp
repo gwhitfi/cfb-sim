@@ -14,6 +14,12 @@ namespace {
 
 Vec2 unit_or(Vec2 v, Vec2 fallback) { return v.length() > 1e-6 ? v.normalized() : fallback; }
 
+// A number rounded for an event field.
+double round_to(double v, int places) {
+    const double k = std::pow(10.0, places);
+    return std::round(v * k) / k;
+}
+
 }  // namespace
 
 void Tackles::setup() {
@@ -86,6 +92,46 @@ double Tackles::swept_distance(int a, int b) const {
     return (before + d * u).length();
 }
 
+double Tackles::contact_quality(int tackler, int carrier) const {
+    const TacklingTuning& t = play_.tuning().tackling;
+    const Agent& k = play_.agent(tackler);
+    const Agent& c = play_.agent(carrier);
+    // Distance: the gap between the bodies.
+    const double gap = std::max(0.0, swept_distance(tackler, carrier) - k.body.radius - c.body.radius);
+    const double distance = 1.0 - (1.0 - t.contact_far) * std::clamp(gap / t.contact_gap, 0.0, 1.0);
+    // Angle: where he is against the carrier's heading. From behind, a man
+    // running him down gets more of him than one standing there.
+    const Vec2 heading = unit_or(c.vel, play_.downfield_for(carrier));
+    const Vec2 to = c.pos - k.pos;
+    const double cs = heading.dot(unit_or(k.pos - c.pos, heading));  // 1: he's in front
+    double angle = 0.0;
+    if (cs >= 0.0) {
+        angle = t.contact_side + (1.0 - t.contact_side) * cs;
+    } else {
+        const double closing = to.length() > 1e-6 ? (k.vel - c.vel).dot(to.normalized()) : 0.0;
+        const double behind = t.contact_behind + (t.contact_chase - t.contact_behind) *
+                                                     std::clamp(closing / t.contact_chase_speed, 0.0, 1.0);
+        angle = t.contact_side + (behind - t.contact_side) * -cs;
+    }
+    return std::max(t.contact_min, distance * angle);
+}
+
+bool Tackles::waits(int tackler, int carrier) const {
+    const TacklingTuning& t = play_.tuning().tackling;
+    const Agent& k = play_.agent(tackler);
+    const Agent& c = play_.agent(carrier);
+    const Vec2 p = c.pos - k.pos;
+    const double dist = p.length();
+    if (dist - k.body.radius - c.body.radius <= t.contact_touch) return false;
+    // The closest they'll come at these velocities, and when.
+    const Vec2 v = c.vel - k.vel;
+    const double v2 = v.length_squared();
+    if (v2 < 1e-9) return false;
+    const double when = -p.dot(v) / v2;
+    if (when <= 0.0 || when > t.contact_wait) return false;
+    return (p + v * when).length() < dist - t.contact_gain;
+}
+
 std::array<double, 4> Tackles::outcome_odds(double tackle, double resistance, int carrier) const {
     const TacklingTuning& t = play_.tuning().tackling;
     const RunnerTuning r = play_.runner(carrier);
@@ -130,7 +176,8 @@ void Tackles::resolve_evasion(const Actions::Evasion& move, Rng& rng) {
     e.carrier = c;
     e.tackler = d;
     e.move = move.move;
-    e.won = rng.chance(contest_probability(skill, counter, t.move_scale));
+    const double chance = contest_probability(skill, counter, t.move_scale);
+    e.won = rng.chance(chance);
     e.until = now + 0.6;
     const auto whiff = [&](double seconds) {
         const auto idx = static_cast<std::size_t>(d);
@@ -162,7 +209,10 @@ void Tackles::resolve_evasion(const Actions::Evasion& move, Rng& rng) {
     event_("evasion", {{"player", play_.slot_name(c)},
                        {"on", play_.slot_name(d)},
                        {"move", std::string(to_string(move.move))},
-                       {"won", e.won}});
+                       {"won", e.won},
+                       {"skill", round_to(skill, 1)},
+                       {"counter", round_to(counter, 1)},
+                       {"chance", round_to(chance, 2)}});
 }
 
 void Tackles::steer(std::span<Intent> intents) const {
@@ -213,10 +263,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
     if (!stats_.first_contact_y) stats_.first_contact_y = play_.frame.to_play(c.pos).y;
 
     // The tackle score.
-    const Vec2 heading = unit_or(c.vel, play_.downfield_for(carrier));
-    const double cs = heading.dot(unit_or(k.pos - c.pos, heading));  // 1: he's in front
-    const double angle = cs >= 0.0 ? t.angle_side * (1.0 - cs)  // points: 0 head-on
-                                   : t.angle_side + (t.angle_behind - t.angle_side) * -cs;
+    const double quality = contact_quality(tackler, carrier);
     const double p_k = k.body.mass * (k.vel.length() + t.momentum_speed);
     const double p_c = c.body.mass * (c.vel.length() + t.momentum_speed);
     const double momentum =
@@ -237,18 +284,27 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
     const double past = swept_distance(tackler, carrier) - k.body.reach;
     const double lunge_max = play_.runner(carrier).lunge_max;
     const double lunging = !dive && past > 0.0 && lunge_max > 0.0 ? std::min(1.0, past / lunge_max) : 0.0;
-    double tackle = t.tackle_skill(k.ratings) + t.tackle_edge + angle + momentum + t.assist_points * assists +
-                    (ev ? ev->penalty : 0.0) - (dive ? t.dive_penalty : 0.0) - lunging * t.lunge_penalty;
+    double tackle = t.tackle_skill(k.ratings) + t.tackle_edge + momentum + t.assist_points * assists +
+                    (ev ? ev->penalty : 0.0);
     if (const Engagement* e = play_.engagement_of(tackler)) {
         const double shed = e->defender == tackler ? e->shed : 0.0;
         tackle *= t.arm_base + (1.0 - t.arm_base) * shed;  // an arm tackle out of a block
     }
+    // How squarely he got to him (outside the arm-tackle share, so a poor
+    // contact never gets better for being made out of a block).
+    tackle += t.contact_points + t.contact_per_ln * std::log(quality) - (dive ? t.dive_penalty : 0.0) -
+              lunging * t.lunge_penalty;
     const double resistance = t.resistance(c.ratings) + (ev ? ev->bonus : 0.0);
 
     const std::array<double, 4> odds = outcome_odds(tackle, resistance, carrier);
     const RunnerTuning rt = play_.runner(carrier);
     const double roll = rng.uniform(0.0, 1.0);
-    Json who = {{"player", play_.slot_name(tackler)}, {"on", play_.slot_name(carrier)}};
+    // The tackle's numbers, for the viewer's event list (tracking only).
+    Json who = {{"player", play_.slot_name(tackler)}, {"on", play_.slot_name(carrier)},
+                {"quality", round_to(quality, 2)},
+                {"score", round_to(tackle, 1)},
+                {"resist", round_to(resistance, 1)},
+                {"odds", {round_to(odds[0], 2), round_to(odds[1], 2), round_to(odds[2], 2), round_to(odds[3], 2)}}};
     if (dive) who["dive"] = true;
     if (lunging > 0.0) who["lunge"] = true;
     if (play_.engaged(tackler)) who["arm"] = true;
@@ -356,8 +412,14 @@ TackleResult Tackles::interact(Rng& rng) {
 
     // The tacklers in reach, closest first (agent order breaks ties).
     std::vector<std::pair<double, int>> near;
+    bool holding = false;  // someone in reach is closing for a better contact
     for (int j = 0; j < play_.count(); ++j) {
-        if (can_try(j, c)) near.emplace_back(swept_distance(j, c), j);
+        if (!can_try(j, c)) continue;
+        if (!play_.engaged(j) && waits(j, c)) {
+            holding = true;
+            continue;
+        }
+        near.emplace_back(swept_distance(j, c), j);
     }
     std::stable_sort(near.begin(), near.end(),
                      [](const auto& a, const auto& b) { return a.first < b.first; });
@@ -381,7 +443,7 @@ TackleResult Tackles::interact(Rng& rng) {
         const TackleResult r = attempt(c, j, rng);
         if (r.down || r.fumble || play_.drag) return r;
     }
-    if (!near.empty()) return {};
+    if (!near.empty() || holding) return {};
     // Nobody in reach: a pursuer just out of reach who isn't gaining dives.
     const TacklingTuning& t = play_.tuning().tackling;
     const Agent& ca = play_.agent(c);

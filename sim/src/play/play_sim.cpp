@@ -161,6 +161,8 @@ class PlaySim {
     bool block_condition(int i, const std::string& condition, double side) const;
     int block_target_for(int i, const std::string& target, double side) const;
     std::vector<int> front(bool down_linemen) const;
+    // Where a check-release back scans for a free rusher (play frame).
+    Vec2 back_scan_spot(int i) const;
     std::unique_ptr<Behavior> qb_behavior();
     std::unique_ptr<Behavior> carrier_behavior();
     // A free ball carrier (after a catch, a turnover, a missed handoff).
@@ -778,7 +780,8 @@ std::unique_ptr<Behavior> PlaySim::pass_blocker(int i, const Job& job) {
     if (job.action == "check_release") {
         s.back = true;
         s.release_at = tuning().check_release_seconds;
-        s.home = state_.frame.to_field(at + Vec2{0.0, -0.5});
+        s.block_release_at = std::max(t.back_block_release, s.release_at);
+        s.home = state_.frame.to_field(back_scan_spot(i));
         s.lag = t.pickup_lag((1.0 - t.pickup_pk_weight) * t.pickup_skill(r) + t.pickup_pk_weight * pk);
         return std::make_unique<PassBlocker>(s);
     }
@@ -821,6 +824,36 @@ std::unique_ptr<Behavior> PlaySim::pass_blocker(int i, const Job& job) {
     for (const double x : xs) {
         if ((x - at.x) * side > 0.3) outermost = false;
     }
+Vec2 PlaySim::back_scan_spot(int i) const {
+    // A back scans from the B gap on the man side of the protection (away
+    // from the slide; his own side with no slide), a step in front of his
+    // stance (play frame).
+    const BlockingTuning& t = blocking();
+    const Vec2 at = state_.play_pos(i);
+    const double cx = state_.play_pos(state_.center).x;
+    double side = at.x > cx + 0.3 ? 1.0 : at.x < cx - 0.3 ? -1.0 : 1.0;
+    if (state_.play.pass) {
+        Side dir = state_.play.pass->protection_direction;
+        if (state_.frame.flipped()) dir = mirrored(dir);
+        if (dir != Side::None) side = dir == Side::Left ? 1.0 : -1.0;
+    }
+    // The B gap: halfway between the guard and the tackle on that side
+    // (the protectors' x, ordered outward from the center).
+    std::vector<double> out;
+    for (int j = 0; j < state_.offense_count; ++j) {
+        const Assignment* a = state_.slots[static_cast<std::size_t>(j)].assignment;
+        if (!a || a->sequence.empty()) continue;
+        const Job& first = a->sequence.front();
+        const double d = (state_.play_pos(j).x - cx) * side;
+        if (first.kind == JobKind::Block && (first.action == "protect" || first.action == "pass_set") && d > 0.3) {
+            out.push_back(d);
+        }
+    }
+    std::sort(out.begin(), out.end());
+    const double gap = out.size() >= 2 ? (out[0] + out[1]) / 2.0 : out.empty() ? 2.25 : out[0] + 0.75;
+    return {cx + side * gap, at.y + t.back_step_up};
+}
+
     if (outermost) {
         s.area_x += side * 0.5;
         s.area_half += 0.5;
@@ -1083,8 +1116,20 @@ std::unique_ptr<Behavior> PlaySim::route_behavior(int i, const Job& job) {
         busts_[idx].reset();
     }
 
-    const Side side = state_.frame.flipped() ? mirrored(ref.side) : ref.side;
-    const double outside = outside_sign(state_.slots[idx].aligned.x, side);
+    Side side = state_.frame.flipped() ? mirrored(ref.side) : ref.side;
+    double outside = outside_sign(state_.slots[idx].aligned.x, side);
+    // A back coming out of his protection releases on the side he checked
+    // (or blocked) on, not back across the formation through the line.
+    const Assignment* a = state_.slots[idx].assignment;
+    if (a && !a->sequence.empty() && a->sequence.front().kind == JobKind::Block &&
+        a->sequence.front().action == "check_release" && state_.since_snap() > 0.0) {
+        const double x = state_.play_pos(i).x;
+        const double cx = state_.play_pos(state_.center).x;
+        if (side != Side::None && std::abs(x - cx) > 0.3) {
+            side = x > cx ? Side::Right : Side::Left;
+            outside = outside_sign(x, side);
+        }
+    }
     RoutePlan plan = plan_route(*route, depth, state_.play_pos(i), outside);
     add_route_noise(plan, t.route_precision_sd(state_.agent(i).ratings[Attr::RouteRunning]),
                     world_.rng());

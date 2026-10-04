@@ -137,11 +137,14 @@ Intent PassBlocker::decide(const PlayState& play, int self, Actions& /*actions*/
         face(in, me.pos, d.pos);
         return in;
     }
-    // A back who has released is done (see done()); one who found a rusher stays in.
+    // A back who has released is done (see done()); one with a rusher stays in.
     if (s_.back && !picked_up_ && play.since_snap() >= s_.release_at) return in;
 
     target_ = pick_target(play, self);
     if (target_ < 0) {
+        // Nobody to block (or his man was picked up by someone else): a back
+        // goes back to checking, and releases at his check time.
+        if (s_.back) picked_up_ = false;
         in.velocity = steer::arrive(me, s_.home, me.move.top_speed * 0.5, 4.0);
         return in;
     }
@@ -166,7 +169,13 @@ Intent PassBlocker::decide(const PlayState& play, int self, Actions& /*actions*/
 }
 
 bool PassBlocker::done(const PlayState& play, int self) const {
-    return s_.back && !picked_up_ && !play.engaged(self) && play.since_snap() >= s_.release_at;
+    // A back releases into his route: at his check time with nobody to block,
+    // or at the block release time even from a block (the engagement ends
+    // when he stops blocking).
+    if (!s_.back) return false;
+    const double now = play.since_snap();
+    if (now >= s_.block_release_at) return true;
+    return !picked_up_ && !play.engaged(self) && now >= s_.release_at;
 }
 
 void PassBlocker::draw(const PlayState& play, int self, Json& shapes) const {

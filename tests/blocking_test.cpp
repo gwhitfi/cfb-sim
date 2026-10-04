@@ -3,9 +3,12 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <initializer_list>
 #include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "cfbsim/play/play_sim.h"
 
@@ -75,6 +78,77 @@ std::string tracking(const DataSet& d, const PlayOptions& o) {
 bool has(const std::string& file, const std::string& text) {
     return file.find(text) != std::string::npos;
 }
+
+// A tracking file read back: one slot's position and engagements by tick,
+// and the events.
+struct Track {
+    explicit Track(const std::string& file) {
+        std::istringstream in(file);
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            Json j = Json::parse(line);
+            const std::string type = j.value("type", "");
+            if (type == "header") header = std::move(j);
+            else if (type == "tick") ticks.push_back(std::move(j));
+            else if (type == "event") events.push_back(std::move(j));
+        }
+        for (const Json& e : events) {
+            if (e.value("event", "") == "snap") snap = e.at("tick").get<int>();
+        }
+    }
+    int index(const std::string& label) const {
+        const Json& ps = header.at("players");
+        for (std::size_t i = 0; i < ps.size(); ++i) {
+            if (ps[i].value("label", "") == label) return static_cast<int>(i);
+        }
+        return -1;
+    }
+    const Json* at(int tick) const {
+        for (const Json& t : ticks) {
+            if (t.at("tick").get<int>() == tick) return &t;
+        }
+        return nullptr;
+    }
+    // x, y (field frame) of player `i` at `tick`.
+    std::pair<double, double> pos(int i, int tick) const {
+        const Json& p = at(tick)->at("p").at(static_cast<std::size_t>(i));
+        return {p[0].get<double>(), p[1].get<double>()};
+    }
+    // Is player `i` in an engagement (the viewer's link) at `tick`?
+    bool engaged(int i, int tick) const {
+        const Json* t = at(tick);
+        if (!t || !t->contains("dbg")) return false;
+        for (const Json& s : t->at("dbg")) {
+            if (s.value("layer", "") == "engagements" && s.value("kind", "") == "link" && s.value("a", -1) == i) {
+                return true;
+            }
+        }
+        return false;
+    }
+    // Is player `i` running a route at `tick`? (Receivers carry the
+    // viewer's openness tag; blockers don't.)
+    bool receiver(int i, int tick) const {
+        const Json* t = at(tick);
+        if (!t || !t->contains("dbg")) return false;
+        for (const Json& s : t->at("dbg")) {
+            if (s.value("layer", "") == "openness" && s.value("kind", "") == "tag" && s.value("player", -1) == i) {
+                return true;
+            }
+        }
+        return false;
+    }
+    const Json* first(const std::string& event, const std::string& key = "", const std::string& value = "") const {
+        for (const Json& e : events) {
+            if (e.value("event", "") == event && (key.empty() || e.value(key, "") == value)) return &e;
+        }
+        return nullptr;
+    }
+
+    Json header;
+    std::vector<Json> ticks, events;
+    int snap = 0;
+};
 
 }  // namespace
 
@@ -193,36 +267,93 @@ TEST(Blocking, SameSeedSameFile) {
     EXPECT_EQ(tracking(data(), o), tracking(data(), o));
 }
 
-TEST(Probe, Pickups) {
-    const auto run = [](const char* dir, const char* off, const char* def) {
-        const LoadReport rep = load_data_dir(dir);
-        for (double rating : {1.0, 30.0, 60.0, 99.0}) {
-            DataSet d = rep.data;
-            for (Player& p : d.rosters.at(off).players) {
-                if (p.position == Position::RB) {
-                    p.attributes[Attr::Anticipation] = rating;
-                    for (auto& [scheme, pk] : p.playbook_knowledge) pk = rating;
-                }
-            }
-            int n = 0;
-            double ticks = 0;
-            for (std::uint64_t seed = 1; seed <= 40; ++seed) {
-                PlayOptions o = matchup("smash", "nickel_cover0", seed);
-                o.team = off; o.defense = def; o.hold_ball = true;
-                const std::string file = tracking(d, o);
-                for (const char* who : {"MIKE", "WILL"}) {
-                    const std::string key = std::string(R"("event":"block","player":"RB","on":")") + who;
-                    const auto at = file.find(key);
-                    if (at == std::string::npos) continue;
-                    const auto t = file.rfind(R"("tick":)", at);
-                    ticks += std::stod(file.substr(t + 7));
-                    ++n;
-                    break;
-                }
-            }
-            std::printf("%s vs %s rating %.0f: %d pickups, avg tick %.1f\n", off, def, rating, n, ticks / n);
+TEST(Blocking, BackReleasesWithNobodyToBlock) {
+    // A four-man rush leaves the back nobody to block: he steps up to scan
+    // (in front of his stance, not behind it), then releases into his route
+    // at his check time instead of standing in the backfield. (A few stay to
+    // help on a lineman who got beaten, until the block release time.)
+    const int runs = 30;
+    int stepped_up = 0, released = 0, out_late = 0, blocked = 0;
+    for (int k = 0; k < runs; ++k) {
+        PlayOptions o = matchup("trips_stick", "43_over_cover1", static_cast<std::uint64_t>(k + 1));
+        o.hold_ball = true;
+        const Track t(tracking(data(), o));
+        const int rb = t.index("RB");
+        ASSERT_GE(rb, 0);
+        const double x0 = t.pos(rb, t.snap).first;
+        stepped_up += t.pos(rb, t.snap + 20).first > x0 + 0.3 ? 1 : 0;  // 1.0 s; downfield is +x
+        // On the move after his check time (his route), not standing still.
+        double path = 0.0;
+        for (int tick = t.snap + 20; tick < t.snap + 40; ++tick) {
+            const auto [xa, ya] = t.pos(rb, tick);
+            const auto [xb, yb] = t.pos(rb, tick + 1);
+            path += std::hypot(xb - xa, yb - ya);
         }
-    };
-    run(CFBSIM_DATA_DIR, "clemson_2018", "clemson_2025");
-    run(CFBSIM_DATA_DIR, "clemson_2025", "clemson_2018");
+        released += path > 2.0 ? 1 : 0;
+        // Every back is out by the block release time (one who set up for a
+        // beaten lineman's rusher too).
+        double late = 0.0;
+        for (int tick = t.snap + 42; tick < t.snap + 52; ++tick) {
+            const auto [xa, ya] = t.pos(rb, tick);
+            const auto [xb, yb] = t.pos(rb, tick + 1);
+            late += std::hypot(xb - xa, yb - ya);
+        }
+        out_late += late > 1.0 ? 1 : 0;
+        blocked += t.first("block", "player", "RB") ? 1 : 0;
+    }
+    EXPECT_EQ(blocked, 0);
+    EXPECT_EQ(stepped_up, runs);
+    EXPECT_GE(released, runs * 8 / 10);
+    EXPECT_EQ(out_late, runs);
+}
+
+TEST(Blocking, BackWhoStaysInReleasesFromHisBlock) {
+    // Cover 0 brings a blitzer the back has to take: he blocks him, then
+    // lets go at the block release time (2.0 s) and runs his route.
+    const double release = data().tuning.blocking.back_block_release;
+    const int tick_rate = 20;
+    const int runs = 30;
+    int picked_up = 0, still_engaged = 0;
+    for (int k = 0; k < runs; ++k) {
+        PlayOptions o = matchup("smash", "nickel_cover0", static_cast<std::uint64_t>(k + 1));
+        o.hold_ball = true;
+        const Track t(tracking(data(), o));
+        const int rb = t.index("RB");
+        const Json* block = t.first("block", "player", "RB");
+        if (!block) continue;
+        ++picked_up;
+        const int after = t.snap + static_cast<int>(release * tick_rate) + 2;
+        bool engaged_late = false;
+        for (int tick = after; tick < after + 20 && t.at(tick); ++tick) engaged_late = engaged_late || t.engaged(rb, tick);
+        still_engaged += engaged_late ? 1 : 0;
+    }
+    EXPECT_GE(picked_up, runs * 7 / 10);
+    EXPECT_EQ(still_engaged, 0);
+}
+
+TEST(Blocking, QbNeverThrowsToABackWhoIsBlocking) {
+    // The back is a read (and the hot read) on these plays, but not while
+    // he's checking for blitzers or blocking one: throws to him come only
+    // after his release.
+    const double check = data().tuning.play.check_release_seconds;
+    const double release = data().tuning.blocking.back_block_release;
+    int to_back = 0;
+    for (const char* defense : {"43_over_cover1", "nickel_cover0", "43_over_fire_zone"}) {
+        for (std::uint64_t seed = 1; seed <= 60; ++seed) {
+            const Track t(tracking(data(), matchup("trips_stick", defense, seed)));
+            const Json* thr = t.first("throw", "to", "RB");
+            if (!thr) continue;
+            ++to_back;
+            const double at = (thr->at("tick").get<int>() - t.snap) / 20.0;
+            EXPECT_GE(at, check) << defense << " seed " << seed;
+            EXPECT_TRUE(t.receiver(t.index("RB"), thr->at("tick").get<int>() - 1))
+                << defense << " seed " << seed << ": thrown to before he released";
+            if (const Json* block = t.first("block", "player", "RB")) {
+                if (block->at("tick").get<int>() < thr->at("tick").get<int>()) {
+                    EXPECT_GE(at, release) << defense << " seed " << seed << ": thrown to while blocking";
+                }
+            }
+        }
+    }
+    EXPECT_GT(to_back, 0);  // he still gets the ball once he's out
 }

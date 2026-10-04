@@ -76,6 +76,10 @@ class Tackles {
     bool can_try(int tackler, int carrier, double extra = 0.0) const;
     // Closest the two came during the last tick (they may cross between ticks).
     double swept_distance(int a, int b) const;
+    // How squarely he gets to the carrier, 0-1: distance x angle.
+    double contact_quality(int tackler, int carrier) const;
+    // In reach but still closing to a better contact: he holds his try.
+    bool waits(int tackler, int carrier) const;
     const EvasionResult* evasion(int carrier, int tackler) const;
 
     PlayState& play_;

@@ -514,7 +514,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
                   "rushing_line", "rushing_speed", "rushing_depth", "project_seconds",
                   "area_half", "reach_outside", "taken_penalty", "depth_penalty",
                   "switch_margin", "back_range", "on_him", "help_range", "set_lead", "set_front",
-                  "set_give", "back_front", "set_depth"});
+                  "set_give", "back_front", "back_step_up", "back_block_release", "set_depth"});
     t.pro_skill = parse_blend(p.at("skill"));
     t.pro_pk_weight = p.number("pk_weight");
     t.pro_lag = parse_curve(p.at("lag"));
@@ -537,6 +537,8 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
     t.set_front = p.number("set_front");
     t.set_give = p.number("set_give");
     t.back_front = p.number("back_front");
+    t.back_step_up = p.number("back_step_up");
+    t.back_block_release = p.number("back_block_release");
     std::tie(t.set_depth_min, t.set_depth_range) = parse_range(p.at("set_depth"));
 
     const Reader rb = root.at("run");
@@ -743,15 +745,29 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     t.lb_run_delay = f.number("lb_run_delay");
 
     const Reader k = root.at("tackle");
-    k.allow_only({"skill", "resistance", "edge", "angle", "momentum", "assist", "dive", "arm_base", "arm_min_shed", "arm_reach", "arm_retry", "block_recover", "lunge", "scale",
+    k.allow_only({"skill", "resistance", "edge", "contact", "momentum", "assist", "dive", "arm_base", "arm_min_shed", "arm_reach", "arm_retry", "block_recover", "lunge", "scale",
                   "outcomes", "drag", "broken", "missed", "stumble_speed", "fall"});
     t.tackle_skill = parse_blend(k.at("skill"));
     t.resistance = parse_blend(k.at("resistance"));
     t.tackle_edge = k.number("edge");
-    const Reader an = k.at("angle");
-    an.allow_only({"side", "behind"});
-    t.angle_side = an.number("side");
-    t.angle_behind = an.number("behind");
+    const Reader cq = k.at("contact");
+    cq.allow_only({"points", "per_ln", "min", "gap", "far", "side", "behind", "chase", "chase_speed", "touch",
+                   "wait", "gain"});
+    t.contact_points = cq.number("points");
+    t.contact_per_ln = cq.number("per_ln");
+    t.contact_min = cq.number("min");
+    if (t.contact_min <= 0.0 || t.contact_min > 1.0) cq.at("min").fail("must be in (0, 1]");
+    t.contact_gap = cq.number("gap");
+    if (t.contact_gap <= 0.0) cq.at("gap").fail("must be positive");
+    t.contact_far = cq.number("far");
+    t.contact_side = cq.number("side");
+    t.contact_behind = cq.number("behind");
+    t.contact_chase = cq.number("chase");
+    t.contact_chase_speed = cq.number("chase_speed");
+    if (t.contact_chase_speed <= 0.0) cq.at("chase_speed").fail("must be positive");
+    t.contact_touch = cq.number("touch");
+    t.contact_wait = cq.number("wait");
+    t.contact_gain = cq.number("gain");
     const Reader mo = k.at("momentum");
     mo.allow_only({"points", "cap", "speed"});
     t.momentum_points = mo.number("points");

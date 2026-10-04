@@ -133,6 +133,11 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
     const BlockingTuning& bt = play.tuning().blocking;
     const CarrierTuning& ct = play.tuning().carrier;
     bool run = false;  // he decided to scramble
+    // A read who is still blocking (a back checking for blitzers, or staying
+    // in) isn't a receiver yet: he can't be thrown to, however open he looks.
+    const auto out = [&](std::size_t k) {
+        return play.behavior(s_.reads[k])->block_style() == BlockStyle::None;
+    };
     const auto best_seen = [&]() {
         std::size_t best = 0;
         for (std::size_t k = 1; k < seen_.size(); ++k) {
@@ -168,6 +173,15 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
                 it = s_.reads.end() - 1;
             }
             look_at(static_cast<std::size_t>(it - s_.reads.begin()), now);
+        }
+        // Blockers drop out of what he has seen; on one now, he looks on.
+        for (std::size_t k = 0; k < seen_.size(); ++k) {
+            if (!out(k)) seen_[k] = -1.0;
+        }
+        if (!out(read_)) {
+            if (read_ + 1 == s_.reads.size() && last_read_done_ < 0.0) last_read_done_ = now;
+            look_at((read_ + 1) % s_.reads.size(), now);
+            return false;
         }
         const int target = s_.reads[read_];
         // Only the read he's looking at has a fresh value: the truth plus
@@ -234,7 +248,7 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
         // Out of the corner of his eye: a wide-open man downfield elsewhere
         // (a checkdown behind the line doesn't catch his eye).
         for (std::size_t k = 0; k < s_.reads.size(); ++k) {
-            if (k == read_ || play.openness(s_.reads[k]) < t.wide_open) continue;
+            if (k == read_ || !out(k) || play.openness(s_.reads[k]) < t.wide_open) continue;
             if (play.play_pos(s_.reads[k]).y < t.peripheral_min_depth) continue;
             if (rng_.chance(s_.peripheral_rate * kTickSeconds)) {
                 look_at(k, now);
@@ -325,7 +339,11 @@ Intent PassingQb::scramble(const PlayState& play, int self, Actions& actions) {
         tucked_ = true;
     }
     if (tucked_ || s_.reads.empty() || (play.drag && play.drag->carrier == self)) return in;
-    // Still looking to throw.
+    // Still looking to throw (never to a man who's still blocking).
+    if (play.behavior(s_.reads[read_])->block_style() != BlockStyle::None) {
+        look_at((read_ + 1) % s_.reads.size(), now);
+        return in;
+    }
     const int target = s_.reads[read_];
     const double perceived = std::clamp(play.openness(target) + bias_, 0.0, 1.0);
     seen_[read_] = perceived;

@@ -39,8 +39,17 @@
   "tackle": {
     "skill": {"tackling": 0.5, "strength": 0.15, "hit_power": 0.15, "aggression": 0.1, "agility": 0.1},
     "resistance": {"break_tackle": 0.4, "balance": 0.25, "strength": 0.2, "elusiveness": 0.15},
-    "angle": {"side": -8, "behind": -18},   // points (head-on 0)
     "edge": 20,               // points added to every tackle score (the tackler's job is to make it)
+    // Contact quality (0-1) = distance factor x angle factor; it adds
+    // points + per_ln x ln(quality) to the tackle score (at least min).
+    "contact": {
+      "points": 25, "per_ln": 43.5, "min": 0.05,
+      "gap": 0.35, "far": 0.4,    // distance: 1 with the bodies touching, far at this gap (yd) and beyond
+      "side": 0.2,                // angle: 1 in front of his heading, this beside him ...
+      "behind": 0.15, "chase": 0.4, "chase_speed": 3.0,  // ... behind: chase when closing at chase_speed (yd/s)
+      "touch": 0.05,              // yd: a gap this small, he tries now ...
+      "wait": 0.3, "gain": 0.1    // ... else he waits while he'll be gain yd closer within wait s
+    },
     "momentum": {"points": 10, "cap": 10, "speed": 2.0},  // points x ln(tackler / carrier lb x (speed + this))
     "assist": {"points": 10, "seconds": 0.5, "max": 2},
     // A free defender closing on the carrier lunges: + per_closing yd of reach

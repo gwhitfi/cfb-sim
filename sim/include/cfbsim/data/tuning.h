@@ -324,6 +324,8 @@ struct BlockingTuning {
     double set_front = 1.0;         // yd in front of the rusher on his path to the QB
     double set_give = 0.2;          // yd: a lineman's set spot is at least this far behind his stance
     double back_front = 3.0;        // yd: a back meets a rusher no further than this in front of the QB
+    double back_step_up = 1.0;      // yd: a back scans from this far in front of his stance (man side B gap)
+    double back_block_release = 2.0;  // s after the snap: a back who stayed in releases into his route
     double set_depth_min = 1.5;     // max set depth = min + Footwork / 100 x range
     double set_depth_range = 2.0;
 
@@ -473,8 +475,19 @@ struct TacklingTuning {
 
     // Tackles.
     Blend tackle_skill, resistance;
-    double angle_side = -8.0, angle_behind = -18.0;  // points
     double tackle_edge = 20.0;      // points on every tackle score
+    // Contact quality (0-1): distance factor x angle factor. Points on the
+    // tackle score: contact_points + contact_per_ln x ln(quality).
+    double contact_points = 25.0, contact_per_ln = 43.5, contact_min = 0.05;
+    double contact_gap = 0.35;      // yd between the bodies where the distance factor bottoms out ...
+    double contact_far = 0.4;       // ... at this
+    double contact_side = 0.2;      // angle factor beside the carrier (in front: 1)
+    double contact_behind = 0.15;   // behind him ...
+    double contact_chase = 0.4;     // ... or this, closing at contact_chase_speed or more
+    double contact_chase_speed = 3.0;  // yd/s
+    double contact_touch = 0.05;    // yd: a gap this small, he tries now
+    double contact_wait = 0.3;      // s: still closing to a closer contact this soon, he waits ...
+    double contact_gain = 0.1;      // ... if it's this many yd closer
     double momentum_points = 20.0, momentum_cap = 15.0, momentum_speed = 1.0;
     double assist_points = 10.0, assist_seconds = 0.5;
     int assist_max = 2;

@@ -59,7 +59,8 @@ class RouteRunner final : public Behavior {
 // ---------------------------------------------------------------------------
 // Pass protection (movement-and-interaction.md#pass-protection): own an area,
 // pick the rusher threatening it, set between him and the QB. A back
-// (`check_release`) looks for a free rusher and releases if none comes.
+// (`check_release`) steps up and looks for a free rusher: with none by his
+// check time he releases into his route; one who blocks releases later.
 // ---------------------------------------------------------------------------
 class PassBlocker final : public Behavior {
   public:
@@ -68,6 +69,7 @@ class PassBlocker final : public Behavior {
         double area_half = 0.8;
         bool back = false;      // a back checking for a free rusher
         double release_at = std::numeric_limits<double>::infinity();  // back: s after the snap
+        double block_release_at = std::numeric_limits<double>::infinity();  // back who stays in: s after the snap
         double lag = 0.2;       // s: how late he sees rushers
         double max_depth = 2.5; // yd behind his stance he may set
         Vec2 home;              // field frame: his set spot with nobody to block
@@ -96,7 +98,7 @@ class PassBlocker final : public Behavior {
 
     Setup s_;
     int target_ = -1;
-    bool picked_up_ = false;  // a back who found a rusher stays in to block
+    bool picked_up_ = false;  // a back with a rusher to block (now) stays in
 };
 
 // ---------------------------------------------------------------------------
