@@ -50,6 +50,7 @@ struct PlayTuning {
     double arrive_decel = 3.0;
     double set_seconds = 1.0;
     double presnap_max_seconds = 20.0;
+    double walk_back = 3.0, sideline_jog = 4.5;  // between plays (the animation)
 
     // Reaction delays: the offense's get-off at the snap, and noticing a throw
     // or handoff. delay = curve(blend of ratings) + normal noise.

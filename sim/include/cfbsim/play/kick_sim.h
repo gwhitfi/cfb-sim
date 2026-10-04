@@ -37,6 +37,7 @@ struct KickOptions {
 };
 
 struct KickResult {
+    std::vector<Spot> start, end;  // everyone lined up before the kick, and at the last frame
     PlayType type = PlayType::Kickoff;
     std::string kind;  // deep, squib, onside, normal, field_goal
     // How it ended:
@@ -65,5 +66,8 @@ struct KickResult {
 // Runs one kicking play. Throws PlayError for plays it can't run. Writes a
 // tracking file when `out` is given.
 KickResult run_kick(const DataSet& data, const KickOptions& options, TrackingWriter* out = nullptr);
+
+// Where the kick lines everyone up (KickResult::start) without running it.
+std::vector<Spot> kick_start(const DataSet& data, const KickOptions& options);
 
 }  // namespace cfbsim

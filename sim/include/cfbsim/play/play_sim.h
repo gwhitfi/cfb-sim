@@ -54,6 +54,20 @@ struct Foul {
     double seconds = 0.0;     // after the snap
 };
 
+// Where a player stands and faces (field frame), for the between-plays
+// animation (docs/design/game-flow.md): it starts where everyone ended the
+// last play and ends where the next one lines them up.
+struct Spot {
+    std::string id;
+    std::string label;  // his slot
+    TeamSide team = TeamSide::Home;
+    Vec2 pos;
+    Vec2 facing{1.0, 0.0};
+};
+
+// Every agent's spot, in agent order.
+std::vector<Spot> spots_of(const World& world);
+
 // One player's work on the play (fatigue, phase 8).
 struct PlayerUsage {
     std::string id;
@@ -114,6 +128,7 @@ struct PlayResult {
     double spot_x = 0.0, spot_y = 0.0;  // play frame: where the ball is dead (incomplete: 0, 0)
     std::vector<Foul> fouls;            // committed, flagged or not
     std::vector<PlayerUsage> usage;     // every player on the field
+    std::vector<Spot> start, end;       // everyone lined up before the snap, and at the last frame
     // Player ids for the box score (empty when nobody did it).
     std::string passer_id;       // threw a pass
     std::string target_id;
@@ -147,5 +162,9 @@ double walk_up_seconds(const Formation& formation, const PlayFrame& frame, const
 
 // Runs one play. Writes a tracking file when `out` is given.
 PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWriter* out = nullptr);
+
+// Where the play lines everyone up (PlayResult::start) without running it.
+// Nothing random goes into the alignment, so this is the play's first frame.
+std::vector<Spot> play_start(const DataSet& data, const PlayOptions& options);
 
 }  // namespace cfbsim

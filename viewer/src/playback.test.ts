@@ -23,6 +23,20 @@ describe("Playback", () => {
     expect(Math.abs(p.facingDeg)).toBeCloseTo(180); // the short way round, not through 0
   });
 
+  it("plays a file recorded every 4 ticks at its own rate", () => {
+    const lines = [
+      { type: "header", format_version: 2, tick_rate: 20, frame_ticks: 4, players: [{ id: "a", team: "home" }] },
+      { type: "tick", tick: 0, p: [[0, 5, 0, 0, 0]], ball: null },
+      { type: "tick", tick: 4, p: [[1, 5, 0, 0, 0]], ball: null },
+      { type: "tick", tick: 8, p: [[2, 5, 0, 0, 0]], ball: null },
+    ];
+    const pb = new Playback(parseTracking(lines.map((l) => JSON.stringify(l)).join("\n")));
+    pb.togglePlay();
+    pb.advance(0.2); // one frame at 5 a second
+    expect(pb.frame).toBeCloseTo(1);
+    expect(pb.seconds).toBeCloseTo(0.2);
+  });
+
   it("advances by wall time times speed, and stops at the end", () => {
     const pb = new Playback(recording());
     pb.togglePlay();

@@ -51,6 +51,7 @@ BetweenPlays between_plays_schedule(double play_clock, double full_clock, Tempo 
         b.defense_call = b.call + t.defense_call_after;
         broke = std::max(b.call, call + (huddle ? t.huddle_seconds : 0.0) - head_start);
     }
+    b.broke = broke;
     b.set = std::max(b.defense_call, broke + (huddle ? walk_up : t.line_up));
     b.earliest = b.set + set_seconds;
     return b;

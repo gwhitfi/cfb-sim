@@ -133,7 +133,7 @@ PlayTuning parse_play_tuning(const Json& json, const std::string& source) {
 
     const Reader pre = root.at("presnap");
     pre.allow_only({"huddle_depth", "huddle_spacing", "huddle_break", "jog_speed", "arrive_decel",
-                    "set_seconds", "max_seconds"});
+                    "set_seconds", "max_seconds", "walk_back", "sideline_jog"});
     t.huddle_depth = pre.number("huddle_depth");
     t.huddle_spacing = pre.number("huddle_spacing");
     t.huddle_break = pre.number("huddle_break");
@@ -141,6 +141,8 @@ PlayTuning parse_play_tuning(const Json& json, const std::string& source) {
     t.arrive_decel = pre.number("arrive_decel");
     t.set_seconds = pre.number("set_seconds");
     t.presnap_max_seconds = pre.number("max_seconds");
+    t.walk_back = pre.number("walk_back");
+    t.sideline_jog = pre.number("sideline_jog");
 
     const Reader get_off = root.at("get_off");
     get_off.allow_only({"skill", "delay", "noise_sd"});

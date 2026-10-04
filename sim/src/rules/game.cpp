@@ -13,6 +13,7 @@
 #include <set>
 #include <sstream>
 
+#include "cfbsim/play/interlude.h"
 #include "cfbsim/play/kick_sim.h"
 #include "cfbsim/version.h"
 #include "coach/auto_coach.h"
@@ -182,14 +183,30 @@ class Game {
     void attempt_try(int team, int ot);
     // `saved`: the game state to go back to after the try.
     bool run_try_play(int team, const PlayCall& call, const GameState& saved);
-    // Runs the play, writing a tracking file when the options ask for one.
+    // Runs the play, writing a tracking file when the options ask for one
+    // (and the between-plays file before it).
     PlayResult run_tracked(const PlayOptions& o, const std::string& label);
+    // A snap's tracking file name: "007_q1_1432_home_<label>".
+    std::string snap_name(int team, const std::string& label) const;
+
+    // --- the between-plays animation (game-flow.md; visual only) -----------
+    // Writes the file that leads up to a snap: from where the last play left
+    // everyone to `to` (the next play's lineup), from `frame` (the side with
+    // the ball: `offense`). `last`: an event at the end (a timeout, a flag).
+    // Only with tracking; nothing in the game reads it.
+    void write_between(const std::vector<Spot>& to, const PlayFrame& frame, int offense, const std::string& last = "");
+    void ended(const std::vector<Spot>& end) {
+        last_end_ = end;
+        last_end_quarter_ = g_.quarter;
+        fresh_ = false;
+    }
 
     // --- one snap's pieces -------------------------------------------------
     // The players for a snap, picked as each call comes in, then the rest.
     void fill_offense(PlayOptions& o, const Play& play);
     void fill_defense(PlayOptions& o, const std::string& defense_play);
-    void finish_options(PlayOptions& o, const PlayCall& call);
+    // `draw_seed`: false for a look at the lineup only (the game RNG is left alone).
+    void finish_options(PlayOptions& o, const PlayCall& call, bool draw_seed = true);
     // The offense's frame for this snap.
     PlayFrame frame(bool flip) const {
         return PlayFrame(std::clamp(g_.s.yard_line, 0.5, 99.5), g_.hash, (g_.offense == 0) == (g_.quarter % 2 == 1), flip);
@@ -251,6 +268,13 @@ class Game {
     double segment_clock_ = 40.0;          // its length
     double segment_used_ = -1.0;           // s of it used so far (under 0: not between plays)
     double recovered_ = 0.0;               // s of it the lineups have recovered for
+    // The between-plays animation's inputs (only used with tracking).
+    std::vector<Spot> last_end_;           // where the last play left everyone
+    int last_end_quarter_ = 0;             // (a new period starts everyone fresh)
+    bool fresh_ = true;                    // start in the huddle (after a timeout, a new period)
+    std::optional<InterludeTimes> times_;  // this segment's schedule (none: a kickoff, a try)
+    bool huddle_ = false;                  // the offense huddles this snap
+    std::vector<std::pair<double, std::string>> between_events_;  // a check, an audible
 };
 
 // ---------------------------------------------------------------------------
@@ -529,6 +553,7 @@ void Game::coin_toss() {
 }
 
 SnapResult Game::kickoff(int kicking, bool free_kick) {
+    times_.reset();  // no schedule: the teams just take the field
     // (rules-and-flow.md#kicks-verify-stubbed-in-phase-8) The kicking team
     // chooses deep, squib, or onside; the receivers answer with their return.
     const Json c = ask(
@@ -600,19 +625,16 @@ KickResult Game::kick_play(int kicking, double yard_line, PlayType type, const s
     KickResult k;
     try {
         if (opt_.tracking) {
-            char num[8];
-            std::snprintf(num, sizeof num, "%03d", snaps_);
-            std::string clock = clock_text(g_.clock);
-            std::erase(clock, ':');
-            const std::unique_ptr<std::ostream> out = opt_.tracking(
-                std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + clock + "_" + team_key(kicking) + "_" + kp->id);
-            if (out) {
+            write_between(kick_start(data_, o), PlayFrame(o.yard_line, o.hash, o.kicking_right, false), kicking);
+            if (const std::unique_ptr<std::ostream> out = opt_.tracking(snap_name(kicking, kp->id))) {
                 TrackingWriter writer(*out);
                 k = run_kick(data_, o, &writer);
             } else {
                 k = run_kick(data_, o);
             }
+            ended(k.end);
         } else {
+            times_.reset();
             k = run_kick(data_, o);
         }
     } catch (const PlayError& e) {
@@ -844,6 +866,7 @@ void Game::attempt_try(int team, int ot) {
     // the try, the extra point or a two-point play from the 3 (only two-point
     // plays from the 2nd overtime).
     const bool kick_allowed = ot < 2;
+    times_.reset();  // the try is untimed: the teams just line up
     const GameState saved = g_;
     g_.offense = team;
     g_.s = first_down_at(100.0 - rules_.try_line, rules_);
@@ -919,21 +942,87 @@ bool Game::run_try_play(int team, const PlayCall& call, const GameState& saved) 
 // One snap
 // ---------------------------------------------------------------------------
 
-PlayResult Game::run_tracked(const PlayOptions& o, const std::string& label) {
-    if (!opt_.tracking) return run_play(data_, o);
-    const std::string clock = clock_text(g_.clock);
-    std::string mmss;
-    for (const char c : clock) {
-        if (c != ':') mmss += c;
-    }
+std::string Game::snap_name(int team, const std::string& label) const {
+    std::string clock = clock_text(g_.clock);
+    std::erase(clock, ':');
     char num[8];
     std::snprintf(num, sizeof num, "%03d", snaps_);
-    const std::string name = std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + mmss + "_" +
-                             team_key(g_.offense) + "_" + label;
-    const std::unique_ptr<std::ostream> out = opt_.tracking(name);
-    if (!out) return run_play(data_, o);
+    return std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + clock + "_" + team_key(team) + "_" + label;
+}
+
+PlayResult Game::run_tracked(const PlayOptions& o, const std::string& label) {
+    if (!opt_.tracking) return run_play(data_, o);
+    write_between(play_start(data_, o), PlayFrame(o.yard_line, o.hash, o.offense_right, false), g_.offense);
+    PlayResult r;
+    if (const std::unique_ptr<std::ostream> out = opt_.tracking(snap_name(g_.offense, label))) {
+        TrackingWriter writer(*out);
+        r = run_play(data_, o, &writer);
+    } else {
+        r = run_play(data_, o);
+    }
+    ended(r.end);
+    return r;
+}
+
+void Game::write_between(const std::vector<Spot>& to, const PlayFrame& frame, int offense, const std::string& last) {
+    const std::optional<InterludeTimes> times = times_;
+    times_.reset();
+    std::vector<std::pair<double, std::string>> events = std::move(between_events_);
+    between_events_.clear();
+    if (!opt_.tracking) return;
+    char num[8];
+    std::snprintf(num, sizeof num, "%03d", snaps_);
+    std::string clock = clock_text(g_.clock);
+    std::erase(clock, ':');
+    // "007_0_q1_1432_between" sorts just before the snap's own "007_q1_...".
+    const std::unique_ptr<std::ostream> out =
+        opt_.tracking(std::string(num) + "_0_q" + std::to_string(g_.quarter) + "_" + clock + "_between");
+    if (!out) return;
+
+    const auto side = [](int t) { return t == 0 ? TeamSide::Home : TeamSide::Away; };
+    const auto team_of_side = [](TeamSide s) { return s == TeamSide::Home ? 0 : 1; };
+    Interlude in(frame);
+    in.offense = side(offense);
+    in.times = times;
+    in.huddle = huddle_ && times.has_value();
+    in.fresh = fresh_ || last_end_quarter_ != g_.quarter;
+    const std::vector<Spot> none;
+    const std::vector<Spot>& from = in.fresh ? none : last_end_;
+    const auto find = [](const std::vector<Spot>& v, const std::string& id) -> const Spot* {
+        const auto it = std::find_if(v.begin(), v.end(), [&](const Spot& s) { return s.id == id; });
+        return it == v.end() ? nullptr : &*it;
+    };
+    for (const Spot& s : to) {
+        InterludeMan m;
+        m.player = &lineup(team_of_side(s.team)).player(s.id);
+        m.team = s.team;
+        m.label = s.label;
+        m.to = s;
+        if (const Spot* f = find(from, s.id)) m.from = *f;
+        in.men.push_back(std::move(m));
+    }
+    for (const Spot& s : from) {
+        if (find(to, s.id)) continue;
+        InterludeMan m;  // going off
+        m.player = &lineup(team_of_side(s.team)).player(s.id);
+        m.team = s.team;
+        m.label = s.label;
+        m.from = s;
+        in.men.push_back(std::move(m));
+    }
+    in.events = std::move(events);
+    if (!last.empty()) in.events.emplace_back(times ? times->end : 1e9, last);
+
+    in.info.kind = "interlude";
+    in.info.name = "between plays";
+    for (int t = 0; t < 2; ++t) {
+        const Team& tm = team_of(t);
+        (t == 0 ? in.info.home : in.info.away) = {tm.name, tm.abbr, tm.color_primary};
+    }
+    in.info.details = {{"situation", situation_text()}, {"clock", clock_text(g_.clock)}};
+    if (times) in.info.details["play_clock"] = segment_clock_;
     TrackingWriter writer(*out);
-    return run_play(data_, o, &writer);
+    write_interlude(in, data_.tuning.movement, data_.tuning.play, writer);
 }
 
 void Game::fill_offense(PlayOptions& o, const Play& play) {
@@ -967,7 +1056,7 @@ void Game::fill_defense(PlayOptions& o, const std::string& defense_play) {
     o.defense_players = lineup(def).fill(package->second, slots);
 }
 
-void Game::finish_options(PlayOptions& o, const PlayCall& call) {
+void Game::finish_options(PlayOptions& o, const PlayCall& call, bool draw_seed) {
     const int off = g_.offense, def = g_.defense();
     o.team = team_of(off).id;
     o.play = call.play;
@@ -976,7 +1065,7 @@ void Game::finish_options(PlayOptions& o, const PlayCall& call) {
     o.yard_line = std::clamp(g_.s.yard_line, 0.5, 99.5);
     // The home team attacks +x in odd quarters.
     o.offense_right = (off == 0) == (g_.quarter % 2 == 1);
-    o.seed = rng_.next_u64();
+    if (draw_seed) o.seed = rng_.next_u64();
     o.huddle = false;
     o.offense_home = off == 0;
     o.modifiers.clear();
@@ -1377,7 +1466,10 @@ SnapResult Game::snap() {
     const std::string called_play = call.play;
     const std::string called_defense = defense_play;
     Json h;
+    huddle_ = tempo == Tempo::Huddle;
+    between_events_.clear();
     for (;;) {
+        times_ = InterludeTimes{when.call, when.defense_call, when.broke, when.set, when.set};
         at(when.set);
         if (oplay) {
             const FormationLook look = look_of(*formation, frame(call.flip), data_.tuning.coach.check_box);
@@ -1388,6 +1480,7 @@ SnapResult Game::snap() {
             if (to != defense_play) {
                 defense_play = to;
                 fill_defense(o, defense_play);
+                between_events_.emplace_back(when.set, "check");
             }
         }
         const double earliest = std::floor((play_clock - when.earliest) * 100.0) / 100.0;
@@ -1398,6 +1491,15 @@ SnapResult Game::snap() {
         // A timeout before the snap: the time used so far runs, then the clock
         // stops, and the offense lines up again on a 25-second clock.
         const double used = std::max(when.set, std::min(play_clock, play_clock - h.value("play_clock", play_clock)));
+        if (opt_.tracking && oplay) {
+            // The animation up to the timeout, with everyone at the line.
+            PlayOptions look = o;
+            finish_options(look, call, false);
+            const std::vector<Spot> lined_up = play_start(data_, look);
+            times_->end = used;
+            write_between(lined_up, PlayFrame(look.yard_line, look.hash, look.offense_right, false), off, "timeout");
+        }
+        fresh_ = true;  // back out of the timeout in the huddle
         if (!between_plays(used)) return {SnapEnd::PeriodOver, -1};
         charge_timeout(off);
         play_clock = rules_.admin_play_clock;
@@ -1406,7 +1508,11 @@ SnapResult Game::snap() {
     }
     const double reading = h.value("play_clock", 10.0);
     const double used = std::min(play_clock, play_clock - reading);
-    if (h.contains("audible")) call.play = h["audible"].get<std::string>();  // same formation: same players
+    if (h.contains("audible")) {
+        call.play = h["audible"].get<std::string>();  // same formation: same players
+        between_events_.emplace_back(std::max(when.set, used - 1.0), "audible");
+    }
+    if (times_) times_->end = used;
     std::map<std::string, std::string> hot_routes;
     if (h.contains("hot_routes")) hot_routes = h["hot_routes"].get<std::map<std::string, std::string>>();
     if (!between_plays(used)) return {SnapEnd::PeriodOver, -1};
@@ -1414,6 +1520,7 @@ SnapResult Game::snap() {
 
     if (kicking) {
         if (reading <= 0.0) {
+            times_.reset();
             enforce_presnap(Foul{"delay_of_game", true, "", "", 0.0, 0.0, 0.0});
             return {};
         }
@@ -1425,15 +1532,23 @@ SnapResult Game::snap() {
         finish_options(o, call);
         o.hot_routes = hot_routes;
         if (const std::optional<Foul> f = presnap_foul(o, reading)) {
+            if (opt_.tracking) {
+                // The animation up to the flag; the next snap starts from the line.
+                const std::vector<Spot> lined_up = play_start(data_, o);
+                write_between(lined_up, PlayFrame(o.yard_line, o.hash, o.offense_right, false), off, f->type);
+                ended(lined_up);
+            }
             enforce_presnap(*f);
             return {};
         }
     } else if (reading <= 0.0) {
+        times_.reset();
         enforce_presnap(Foul{"delay_of_game", true, "", "", 0.0, 0.0, 0.0});
         return {};
     }
     PlayResult r;
     try {
+        if (clock_play) times_.reset();  // (no tracking file for a kneel or a spike)
         r = clock_play ? kneel_or_spike(call.play) : run_tracked(o, call.play);
     } catch (const PlayError& e) {
         throw GameError(std::string("play ") + call.play + " at " + situation_text() + ": " + e.what());

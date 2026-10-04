@@ -49,6 +49,7 @@ export interface Header {
   name: string;
   seed: number;
   tickRate: number;
+  frameTicks: number; // ticks between frames: 1, or 4 for a between-plays file (5 frames a second)
   teams: { home: TeamInfo; away: TeamInfo };
   details: Record<string, unknown>;
   players: PlayerInfo[];
@@ -187,6 +188,7 @@ function parseHeader(j: any, where: string): Header {
     name: String(j.name ?? ""),
     seed: Number(j.seed ?? 0),
     tickRate: need(j.tick_rate, "number", `${where}: tick_rate`),
+    frameTicks: Number(j.frame_ticks ?? 1),
     teams: {
       home: parseTeam(j.teams?.home, "Home", "#C8102E"),
       away: parseTeam(j.teams?.away, "Away", "#1D4F91"),

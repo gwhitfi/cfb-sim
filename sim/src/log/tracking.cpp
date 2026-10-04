@@ -55,6 +55,7 @@ void TrackingWriter::header(const TrackingInfo& info, const World& world) {
                  {"teams", {{"home", team_json(info.home)}, {"away", team_json(info.away)}}},
                  {"details", info.details},
                  {"players", players}};
+    if (info.frame_ticks != 1) line["frame_ticks"] = info.frame_ticks;
     if (!info.overlays.empty()) {
         line["overlays"] = info.overlays;
         round_numbers(line["overlays"]);

@@ -122,6 +122,11 @@ class PlaySim {
     }
 
     PlayResult run();
+    // Lines everyone up and stops (play_start).
+    std::vector<Spot> start() {
+        setup();
+        return spots_of(world_);
+    }
 
   private:
     const PlayTuning& tuning() const { return state_.tuning().play; }
@@ -2354,6 +2359,7 @@ void PlaySim::whistle(const std::string& outcome, std::optional<Vec2> spot) {
 
 PlayResult PlaySim::run() {
     setup();
+    result_.start = spots_of(world_);
     write_header();
     if (!opt_.huddle) snap();
     write_frame();
@@ -2399,6 +2405,7 @@ PlayResult PlaySim::run() {
         write_frame();
         if (state_.phase == PlayPhase::Dead && world_.tick() - dead_tick_ >= post_ticks) break;
     }
+    result_.end = spots_of(world_);
 
     const BlockingStats& bs = blocking_.stats();
     result_.sheds = bs.sheds;
@@ -2509,7 +2516,30 @@ double walk_up_seconds(const Formation& formation, const PlayFrame& frame, const
     return far / t.jog_speed + t.jog_speed / (2.0 * t.arrive_decel);
 }
 
+std::vector<Spot> spots_of(const World& world) {
+    std::vector<Spot> out;
+    for (const Agent& a : world.agents()) out.push_back({a.id, a.label, a.team, a.pos, a.facing});
+    return out;
+}
+
+namespace {
+
+// Runs the play, or (`start_only`) lines it up and returns that in `start`.
+PlayResult run_or_start(const DataSet& data, const PlayOptions& options, TrackingWriter* out, bool start_only);
+
+}  // namespace
+
 PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWriter* out) {
+    return run_or_start(data, options, out, false);
+}
+
+std::vector<Spot> play_start(const DataSet& data, const PlayOptions& options) {
+    return run_or_start(data, options, nullptr, true).start;
+}
+
+namespace {
+
+PlayResult run_or_start(const DataSet& data, const PlayOptions& options, TrackingWriter* out, bool start_only) {
     const auto team = data.teams.find(options.team);
     if (team == data.teams.end()) throw PlayError("unknown team '" + options.team + "'");
     const auto roster = data.rosters.find(options.team);
@@ -2565,7 +2595,14 @@ PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWri
 
     PlaySim sim(data, options, team->second, roster->second, book->second, *play, formation->second,
                 defense, out);
+    if (start_only) {
+        PlayResult r;
+        r.start = sim.start();
+        return r;
+    }
     return sim.run();
 }
+
+}  // namespace
 
 }  // namespace cfbsim

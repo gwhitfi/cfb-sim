@@ -98,6 +98,7 @@ const live = new Live({
     return true;
   },
   playback: () => pb,
+  devMode: () => devBox.checked,
   serverInfo: () => topBar.serverInfo(),
 });
 

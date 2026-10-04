@@ -42,6 +42,7 @@ double runoff_before_snap(const ClockAfter& c, double play_clock_used, const Gam
 struct BetweenPlays {
     double call = 0.0;          // the offense's call
     double defense_call = 0.0;  // the defense's (it has seen the offense's personnel)
+    double broke = 0.0;         // the huddle breaks (no huddle: the call)
     double set = 0.0;           // the offense is set: the defense may check, the offense may snap ...
     double earliest = 0.0;      // ... from here (set + the set seconds)
 };

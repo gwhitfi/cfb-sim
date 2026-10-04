@@ -64,6 +64,8 @@ class World {
     const MovementTuning& tuning() const { return tuning_; }
 
     std::int64_t tick() const { return tick_; }
+    // For writers that place frames themselves (the between-plays animation).
+    void set_tick(std::int64_t tick) { tick_ = tick; }
     double time() const { return static_cast<double>(tick_) * kTickSeconds; }
 
     // Runs one tick. `intents` holds one Intent per agent, in agent order: the

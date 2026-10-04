@@ -85,6 +85,11 @@ class KickSim {
     }
 
     KickResult run();
+    // Lines everyone up and stops (kick_start).
+    std::vector<Spot> start() {
+        setup();
+        return spots_of(world_);
+    }
 
   private:
     const SpecialTuning& st() const { return data_.tuning.special; }
@@ -1026,6 +1031,7 @@ void KickSim::write_frame() {
 
 KickResult KickSim::run() {
     setup();
+    result_.start = spots_of(world_);
     write_header();
     state_.phase = PlayPhase::Live;
     state_.snap_tick = world_.tick();
@@ -1083,6 +1089,7 @@ KickResult KickSim::run() {
         write_frame();
         if (state_.phase == PlayPhase::Dead && world_.tick() - dead_tick_ >= post_ticks) break;
     }
+    result_.end = spots_of(world_);
 
     const TackleStats& ts = tackles_.stats();
     for (int i = 0; i < state_.count(); ++i) {
@@ -1138,7 +1145,9 @@ Sides side_for(const DataSet& data, const std::string& team_id, const std::strin
 
 }  // namespace
 
-KickResult run_kick(const DataSet& data, const KickOptions& options, TrackingWriter* out) {
+namespace {
+
+KickResult run_or_start(const DataSet& data, const KickOptions& options, TrackingWriter* out, bool start_only) {
     const Sides kick = side_for(data, options.kicking_team, options.kick_play);
     const Sides recv = side_for(data, options.receiving_team, options.return_play);
     const PlayType t = kick.play->type;
@@ -1153,7 +1162,22 @@ KickResult run_kick(const DataSet& data, const KickOptions& options, TrackingWri
     }
     if (options.yard_line <= 0.0 || options.yard_line >= 100.0) throw PlayError("yard line must be between 0 and 100");
     KickSim sim(data, options, kick, recv, out);
+    if (start_only) {
+        KickResult r;
+        r.start = sim.start();
+        return r;
+    }
     return sim.run();
+}
+
+}  // namespace
+
+KickResult run_kick(const DataSet& data, const KickOptions& options, TrackingWriter* out) {
+    return run_or_start(data, options, out, false);
+}
+
+std::vector<Spot> kick_start(const DataSet& data, const KickOptions& options) {
+    return run_or_start(data, options, nullptr, true).start;
 }
 
 }  // namespace cfbsim

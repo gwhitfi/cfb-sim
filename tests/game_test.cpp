@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
@@ -228,4 +230,75 @@ TEST(Game, CheckAndKickAnswers) {
     EXPECT_TRUE(check_answer(call, a).has_value());
     a = {{"play", "punt"}, {"flip", true}};
     EXPECT_TRUE(check_answer(call, a).has_value());
+}
+
+namespace {
+
+// A game's tracking files, by name in the order written.
+struct Tracked {
+    std::vector<std::pair<std::string, std::string>> files;
+};
+
+class Capture : public std::ostringstream {
+  public:
+    Capture(Tracked& t, std::string name) : t_(t), name_(std::move(name)) {}
+    ~Capture() override { t_.files.emplace_back(name_, str()); }
+
+  private:
+    Tracked& t_;
+    std::string name_;
+};
+
+// Each player's [x, y] in a tracking file's first or last frame, by id.
+std::map<std::string, std::pair<double, double>> frame_spots(const std::string& file, bool last) {
+    std::istringstream in(file);
+    std::vector<std::string> ids;
+    Json frame;
+    for (std::string text; std::getline(in, text);) {
+        Json j = Json::parse(text);
+        if (j["type"] == "header") {
+            for (const Json& p : j["players"]) ids.push_back(p["id"]);
+        } else if (j["type"] == "tick") {
+            if (frame.is_null() || last) frame = std::move(j);
+        }
+    }
+    std::map<std::string, std::pair<double, double>> out;
+    for (std::size_t k = 0; k < ids.size(); ++k) out[ids[k]] = {frame["p"][k][0], frame["p"][k][1]};
+    return out;
+}
+
+}  // namespace
+
+TEST(Game, BetweenPlaysIsOnlyToWatch) {
+    // The animation is visual only: a game with tracking is the same game.
+    Tracked tracked;
+    GameOptions o = options(4);
+    o.tracking = [&](const std::string& name) -> std::unique_ptr<std::ostream> {
+        return std::make_unique<Capture>(tracked, name);
+    };
+    std::ostringstream with;
+    play_game(data(), o, &with);
+    EXPECT_EQ(with.str(), game_log(data(), 4));
+
+    // Each between-plays file ends with everyone where the next play lines him up.
+    int pairs = 0, scrimmage = 0;
+    for (std::size_t k = 0; k + 1 < tracked.files.size(); ++k) {
+        const auto& [name, text] = tracked.files[k];
+        if (name.find("_between") == std::string::npos) continue;
+        const auto& [next, play] = tracked.files[k + 1];
+        if (next.find("_between") != std::string::npos) continue;  // a timeout or a flag: no play
+        ++pairs;
+        const auto end = frame_spots(text, true);
+        const auto start = frame_spots(play, false);
+        EXPECT_EQ(end.size() >= start.size(), true) << name;
+        for (const auto& [id, at] : start) {
+            const auto it = end.find(id);
+            ASSERT_NE(it, end.end()) << id << " isn't in " << name;
+            EXPECT_NEAR(it->second.first, at.first, 0.011) << id << " in " << name << " -> " << next;
+            EXPECT_NEAR(it->second.second, at.second, 0.011) << id << " in " << name << " -> " << next;
+        }
+        if (text.find("\"event\":\"set\"") != std::string::npos) ++scrimmage;
+    }
+    EXPECT_GT(pairs, 150);
+    EXPECT_GT(scrimmage, 100);
 }

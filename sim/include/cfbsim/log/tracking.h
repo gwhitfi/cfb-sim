@@ -2,6 +2,7 @@
 // Lines, for the viewer to play back (rules-and-flow.md#game-log--replay).
 //
 //   {"type":"header", "format_version":2, "tick_rate":20, "players":[...], ...}
+//   (optional "frame_ticks":4: a frame every 4 ticks, the viewer plays 5 a second)
 //   {"type":"tick", "tick":0, "p":[[x, y, vx, vy, facing_deg(, z)], ...], "ball":[x, y, z] or null,
 //    "dbg":[shape, ...]}
 //   {"type":"event", "tick":87, "event":"split", ...}
@@ -44,6 +45,9 @@ struct TrackingInfo {
     TrackingTeam away{"Away", "AWAY", "#1D4F91"};
     Json details = Json::object();  // anything else worth showing (drill options, ...)
     Json overlays = Json::array();  // debug shapes shown for the whole file
+    // Ticks between frames: 1 (every tick), or more for a file recorded at a
+    // lower rate (the between-plays animation: 4, 5 frames a second).
+    int frame_ticks = 1;
 };
 
 class TrackingWriter {

@@ -11,7 +11,10 @@
     "jog_speed": 5.0,        // yd/s walking up to the line
     "arrive_decel": 3.0,     // yd/s^2: easing into the alignment spot
     "set_seconds": 1.0,      // everyone set this long before the snap
-    "max_seconds": 20
+    "max_seconds": 20,
+    // Between plays (the animation only; docs/design/game-flow.md).
+    "walk_back": 3.0,        // yd/s back to the huddle after the whistle
+    "sideline_jog": 4.5      // yd/s on and off the field
   },
 
   // Offense at the snap: it knows the count, so the delay is short.

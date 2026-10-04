@@ -29,6 +29,7 @@ export interface Host {
   // Loads a snap's tracking file and starts playing it. False if it can't be read.
   show(text: string, name: string): boolean;
   playback(): Playback | null;
+  devMode(): boolean; // plays only snap to whistle: no between-plays files
   // The teams and game logs from the server's hello.
   serverInfo(teams: TeamInfo[], logs: string[]): void;
 }
@@ -87,6 +88,7 @@ export class Live {
   private animating = false;
   private hold = 0;
   private state: GameState | null = null;
+  private between = false; // the file playing is a between-plays one
   private mode: "live" | "replay" | null = null;
   private user = new Set<TeamKey>();
   private auto = new Set<TeamKey>(); // user sides handed to the coach
@@ -300,10 +302,12 @@ export class Live {
     if (this.shownPrompt?.input === "hike") this.tickHike(dt);
     if (this.animating) {
       const pb = this.host.playback();
+      if (this.between && pb) this.betweenClock(pb);
       if (pb && (pb.playing || !pb.atEnd)) return;
       this.hold -= dt * (pb?.speed ?? 1);
       if (this.hold > 0) return;
       this.animating = false;
+      this.between = false;
     }
     while (!this.queue.empty) {
       const step = this.queue.shift()!;
@@ -312,6 +316,11 @@ export class Live {
         continue;
       }
       const skip = $<HTMLInputElement>("game-skip").checked;
+      // Between plays (the walk back, the huddle, lining up: docs/design/game-flow.md).
+      // Skipped with skip animations and in dev mode, and while coaching: the
+      // calls were made before the file comes (until the live clock, step 3).
+      const between = step.name.includes("_between");
+      if (between && (skip || this.host.devMode() || (this.mode === "live" && this.user.size > 0))) continue;
       if (this.host.show(step.data, `${step.name}.jsonl`)) {
         const pb = this.host.playback()!;
         for (const p of pb.rec.header.players) this.names.set(p.id, p.name);
@@ -320,8 +329,9 @@ export class Live {
           pb.seek(pb.lastFrame);
           this.hold = 0.15;
         } else {
-          this.hold = HOLD_AFTER_SNAP;
+          this.hold = between ? 0 : HOLD_AFTER_SNAP; // straight on into the snap
         }
+        this.between = between;
         this.animating = true;
         return;
       }
@@ -335,6 +345,16 @@ export class Live {
       return;
     }
     this.advance();
+  }
+
+  // The play clock on the scoreboard while the teams get to the line.
+  private betweenClock(pb: Playback): void {
+    const pc = document.getElementById("sb-play-clock");
+    const full = Number(pb.rec.header.details.play_clock ?? 0);
+    if (!pc || !full) return;
+    const left = full - pb.seconds;
+    pc.textContent = `:${Math.max(0, Math.ceil(left)).toString().padStart(2, "0")}`;
+    pc.classList.toggle("low", left < 5);
   }
 
   private applyLine(line: any, state: GameState): void {

@@ -4,6 +4,8 @@
 // two recorded frames we interpolate linearly. Time is kept as a fractional
 // frame index rather than seconds: frames are what the file has, and gaps in
 // the tick numbers (dead time skipped in a game) just play straight through.
+// A file recorded at a lower rate says so (`frameTicks`: between plays, a
+// frame every 4 ticks) and plays that many times slower per frame.
 
 import { FACING, STRIDE, X, Y, VX, VY, Z, type Recording } from "./tracking";
 
@@ -70,7 +72,7 @@ export class Playback {
   // Advances the clock by `seconds` of wall time. Stops at the end.
   advance(seconds: number): void {
     if (!this.playing) return;
-    this.seek(this.frame + seconds * this.speed * this.rec.header.tickRate);
+    this.seek(this.frame + (seconds * this.speed * this.rec.header.tickRate) / this.rec.header.frameTicks);
     if (this.atEnd) this.playing = false;
   }
 
