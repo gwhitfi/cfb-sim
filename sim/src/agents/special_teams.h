@@ -1,12 +1,13 @@
 // Special teams behaviors (phase 9; movement-and-interaction.md#special-teams-phase-9):
 // coverage, returners, return blockers, field goal protection and rush.
-// The kick sim (play/kick_sim.cpp) swaps these for Pursuer, BallCarrier,
-// and LooseBall when the ball is fielded or comes loose.
+// The kick sim (play/kick_sim.cpp) swaps these for LaneCoverage, Pursuer,
+// BallCarrier, and LooseBall when the ball is fielded or comes loose.
 #pragma once
 
 #include <optional>
 #include <string>
 
+#include "agents/behaviors.h"
 #include "play/play_state.h"
 
 namespace cfbsim {
@@ -16,6 +17,16 @@ inline bool kicked(const PlayState& play) { return play.pass.has_value(); }
 
 // Where the kicked ball will come down (field frame), if it's in the air.
 std::optional<Vec2> kick_landing(const PlayState& play);
+
+// Where a kickoff safety aims: across from `ball` at `across` x `lane`,
+// `depth` yd behind the front of his coverage (the deepest teammate who
+// isn't a safety, or the kicker before the kick, led by 0.75 s of his run
+// so the safety keeps up), and never closer to the ball than `depth`.
+Vec2 safety_spot(const PlayState& play, int self, Vec2 ball, Vec2 across, Vec2 kick_dir, double lane, double depth);
+
+// Seconds to run `distance` yd straight ahead from `speed`, accelerating as
+// the physics step does (dv/dt = accel_rate x (top_speed - v)).
+double run_time(double distance, double speed, const MovementProfile& move);
 
 // Coverage before the ball is fielded: run down in a lane toward where the
 // ball is coming down (or the loose ball). `across`: field-frame unit vector
@@ -33,6 +44,14 @@ class Cover final : public Behavior {
 
     std::string_view name() const override { return label_; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
+    double lane() const { return lane_; }
+    double behind() const { return behind_; }
+
+    // Kickoff: time the run off this kicker's approach (Before::Time).
+    void set_kicker(int k) { kicker_ = k; }
+    // Kickoff safety: stay this far behind the front of the coverage
+    // instead of `trail` short of the ball.
+    void set_behind(double yd) { behind_ = yd; }
 
   private:
     std::string label_;
@@ -41,6 +60,41 @@ class Cover final : public Behavior {
     double lane_;
     double trail_;
     Before before_;
+    int kicker_ = -1;
+    double behind_ = 0.0;
+    bool go_ = false;  // kickoff: he has started his run
+};
+
+// Kickoff coverage after the catch: keeps his lane, sliding across with the
+// returner and squeezing as he closes, then breaks to the ball as a Pursuer
+// (movement-and-interaction.md#coverage-and-the-return).
+class LaneCoverage final : public Behavior {
+  public:
+    struct Setup {
+        Vec2 across;              // field frame: the kicking team's +x
+        Vec2 kick_dir;            // field frame: the way the ball was kicked
+        double lane = 0.0;        // yd across from the returner (kicking frame x)
+        bool contain = false;     // stays outside the returner
+        bool safety = false;      // a second line: stays across from the returner, `depth` behind the coverage
+        double depth = 0.0;       // safety: yd behind the front of the coverage
+        bool disciplined = true;  // false: he breaks to the ball at once
+        double squeeze_depth = 25.0;
+        double break_range = 8.0;
+        double contain_width = 4.0;
+        double safety_range = 10.0;
+        Pursuer::Setup pursuit;   // how he chases once he breaks
+    };
+    explicit LaneCoverage(Setup setup) : s_(setup), pursue_(setup.pursuit) {}
+
+    std::string_view name() const override { return broken_ ? "pursue" : s_.safety ? "safety" : s_.contain ? "contain" : "cover"; }
+    Intent decide(const PlayState& play, int self, Actions& actions) override;
+    void draw(const PlayState& play, int self, Json& shapes) const override;
+
+  private:
+    Setup s_;
+    Pursuer pursue_;
+    bool broken_ = false;      // he has left his lane for good
+    std::optional<Vec2> aim_;  // field frame (drawing)
 };
 
 // The returner before he has the ball.
@@ -129,8 +183,9 @@ class KickRusher final : public Behavior {
 // Stand at a spot (facing a direction) for `seconds`, then done.
 class Wait final : public Behavior {
   public:
-    Wait(std::string label, Vec2 spot, Vec2 face, double seconds)
-        : label_(std::move(label)), spot_(spot), face_(face), seconds_(seconds) {}
+    // `speed`: how fast he goes to the spot (default half his top speed).
+    Wait(std::string label, Vec2 spot, Vec2 face, double seconds, std::optional<double> speed = std::nullopt)
+        : label_(std::move(label)), spot_(spot), face_(face), seconds_(seconds), speed_(speed) {}
     std::string_view name() const override { return label_; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
     bool done(const PlayState& play, int self) const override;
@@ -140,6 +195,7 @@ class Wait final : public Behavior {
     Vec2 spot_;
     Vec2 face_;
     double seconds_;  // after the snap; infinity: until the kick sim replaces him
+    std::optional<double> speed_;
 };
 
 }  // namespace cfbsim

@@ -66,14 +66,20 @@ double PassBlocker::claim(const PlayState& play, int d) const {
     return std::max(0.0, std::abs(proj_x - s_.area_x) - s_.area_half);
 }
 
-int PassBlocker::pick_target(const PlayState& play, int self) const {
+int PassBlocker::pick_target(const PlayState& play, int self, int* wrong) const {
     const BlockingTuning& t = play.tuning().blocking;
     const Vec2 me = play.play_pos(self);
     const Vec2 qb = qb_play_pos(play);
     const double my_to_qb = (qb - me).length();
 
-    int best = -1, help = -1;
-    double best_score = kNoClaim, help_score = kNoClaim, current = kNoClaim;
+    int best = -1, help = -1, wrong_pick = -1;
+    double best_score = kNoClaim, help_score = kNoClaim, current = kNoClaim, wrong_score = kNoClaim;
+    const auto leave = [&](int d, double score) {
+        if (score < wrong_score) {
+            wrong_pick = d;
+            wrong_score = score;
+        }
+    };
     for (int d = play.offense_count; d < play.count(); ++d) {
         const double mine = claim(play, d);
         if (mine >= kNoClaim) continue;
@@ -108,7 +114,10 @@ int PassBlocker::pick_target(const PlayState& play, int self) const {
                                  std::abs(pj.x - (p.x + v.x * t.project_seconds)) <= t.on_him);
             theirs = on_him && (their < mine || (their == mine && j < self));
         }
-        if (theirs) continue;
+        if (theirs) {
+            leave(d, mine);
+            continue;
+        }
         if (!s_.back && mine > t.reach_outside) continue;
 
         const double score = mine + (s_.back ? 0.0 : t.depth_penalty * std::max(0.0, p.y));
@@ -118,12 +127,13 @@ int PassBlocker::pick_target(const PlayState& play, int self) const {
             best_score = score;
         }
     }
+    if (wrong) *wrong = wrong_pick;
     // Stay on his man unless another is clearly more his.
     if (target_ >= 0 && current < kNoClaim && current <= best_score + t.switch_margin) return target_;
     return best >= 0 ? best : help;
 }
 
-Intent PassBlocker::decide(const PlayState& play, int self, Actions& /*actions*/) {
+Intent PassBlocker::decide(const PlayState& play, int self, Actions& actions) {
     const Agent& me = play.agent(self);
     const BlockingTuning& t = play.tuning().blocking;
     const PlayFrame& f = play.frame;
@@ -143,7 +153,21 @@ Intent PassBlocker::decide(const PlayState& play, int self, Actions& /*actions*/
     // A back who has released is done (see done()); one with a rusher stays in.
     if (s_.back && !picked_up_ && play.since_snap() >= s_.release_at) return in;
 
-    target_ = pick_target(play, self);
+    // A back who misread stays on the wrong man for a moment; then he reads
+    // it again (by then the free rusher is usually past him).
+    const double now = play.since_snap();
+    if (!(now < committed_until_ && target_ >= 0 && !play.knocked_down(target_))) {
+        int wrong = -1;
+        const bool can_misread = s_.back && s_.misread && !misread_done_;
+        target_ = pick_target(play, self, can_misread ? &wrong : nullptr);
+        if (can_misread && target_ >= 0 && wrong >= 0) {
+            target_ = wrong;
+            misread_done_ = true;
+            committed_until_ = now + s_.misread_hold;
+            actions.notes.emplace_back("misread", Json{{"player", play.slot_name(self)},
+                                                       {"on", play.slot_name(wrong)}});
+        }
+    }
     if (target_ < 0) {
         // Nobody to block (or his man was picked up by someone else): a back
         // goes back to checking, and releases at his check time.
@@ -173,12 +197,11 @@ Intent PassBlocker::decide(const PlayState& play, int self, Actions& /*actions*/
 
 bool PassBlocker::done(const PlayState& play, int self) const {
     // A back releases into his route: at his check time with nobody to block,
-    // or at the block release time even from a block (the engagement ends
-    // when he stops blocking).
-    if (!s_.back) return false;
+    // or at the block release time if he isn't in a block. One who is
+    // blocking a rusher stays in.
+    if (!s_.back || play.engaged(self)) return false;
     const double now = play.since_snap();
-    if (now >= s_.block_release_at) return true;
-    return !picked_up_ && !play.engaged(self) && now >= s_.release_at;
+    return now >= s_.block_release_at || (!picked_up_ && now >= s_.release_at);
 }
 
 void PassBlocker::draw(const PlayState& play, int self, Json& shapes) const {

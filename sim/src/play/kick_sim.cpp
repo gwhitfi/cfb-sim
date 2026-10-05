@@ -118,7 +118,10 @@ class KickSim {
     void launch_kick();
     void launch_punt();
     void launch_field_goal();
+    // The holder has the snap: the kicker steps up to the ball, timed to the hold.
+    void approach_field_goal();
     void plan_return();
+    void read_fair_catch();
     void field_kick(Vec3 before);
     void kick_landed();
     void loose_ball();
@@ -158,6 +161,7 @@ class KickSim {
     Vec2 kick_from_;        // field frame
     Vec2 landing_;          // field frame, the planned landing spot
     double hang_ = 0.0;
+    bool fc_read_ = false;  // the kickoff fair catch read is done
     // The ball after the kick.
     bool touched_ = false;  // a receiver has touched it (muff, catch)
     std::optional<double> touch_time_;  // the game clock starts
@@ -310,6 +314,8 @@ Pursuer::Setup KickSim::pursuit(int i, bool contain) const {
     s.lag = t.pursue_lag(skill);
     s.contain = contain;
     s.effort = t.effort(r[Attr::WorkRate]);
+    s.breakdown = t.breakdown_speed(skill);
+    if (k_.play->type == PlayType::Kickoff && kicking(i)) s.breakdown_extra = st().breakdown_extra;
     return s;
 }
 
@@ -346,15 +352,28 @@ std::unique_ptr<Behavior> KickSim::job_behavior(int i, const Job& job) {
         case JobKind::Protect:
             if (!returns_) return std::make_unique<Protector>(a.pos);
             return std::make_unique<Cover>("protect", across(), kd, 0.0, 0.0, Cover::Before::Hold);
-        case JobKind::CoverLane:
-            return std::make_unique<Cover>("cover", across(), kd, job.lane_x.value_or(0.0), 0.0, timing);
-        case JobKind::Contain:
-            return std::make_unique<Cover>("contain", across(), kd, side_x < 0.0 ? -18.0 : 18.0, 0.0, timing);
+        case JobKind::CoverLane: {
+            auto c = std::make_unique<Cover>("cover", across(), kd, job.lane_x.value_or(0.0), 0.0, timing);
+            c->set_kicker(kicker_);
+            return c;
+        }
+        case JobKind::Contain: {
+            auto c = std::make_unique<Cover>("contain", across(), kd, side_x < 0.0 ? -18.0 : 18.0, 0.0, timing);
+            c->set_kicker(kicker_);
+            return c;
+        }
         case JobKind::Gunner:
             return std::make_unique<Cover>("gunner", across(), kd, side_x < 0.0 ? -3.0 : 3.0, 0.0, Cover::Before::Release);
         case JobKind::Safety:
             if (!kicking(i)) return std::make_unique<Wait>("safety", a.pos, face, inf);
-            return std::make_unique<Cover>("safety", across(), kd, 0.0, 18.0, timing);
+            if (k_.play->type != PlayType::Kickoff) return std::make_unique<Cover>("safety", across(), kd, 0.0, 18.0, timing);
+            {
+                // A kickoff safety: a second line behind the coverage.
+                auto c = std::make_unique<Cover>("safety", across(), kd, job.lane_x.value_or(0.0), 0.0, timing);
+                c->set_kicker(kicker_);
+                c->set_behind(job.depth.value_or(st().safety_depth));
+                return c;
+            }
         case JobKind::Jam:
             return std::make_unique<Jammer>(st().jam);
         case JobKind::HoldUp:
@@ -493,6 +512,22 @@ void KickSim::launch_punt() {
     }
 }
 
+void KickSim::approach_field_goal() {
+    const SpecialTuning& t = st();
+    const Agent& k = state_.agent(kicker_);
+    const Agent& h = state_.agent(holder_);
+    const Vec2 kd = kick_dir();
+    // Plant beside and just behind the ball (the holder's spot), on his side.
+    const Vec2 across = kd.rotated(std::numbers::pi / 2.0);
+    const double side = (k.pos - h.pos).dot(across) >= 0.0 ? 1.0 : -1.0;
+    const Vec2 plant = h.pos - kd * 0.9 + across * (0.5 * side);
+    const double hold = std::max(t.fg_hold(t.fg_holder(h.ratings)), kTickSeconds);
+    // A little quicker than even pace: he speeds up and eases in at the end.
+    const double speed = std::min(k.move.top_speed, 1.4 * (plant - k.pos).length() / hold);
+    state_.behaviors[static_cast<std::size_t>(kicker_)] =
+        std::make_unique<Wait>("kick", plant, kd, std::numeric_limits<double>::infinity(), speed);
+}
+
 void KickSim::launch_field_goal() {
     const SpecialTuning& t = st();
     Rng& rng = world_.rng();
@@ -556,20 +591,14 @@ void KickSim::plan_return() {
     // The return_aggression tactic: -1 (conservative) .. +1 (aggressive).
     const double aggr = std::clamp((opt_.return_aggression - 50.0) / 50.0, -1.0, 1.0);
     margin += aggr * t.aggression_margin;
-    const double touchback_depth = t.touchback_depth + aggr * t.aggression_depth;
-    const double end_zone_return = std::clamp(t.end_zone_return * (1.0 + aggr), 0.0, 1.0);
     Returner::Plan plan = Returner::Plan::Field;
     if (k_.play->type == PlayType::Kickoff) {
+        // A deep kick he can reach he sets to field; the fair catch read
+        // decides later.
         if (result_.kind != "deep") {
             plan = Returner::Plan::Avoid;  // squibs and onsides: whoever is near plays the bounce
         } else if (depth > 10.0) {
             plan = Returner::Plan::Avoid;  // out the back: a touchback
-        } else if (depth > touchback_depth) {
-            plan = Returner::Plan::Touchback;
-        } else if (depth > 0.0) {
-            plan = world_.rng().chance(end_zone_return) ? Returner::Plan::Field : Returner::Plan::Touchback;
-        } else if (own_yl < data_.rules.kickoff_touchback && margin < t.fair_catch_kickoff) {
-            plan = Returner::Plan::FairCatch;
         }
     } else {
         if (own_yl < t.let_bounce) {
@@ -581,6 +610,33 @@ void KickSim::plan_return() {
     ret->set_plan(plan);
     static constexpr const char* kPlan[] = {"field", "fair_catch", "touchback", "let_it_go"};
     event("return_plan", {{"player", state_.slot_name(returner_)}, {"plan", kPlan[static_cast<int>(plan)]}});
+}
+
+void KickSim::read_fair_catch() {
+    // (movement-and-interaction.md#returner-decisions) A moment before a deep
+    // kickoff comes down, a returner set to field it may fair catch it (a
+    // knee in the end zone) for the 25 rather than return it, at his landing
+    // zone's chance.
+    fc_read_ = true;
+    if (returner_ < 0 || result_.kind != "deep") return;
+    auto* ret = dynamic_cast<Returner*>(state_.behaviors[static_cast<std::size_t>(returner_)].get());
+    if (!ret || ret->plan() != Returner::Plan::Field) return;
+    const SpecialTuning& t = st();
+    const double own_yl = std::max(0.0, kframe_.goal_line_y() - ky(landing_));
+    if (own_yl >= data_.rules.kickoff_touchback) return;
+    double chance = 0.0;
+    for (const auto& z : t.fc_zones) {
+        if (own_yl <= z.max_yl) {
+            chance = z.chance;
+            break;
+        }
+    }
+    const bool take = chance > 0.0 && world_.rng().chance(chance);
+    if (take) ret->set_plan(ky(landing_) > kframe_.goal_line_y() ? Returner::Plan::Touchback : Returner::Plan::FairCatch);
+    event("fair_catch_read", {{"player", state_.slot_name(returner_)},
+                              {"yard_line", std::round(own_yl * 10.0) / 10.0},
+                              {"chance", std::round(chance * 100.0) / 100.0},
+                              {"take", take}});
 }
 
 void KickSim::possess(int player) {
@@ -616,9 +672,34 @@ void KickSim::possess(int player) {
             blockers.push_back(i);
         }
     }
+    // On a kickoff the lane and contain players keep their lanes until they
+    // close in and the kicker plays safety; all punt coverage pursues at once.
     for (const int i : cover) {
         const std::string_view job = state_.behavior(i)->name();
-        state_.behaviors[static_cast<std::size_t>(i)] = std::make_unique<Pursuer>(pursuit(i, job == "contain"));
+        const bool contain = job == "contain";
+        const auto* lane = dynamic_cast<const Cover*>(state_.behavior(i));
+        auto& behavior = state_.behaviors[static_cast<std::size_t>(i)];
+        if (k_.play->type == PlayType::Kickoff && lane && (contain || job == "cover" || job == "safety")) {
+            const SpecialTuning& t = st();
+            LaneCoverage::Setup s;
+            s.across = across();
+            s.kick_dir = kick_dir();
+            s.lane = lane->lane();
+            s.contain = contain;
+            s.safety = job == "safety";
+            s.depth = lane->behind();
+            s.disciplined = world_.rng().chance(t.stay_in_lane(state_.agent(i).ratings[Attr::Discipline]));
+            s.squeeze_depth = t.squeeze_depth;
+            s.break_range = t.break_range;
+            s.contain_width = t.contain_width;
+            s.safety_range = t.safety_range;
+            s.pursuit = pursuit(i, contain);
+            // The returner on his inside shoulder: he stays on his own side of him.
+            if (std::abs(s.lane) > 0.5) s.pursuit.side = across() * (s.lane < 0.0 ? -1.0 : 1.0);
+            behavior = std::make_unique<LaneCoverage>(s);
+        } else {
+            behavior = std::make_unique<Pursuer>(pursuit(i, contain));
+        }
     }
     std::vector<bool> taken(n(), false);
     const Vec2 carrier = state_.agent(player).pos;
@@ -642,7 +723,12 @@ void KickSim::possess(int player) {
         state_.behaviors[static_cast<std::size_t>(b)] = std::move(rb);
     }
     state_.behaviors[static_cast<std::size_t>(player)] = free_carrier(player, aim);
-    event("fielded", {{"player", state_.slot_name(player)}});
+    // Caught standing still, he secures it and looks upfield before he runs.
+    const Agent& r = state_.agent(player);
+    const double still = std::clamp(1.0 - r.vel.length() / st().secure_speed, 0.0, 1.0);
+    const double delay = st().secure(r.ratings[Attr::Vision]) * still;
+    state_.get_off[static_cast<std::size_t>(player)] = state_.since_snap() + delay;
+    event("fielded", {{"player", state_.slot_name(player)}, {"delay", std::round(delay * 100.0) / 100.0}});
 }
 
 void KickSim::everyone_loose(bool receivers_too) {
@@ -868,6 +954,7 @@ void KickSim::ball_phase() {
                 ball.vel = {};
                 snap_in_flight_ = false;
                 caught_snap_ = now;
+                if (type == PlayType::FieldGoal) approach_field_goal();
             }
             return;
         }
@@ -893,6 +980,9 @@ void KickSim::ball_phase() {
     if (type == PlayType::FieldGoal) {
         field_goal_flight(before);
         return;
+    }
+    if (type == PlayType::Kickoff && !fc_read_ && kick_time_ && now >= *kick_time_ + hang_ - t.fc_look) {
+        read_fair_catch();
     }
     field_kick(before);
     if (ball.state != Ball::State::InFlight || state_.phase != PlayPhase::Live) return;
@@ -1070,10 +1160,14 @@ KickResult KickSim::run() {
         Actions actions;
         std::fill(intents.begin(), intents.end(), Intent{});
         if (state_.phase == PlayPhase::Live) live_intents(intents, actions);
+        if (state_.phase == PlayPhase::Dead) tackles_.settle(intents);  // the rest pull up
         apply(actions);
         if (state_.phase == PlayPhase::Live) {
             blocking_.steer(intents);
             tackles_.steer(intents);
+        }
+        for (int i = 0; i < state_.count(); ++i) {
+            world_.agents()[static_cast<std::size_t>(i)].grounded = state_.knocked_down(i);
         }
         world_.step(intents);
         if (state_.phase == PlayPhase::Live) {

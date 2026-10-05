@@ -302,9 +302,11 @@ void Between::lineup(std::int64_t tick, TeamSide side, const std::vector<Between
         walk(*m, tick, bench(side), toward_field(side), std::nullopt);
     }
     spots_in_[side_index(side)] = !spots.empty();
-    // Held: the offense forms its ring once its call is in; before it (and
-    // the defense always) goes to its stop before the call.
-    const bool ring_now = side == offense_ && !spots.empty() && huddles();
+    // Held: the offense takes its call (the ring, or with the ring off at
+    // its gather spots) once it's in; before it (and the defense always) goes
+    // to its stop before the call.
+    const bool call_in = side == offense_ && !spots.empty() && huddles();
+    const bool ring_now = call_in && g_.huddle_ring;
     const std::vector<std::pair<Vec2, Vec2>> stops = first_stops(side, men);
     std::size_t k = 0;
     for (const BetweenMan& bm : men) {
@@ -323,7 +325,7 @@ void Between::lineup(std::int64_t tick, TeamSide side, const std::vector<Between
         Vec2 face = stops[k].second;
         const Vec2 r = ring_now ? ring(side, k, men.size(), &face) : stops[k].first;
         ++k;
-        m->ringed = ring_now && hold;
+        m->ringed = call_in && hold;
         if (hold || !m->spot) {
             m->in_ring = true;
             walk(*m, tick, r, face, ring_due ? std::optional<double>(secs(*ring_due)) : std::nullopt);
@@ -431,8 +433,8 @@ void Between::step(std::int64_t tick) {
         if (!due && m.on && !m.in_ring && m.spot) due = line_due;
         if (due) m.pace = faster(m.pace, needed_pace(dist, *due - now, m.top_speed, g_));
         m.pace = faster(m.pace, floor_[side_index(m.team)]);
-        // Substitutes run on and off.
-        if (m.coming || !m.on) m.pace = faster(m.pace, Pace::Jog);
+        // Substitutes hurry on and off.
+        if (m.coming || !m.on) m.pace = faster(m.pace, Pace::Hurry);
 
         const double v = pace_speed(m.pace, m.top_speed, g_);
         m.speed = std::min({v, m.speed + g_.walk_accel * kStep, std::sqrt(2.0 * t_.arrive_decel * dist) + 0.3});

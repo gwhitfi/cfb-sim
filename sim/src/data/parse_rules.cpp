@@ -158,7 +158,7 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.shell_read = parse_curve(shell.at("read"));
     t.shell_signal = shell.number("signal");
     const Reader offense = bp.at("offense");
-    offense.allow_only({"gather", "sugar_depth", "break_stagger", "no_huddle_signal"});
+    offense.allow_only({"gather", "sugar_depth", "break_stagger", "no_huddle_signal", "huddle_ring", "call_signal"});
     const Reader gather = offense.at("gather");
     gather.allow_only({"line", "others"});
     t.gather_line = gather.number("line");
@@ -170,6 +170,8 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.stagger_receivers = stagger.number("receivers");
     t.stagger_backs = stagger.number("backs");
     t.no_huddle_signal = offense.number("no_huddle_signal");
+    t.huddle_ring = offense.boolean_or("huddle_ring", false);
+    t.call_signal = offense.number("call_signal");
 
     const Reader f = root.at("fatigue");
     f.allow_only({"drain_base", "drain_per_yard", "drain_per_engaged", "drain_per_contact", "stamina",
@@ -227,7 +229,7 @@ SpecialTuning parse_special_tuning(const Json& json, const std::string& source) 
     using detail::parse_curve;
     using detail::Reader;
     const Reader root(json, source);
-    root.allow_only({"format_version", "kickoff", "punt", "field_goal", "returns"});
+    root.allow_only({"format_version", "kickoff", "punt", "field_goal", "returns", "coverage"});
     detail::require_format_version(root);
     SpecialTuning t;
 
@@ -273,23 +275,40 @@ SpecialTuning parse_special_tuning(const Json& json, const std::string& source) 
     t.block_chance = f.number("block_chance");
 
     const Reader r = root.at("returns");
-    r.allow_only({"catch_range", "muff_punt", "muff_kickoff", "fair_catch_kickoff", "fair_catch_punt",
-                  "touchback_depth", "end_zone_return", "let_bounce", "set_depth", "hold_up", "jam",
-                  "protect_release", "aggression_margin", "aggression_depth"});
+    r.allow_only({"catch_range", "muff_punt", "muff_kickoff", "fair_catch_punt", "let_bounce", "set_depth", "hold_up", "jam",
+                  "protect_release", "aggression_margin", "secure", "secure_speed", "fair_catch_read"});
     t.catch_range = r.number("catch_range");
     t.muff_punt = parse_curve(r.at("muff_punt"));
     t.muff_kickoff = parse_curve(r.at("muff_kickoff"));
-    t.fair_catch_kickoff = r.number("fair_catch_kickoff");
     t.fair_catch_punt = r.number("fair_catch_punt");
-    t.touchback_depth = r.number("touchback_depth");
-    t.end_zone_return = r.number("end_zone_return");
     t.let_bounce = r.number("let_bounce");
     t.set_depth = r.number("set_depth");
     t.hold_up = r.number("hold_up");
     t.jam = r.number("jam");
     t.protect_release = r.number("protect_release");
     t.aggression_margin = r.number("aggression_margin");
-    t.aggression_depth = r.number("aggression_depth");
+    t.secure = parse_curve(r.at("secure"));
+    t.secure_speed = r.number("secure_speed");
+    const Reader fc = r.at("fair_catch_read");
+    fc.allow_only({"look", "zones"});
+    t.fc_look = fc.number("look");
+    for (const auto& z : fc.json().at("zones")) {
+        if (!z.is_array() || z.size() != 2 || !z[0].is_number() || !z[1].is_number()) {
+            fc.at("zones").fail("each zone is [own yard line, chance]");
+        }
+        t.fc_zones.push_back({z[0].get<double>(), z[1].get<double>()});
+    }
+
+    const Reader c = root.at("coverage");
+    c.allow_only({"squeeze_depth", "break_range", "contain_width", "safety_depth", "safety_range", "stay_in_lane",
+                  "breakdown_extra"});
+    t.squeeze_depth = c.number("squeeze_depth");
+    t.break_range = c.number("break_range");
+    t.contain_width = c.number("contain_width");
+    t.safety_depth = c.number("safety_depth");
+    t.safety_range = c.number("safety_range");
+    t.stay_in_lane = parse_curve(c.at("stay_in_lane"));
+    t.breakdown_extra = c.number("breakdown_extra");
     return t;
 }
 

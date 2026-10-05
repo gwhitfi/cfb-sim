@@ -12,8 +12,15 @@
     "step": 0.05,             // ... in steps of this
     "attack_range": 4.0,      // yd: this close he goes at the carrier ...
     "attack_lead": 0.4,       // ... leading him by his lag plus the time to get there, at most this many s
-    "breakdown_speed": 4.0,   // yd/s: with the carrier coming at him he slows toward this as he closes ...
-    "breakdown_cos": 0.7,     // ... "at him": within about 45 degrees of the carrier's heading
+                              // (the lead fades to just his lag as he comes into reach)
+    "close_band": 1.0,        // yd past his reach: alongside him here and ...
+    "close_min": 1.5,         // ... closing slower than this (yd/s), he cuts into the carrier's body
+    // Breaking down: with the carrier coming at him his speed is capped at
+    // breakdown_speed + breakdown_decel x time to contact. Late and hard (about
+    // 0.2 s out) tackles well: braking much earlier lets the carrier slide past him.
+    "breakdown_speed": {"curve": "linear", "points": [[0, 5.5], [100, 3.5]]},  // pursuit skill -> yd/s at contact
+    "breakdown_decel": 24,    // yd/s^2
+    "breakdown_cos": 0.5,     // "at him": within about 60 degrees of the carrier's heading
     "leverage": 1.0,          // yd inside of the intercept point (outside for the contain man)
     "leverage_range": 3.0,    // yd: closer than this, straight at it
     "squeeze_room": 4.0,      // yd: with the carrier this close to a sideline, no offset (the sideline is his help)
@@ -44,8 +51,12 @@
     // points + per_ln x ln(quality) to the tackle score (at least min).
     "contact": {
       "points": 25, "per_ln": 43.5, "min": 0.05,
-      "gap": 0.35, "far": 0.4,    // distance: 1 with the bodies touching, far at this gap (yd) and beyond
-      "side": 0.2,                // angle: 1 in front of his heading, this beside him ...
+      // distance: 1 with the bodies touching, falling as (gap / arm)^shape to
+      // far at full arm's length (reach - radius); past it (a dive or a lunge)
+      // on down to far x dive.far at the end of the dive band
+      "shape": 1.5, "far": 0.4,
+      "side": 0.55,               // angle: 1 in front of his heading, this beside him ...
+      "side_drive": 0.4,          // ... and this share of the way to 1 driving into him at chase_speed
       "behind": 0.15, "chase": 0.4, "chase_speed": 3.0,  // ... behind: chase when closing at chase_speed (yd/s)
       "touch": 0.05,              // yd: a gap this small, he tries now ...
       "wait": 0.3, "gain": 0.1    // ... else he waits while he'll be gain yd closer within wait s
@@ -55,7 +66,10 @@
     // A free defender closing on the carrier lunges: + per_closing yd of reach
     // per yd/s he's closing, up to max yd, at up to penalty points off the score.
     "lunge": {"per_closing": 0.12, "max": 0.7, "penalty": 8},
-    "dive": {"extra": 0.8, "closing": 0.5, "penalty": 12, "down": [0.8, 1.2]},  // yd past his reach, yd/s, points, s
+    // A free defender extra yd past his reach dives once he can't get to his
+    // reach on his feet: the most he could close (his top speed less the
+    // carrier's speed away from him) under closing yd/s, or taking over wait s.
+    "dive": {"extra": 0.8, "closing": 0.5, "wait": 0.3, "far": 0.5, "penalty": 12, "down": [0.8, 1.2]},
     "arm_base": 0.2,          // an engaged defender's arm tackle: x (base + (1 - base) x shed) ...
     "arm_min_shed": 0.85,      // ... once his shed progress is this far ...
     "arm_reach": 0.5,         // ... within this share of his reach
@@ -73,7 +87,9 @@
     "broken": {"keep": [0.5, 0.8], "stumble": 0.5, "tackler_down": [0.8, 1.5]},
     "missed": {"stumble": 0.6, "keep": 0.95},
     "stumble_speed": 0.6,     // share of top speed while stumbling
-    "fall": {"max": 2.0, "speed": 9.0}   // forward fall: yd at full forward momentum (carrier lb x this yd/s)
+    "fall": {"max": 2.0, "speed": 9.0,   // forward fall: yd at full forward momentum (carrier lb x this yd/s)
+             "slide": 0.75,              // yd the tackled carrier and the pile on him slide after the whistle, at most ...
+             "pile": 1.5}                // ... the pile: everyone this close to him (yd)
   },
 
   "fumble": {

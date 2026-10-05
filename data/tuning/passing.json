@@ -40,7 +40,7 @@
 
   "throw": {
     // Throw Power -> top ball speed, yd/s (about 27 yd/s is a 55 mph throw).
-    "speed": {"curve": "linear", "points": [[1, 13.5], [100, 26]]},
+    "speed": {"curve": "linear", "points": [[1, 14], [100, 27]]},
     // Air distance (yd) -> share of top speed used: short throws are softer.
     "effort": {"curve": "linear", "points": [[0, 0.6], [25, 1.0]]},
     // Delivery -> seconds from deciding to throw until the ball is out.

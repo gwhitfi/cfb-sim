@@ -8,16 +8,16 @@
   "side": "kicking",
   "unit": "kickoff",
   "slots": {
-    "L5": {"pos": "any", "x": {"from": "sideline", "side": "left", "offset": 5},  "y": -1},
-    "L4": {"pos": "any", "x": {"from": "numbers", "side": "left", "offset": 0},   "y": -1},
-    "L3": {"pos": "any", "x": {"from": "hash", "side": "left", "offset": -2},     "y": -1},
-    "L2": {"pos": "any", "x": -5, "y": -1},
-    "L1": {"pos": "any", "x": -2, "y": -1},
-    "K":  {"pos": "K",   "x": -1, "y": -7},
-    "R1": {"pos": "any", "x": 2,  "y": -1},
-    "R2": {"pos": "any", "x": 5,  "y": -1},
-    "R3": {"pos": "any", "x": {"from": "hash", "side": "right", "offset": 2},     "y": -1},
-    "R4": {"pos": "any", "x": {"from": "numbers", "side": "right", "offset": 0},  "y": -1},
-    "R5": {"pos": "any", "x": {"from": "sideline", "side": "right", "offset": -5}, "y": -1}
+    "L5": {"pos": "any", "x": {"from": "numbers", "side": "left", "offset": 0},   "y": -5},
+    "L4": {"pos": "any", "x": {"from": "numbers", "side": "left", "offset": 5},   "y": -5},
+    "L3": {"pos": "any", "x": {"from": "hash", "side": "left", "offset": -2},     "y": -5},
+    "L2": {"pos": "any", "x": -5, "y": -5},
+    "L1": {"pos": "any", "x": -2, "y": -5},
+    "K":  {"pos": "K",   "x": -1, "y": -8},
+    "R1": {"pos": "any", "x": 2,  "y": -5},
+    "R2": {"pos": "any", "x": 5,  "y": -5},
+    "R3": {"pos": "any", "x": {"from": "hash", "side": "right", "offset": 2},     "y": -5},
+    "R4": {"pos": "any", "x": {"from": "numbers", "side": "right", "offset": -5}, "y": -5},
+    "R5": {"pos": "any", "x": {"from": "numbers", "side": "right", "offset": 0},  "y": -5}
   }
 }

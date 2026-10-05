@@ -44,17 +44,34 @@
     "catch_range": 1.6,             // yd: he fields a kick this close
     "muff_punt": {"curve": "linear", "points": [[0, 0.12], [100, 0.015]]},    // Catching -> chance
     "muff_kickoff": {"curve": "linear", "points": [[0, 0.06], [100, 0.005]]},
-    "fair_catch_kickoff": 1.2,      // s: coverage this close (or closer) to the catch: fair catch inside the 25
-    "fair_catch_punt": -0.5,
-    "touchback_depth": 1.0,         // yd deep in the end zone: deeper than this he takes the touchback ...
-    "end_zone_return": 0.25,        // ... else he returns it this often
+    "fair_catch_punt": -0.5,        // s: coverage margin (soonest it can get there, less the hang) under this: fair catch the punt
     "let_bounce": 10,               // yd: a punt coming down inside his own 10, he lets it go
     "set_depth": 12,                // yd in front of the catch the blockers set up
     "hold_up": 1.2,                 // s the punt return line holds up
     "jam": 2.5,                     // s the jammers stay on the gunners
     "protect_release": 0.3,         // s after the punt the protection releases into coverage
+    "secure": {"curve": "linear", "points": [[0, 0.665], [100, 0.315]]},  // Vision -> s: caught standing still, he tucks it and looks upfield ...
+    "secure_speed": 4.0,            // ... less the faster he's moving at the catch, none at this yd/s
+    // Kickoffs: a moment before a deep kick comes down (anywhere but out the back), he may fair
+    // catch it (a knee in the end zone) for the 25. Zones: [own yard line up to, chance]; the end
+    // zone is 0. Past the last zone he always returns it.
+    "fair_catch_read": {
+      "look": 1.0,                  // s before it comes down he decides
+      "zones": [[0, 0.55], [10, 0.40], [25, 0.20]]
+    },
     // The receiving team's return_aggression tactic (0-100, 50 neutral), at 100 (minus at 0):
-    "aggression_margin": 0.4,       // s taken off both fair catch margins
-    "aggression_depth": 2.0         // yd added to touchback_depth; end_zone_return x (aggression / 50)
+    "aggression_margin": 0.4        // s taken off the punt fair catch margin
+  },
+
+  // Kickoff coverage after the catch: lanes until they close in
+  // (movement-and-interaction.md#coverage-and-the-return).
+  "coverage": {
+    "squeeze_depth": 25,            // yd downfield to the returner: further than this he keeps his whole lane ...
+    "break_range": 8,               // ... it narrows to nothing here, and this close he breaks to the ball
+    "contain_width": 4,             // yd: the contain man stays at least this far outside the returner
+    "safety_depth": 15,             // yd a safety stays behind the front of the coverage, if his job doesn't say
+    "safety_range": 10,             // yd: a safety keeps his spot until the returner is this close
+    "stay_in_lane": {"curve": "linear", "points": [[0, 0.6], [100, 0.97]]},  // Discipline -> chance he keeps his lane
+    "breakdown_extra": 10            // yd/s^2 added to tackling.json pursuit breakdown_decel once he chases the returner
   }
 }

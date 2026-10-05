@@ -511,6 +511,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
 
     const Reader p = root.at("protection");
     p.allow_only({"skill", "pk_weight", "lag", "pickup_skill", "pickup_pk_weight", "pickup_lag",
+                  "pickup_misread", "misread_hold",
                   "rushing_line", "rushing_speed", "rushing_depth", "late_drop_speed", "project_seconds",
                   "area_half", "reach_outside", "taken_penalty", "depth_penalty",
                   "switch_margin", "back_range", "on_him", "help_range", "set_lead", "set_front",
@@ -521,6 +522,8 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
     t.pickup_skill = parse_blend(p.at("pickup_skill"));
     t.pickup_pk_weight = p.number("pickup_pk_weight");
     t.pickup_lag = parse_curve(p.at("pickup_lag"));
+    t.pickup_misread = parse_curve(p.at("pickup_misread"));
+    t.misread_hold = p.number("misread_hold");
     t.rushing_line = p.number("rushing_line");
     t.rushing_speed = p.number("rushing_speed");
     t.rushing_depth = p.number("rushing_depth");
@@ -713,7 +716,7 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     TacklingTuning t;
 
     const Reader p = root.at("pursuit");
-    p.allow_only({"skill", "prediction", "lag", "upfield", "horizon", "step", "attack_range", "attack_lead", "breakdown_speed", "breakdown_cos", "leverage", "leverage_range", "squeeze_room",
+    p.allow_only({"skill", "prediction", "lag", "upfield", "horizon", "step", "attack_range", "attack_lead", "close_band", "close_min", "breakdown_speed", "breakdown_decel", "breakdown_cos", "leverage", "leverage_range", "squeeze_room",
                   "sideline_inside", "top_cushion", "top_keep", "effort_range", "effort"});
     t.pursuit_skill = parse_blend(p.at("skill"));
     t.prediction = parse_curve(p.at("prediction"));
@@ -724,7 +727,10 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     if (t.pursue_step <= 0.0) p.at("step").fail("must be positive");
     t.attack_range = p.number("attack_range");
     t.attack_lead = p.number("attack_lead");
-    t.breakdown_speed = p.number("breakdown_speed");
+    t.close_band = p.number("close_band");
+    t.close_min = p.number("close_min");
+    t.breakdown_speed = parse_curve(p.at("breakdown_speed"));
+    t.breakdown_decel = p.number("breakdown_decel");
     t.breakdown_cos = p.number("breakdown_cos");
     t.leverage = p.number("leverage");
     t.leverage_range = p.number("leverage_range");
@@ -752,16 +758,17 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     t.resistance = parse_blend(k.at("resistance"));
     t.tackle_edge = k.number("edge");
     const Reader cq = k.at("contact");
-    cq.allow_only({"points", "per_ln", "min", "gap", "far", "side", "behind", "chase", "chase_speed", "touch",
-                   "wait", "gain"});
+    cq.allow_only({"points", "per_ln", "min", "shape", "far", "side", "side_drive", "behind", "chase", "chase_speed",
+                   "touch", "wait", "gain"});
     t.contact_points = cq.number("points");
     t.contact_per_ln = cq.number("per_ln");
     t.contact_min = cq.number("min");
     if (t.contact_min <= 0.0 || t.contact_min > 1.0) cq.at("min").fail("must be in (0, 1]");
-    t.contact_gap = cq.number("gap");
-    if (t.contact_gap <= 0.0) cq.at("gap").fail("must be positive");
+    t.contact_shape = cq.number("shape");
+    if (t.contact_shape <= 0.0) cq.at("shape").fail("must be positive");
     t.contact_far = cq.number("far");
     t.contact_side = cq.number("side");
+    t.contact_side_drive = cq.number("side_drive");
     t.contact_behind = cq.number("behind");
     t.contact_chase = cq.number("chase");
     t.contact_chase_speed = cq.number("chase_speed");
@@ -780,9 +787,12 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     t.assist_seconds = as.number("seconds");
     t.assist_max = as.integer("max");
     const Reader dv = k.at("dive");
-    dv.allow_only({"extra", "closing", "penalty", "down"});
+    dv.allow_only({"extra", "closing", "wait", "far", "penalty", "down"});
     t.dive_extra = dv.number("extra");
+    if (t.dive_extra <= 0.0) dv.at("extra").fail("must be positive");
     t.dive_closing = dv.number("closing");
+    t.dive_wait = dv.number("wait");
+    t.dive_far = dv.number("far");
     t.dive_penalty = dv.number("penalty");
     std::tie(t.dive_down_min, t.dive_down_max) = parse_range(dv.at("down"));
     const Reader lu = k.at("lunge");
@@ -824,9 +834,11 @@ TacklingTuning parse_tackling_tuning(const Json& json, const std::string& source
     t.miss_keep = mi.number("keep");
     t.stumble_speed = k.number("stumble_speed");
     const Reader fa = k.at("fall");
-    fa.allow_only({"max", "speed"});
+    fa.allow_only({"max", "speed", "slide", "pile"});
     t.fall_max = fa.number("max");
     t.fall_speed = fa.number("speed");
+    t.slide = fa.number("slide");
+    t.pile = fa.number("pile");
 
     const Reader fu = root.at("fumble");
     fu.allow_only({"chance", "hit_power", "blind", "big_hit", "big_hit_momentum"});

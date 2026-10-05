@@ -57,12 +57,22 @@ class Tackles {
     // A new carrier (a catch, a handoff, a turnover): forget the old drag.
     void reset_carrier();
 
+    // After the whistle: the tackled carrier and the pile on him stop within
+    // `slide` yd instead of pulling up like everyone else. Call each dead-ball
+    // tick before Move.
+    void settle(std::span<Intent> intents);
+
     void draw(Json& shapes) const;
     const TackleStats& stats() const { return stats_; }
 
     // White-box: the four outcome probabilities (clean, drag, broken, missed)
     // for a tackle score and a resistance.
     std::array<double, 4> outcome_odds(double tackle, double resistance, int carrier) const;
+    // White-box: how squarely tackler gets to the carrier, 0-1 (distance x
+    // angle), for any positions and velocities (field frame), with `gap`
+    // between the bodies.
+    double contact_quality_at(int tackler, Vec2 k_pos, Vec2 k_vel, Vec2 c_pos, Vec2 c_vel, double gap,
+                              int carrier) const;
 
   private:
     TackleResult attempt(int carrier, int tackler, Rng& rng, bool dive = false);
@@ -70,6 +80,8 @@ class Tackles {
     double lunge(int tackler, int carrier) const;
     TackleResult finish_drag(Rng& rng);
     bool fumble_roll(int carrier, int tackler, bool big_hit, Rng& rng) const;
+    // The carrier is down: he and the pile on him stop short (settle()).
+    void go_down(int carrier);
     double forward_y(Vec2 field_pos, int carrier) const;  // along the carrier's way, play-frame yd
     Vec2 spot_ahead(int carrier, double yards) const;     // field frame
     // `extra`: yd past his reach (a dive).
@@ -87,6 +99,7 @@ class Tackles {
     TackleStats stats_;
     std::vector<double> next_try_;  // per agent: s after the snap he can try again (arm tackles)
     std::vector<bool> was_engaged_;  // per agent: in a block last tick (for block_recover)
+    std::vector<std::pair<int, double>> downed_;  // after a tackle: (agent, braking yd/s^2)
 };
 
 }  // namespace cfbsim

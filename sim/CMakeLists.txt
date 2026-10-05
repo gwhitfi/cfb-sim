@@ -22,6 +22,7 @@ add_library(cfbsim_core STATIC
     src/drills/drills.cpp
     src/field/geometry.cpp
     src/gen/roster_gen.cpp
+    src/gen/team_rating.cpp
     src/interaction/catch.cpp
     src/log/tracking.cpp
     src/physics/ball_flight.cpp

@@ -6,12 +6,15 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <iostream>
 #include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 
+#include "cfbsim/data/load.h"
 #include "cfbsim/play/play_sim.h"
 
 using namespace cfbsim;
@@ -129,6 +132,29 @@ TEST(Tackling, PowerBacksBreakTackles) {
     measure(10, weak_broken, weak_after);
     EXPECT_GT(strong_broken, weak_broken + 5);
     EXPECT_GT(strong_after, weak_after);
+}
+
+TEST(Tackling, TacklersGetSquareToTheCarrier) {
+    // Contact quality is measured against the tackler's own arm, a man beside
+    // the carrier gets a fair share of him, and a pursuer only dives once he
+    // can't get there on his feet, so a fair share of tries are square
+    // (quality 0.5+). Before, 2% were: most were hopeless dives from beside him.
+    int tries = 0, square = 0;
+    std::vector<double> quality;
+    for (std::uint64_t seed = 1; seed <= 80; ++seed) {
+        std::istringstream lines(tracking(data(), matchup("sb_outside_zone", "43_over_cover3", seed)));
+        for (std::string line; std::getline(lines, line);) {
+            const Json j = Json::parse(line);
+            if (j.value("type", "") != "event" || !j.contains("quality") || j.value("on", "") != "RB") continue;
+            ++tries;
+            quality.push_back(j["quality"].get<double>());
+            if (quality.back() >= 0.5) ++square;
+        }
+    }
+    ASSERT_GT(tries, 80);
+    std::sort(quality.begin(), quality.end());
+    EXPECT_GE(quality[quality.size() / 2], 0.14);  // about 0.17 (0.10 before)
+    EXPECT_GE(static_cast<double>(square) / tries, 0.05);  // about 8%
 }
 
 TEST(Tackling, RunsReadTheLine) {

@@ -1,0 +1,183 @@
+{
+    "format_version": 1,
+    "id": "fsu",
+    "name": "Florida State",
+    "nickname": "Seminoles",
+    "abbr": "FSU",
+    "colors": {
+        "primary": "#782F40",
+        "secondary": "#FFFFFF"
+    },
+    "roster": "rosters/fsu.json",
+    "playbooks": {
+        "offense": "spread_base",
+        "defense": "43_base",
+        "special": "st_default"
+    },
+    "depth_chart": {
+        "positions": {
+            "QB": ["fsu_004", "fsu_001", "fsu_002", "fsu_003"],
+            "RB": ["fsu_008", "fsu_006", "fsu_007", "fsu_005"],
+            "FB": ["fsu_009"],
+            "WR": ["fsu_016", "fsu_011", "fsu_014", "fsu_015", "fsu_017", "fsu_012", "fsu_013", "fsu_010"],
+            "TE": ["fsu_019", "fsu_020", "fsu_018", "fsu_021"],
+            "OT": ["fsu_023", "fsu_024", "fsu_025", "fsu_026", "fsu_022"],
+            "OG": ["fsu_030", "fsu_029", "fsu_031", "fsu_028", "fsu_027"],
+            "C": ["fsu_034", "fsu_032", "fsu_033"],
+            "DE": ["fsu_039", "fsu_035", "fsu_038", "fsu_037", "fsu_040", "fsu_036"],
+            "DT": ["fsu_044", "fsu_045", "fsu_041", "fsu_043", "fsu_042"],
+            "OLB": ["fsu_046", "fsu_049", "fsu_048", "fsu_050", "fsu_047"],
+            "MLB": ["fsu_053", "fsu_051", "fsu_052"],
+            "CB": ["fsu_059", "fsu_055", "fsu_057", "fsu_060", "fsu_056", "fsu_054", "fsu_058"],
+            "FS": ["fsu_062", "fsu_063", "fsu_061"],
+            "SS": ["fsu_066", "fsu_064", "fsu_065"],
+            "K": ["fsu_067", "fsu_068"],
+            "P": ["fsu_070", "fsu_069"],
+            "LS": ["fsu_071", "fsu_072"]
+        },
+        "offense_personnel": {
+            "11": {
+                "C": "C1",
+                "H": "WR3",
+                "LG": "OG1",
+                "LT": "OT1",
+                "QB": "QB1",
+                "RB": "RB1",
+                "RG": "OG2",
+                "RT": "OT2",
+                "X": "WR1",
+                "Y": "TE1",
+                "Z": "WR2"
+            }
+        },
+        "defense_packages": {
+            "base": {
+                "DT": "DT1",
+                "FS": "FS1",
+                "MIKE": "MLB1",
+                "NT": "DT2",
+                "SAM": "OLB1",
+                "SCB": "CB1",
+                "SDE": "DE1",
+                "SS": "SS1",
+                "WCB": "CB2",
+                "WDE": "DE2",
+                "WILL": "OLB2"
+            },
+            "nickel": {
+                "DT": "DT1",
+                "FS": "FS1",
+                "MIKE": "MLB1",
+                "NB": "CB3",
+                "NT": "DT2",
+                "SCB": "CB1",
+                "SDE": "DE1",
+                "SS": "SS1",
+                "WCB": "CB2",
+                "WDE": "DE2",
+                "WILL": "OLB1"
+            }
+        },
+        "special_units": {
+            "fg_rush": {
+                "B1": "OLB1",
+                "B2": "MLB1",
+                "E1": "DE1",
+                "E2": "DE2",
+                "R1": "DE3",
+                "R2": "DT1",
+                "R3": "DT2",
+                "R4": "DT3",
+                "R5": "DT4",
+                "R6": "DE4",
+                "S": "FS1"
+            },
+            "field_goal": {
+                "H": "P1",
+                "K": "K1",
+                "LE": "TE1",
+                "LG": "OG1",
+                "LS": "LS1",
+                "LT": "OT1",
+                "RE": "TE2",
+                "RG": "OG2",
+                "RT": "OT2",
+                "WL": "OG3",
+                "WR": "OT3"
+            },
+            "kickoff": {
+                "K": "K1",
+                "L1": "OLB4",
+                "L2": "MLB2",
+                "L3": "OLB3",
+                "L4": "SS2",
+                "L5": "CB3",
+                "R1": "OLB5",
+                "R2": "MLB3",
+                "R3": "FS2",
+                "R4": "CB4",
+                "R5": "CB5"
+            },
+            "kickoff_return": {
+                "F1": "OLB3",
+                "F2": "TE3",
+                "F3": "MLB2",
+                "F4": "TE4",
+                "F5": "OLB4",
+                "KR": "RB2",
+                "M1": "FB1",
+                "M2": "OLB5",
+                "M3": "SS2",
+                "U1": "WR5",
+                "U2": "RB3"
+            },
+            "punt": {
+                "GL": "CB3",
+                "GR": "CB4",
+                "LG": "OG3",
+                "LS": "LS1",
+                "LT": "TE3",
+                "P": "P1",
+                "PP": "FS2",
+                "RG": "OG4",
+                "RT": "TE4",
+                "WL": "OLB3",
+                "WR": "MLB2"
+            },
+            "punt_return": {
+                "JL": "CB3",
+                "JR": "CB4",
+                "L1": "DE3",
+                "L2": "DT3",
+                "L3": "DT4",
+                "L4": "DE4",
+                "L5": "OLB3",
+                "L6": "MLB2",
+                "M": "SS2",
+                "PR": "WR4",
+                "U": "RB2"
+            }
+        }
+    },
+    "tactics": {
+        "offense": {
+            "run_pass": 50,
+            "aggression": 50,
+            "tempo": "huddle",
+            "formations": {},
+            "featured": "",
+            "fourth_down": 50,
+            "clock": 50
+        },
+        "defense": {
+            "blitz": 50,
+            "man_zone": 50,
+            "aggression": 50,
+            "tendency": 50
+        },
+        "special": {
+            "return_aggression": 50,
+            "kickoff": "deep"
+        }
+    }
+}

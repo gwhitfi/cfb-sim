@@ -8,11 +8,14 @@
 //
 // Messages (JSON text) from the viewer:
 //   {"type": "hello"}                          -> {"type": "hello", "version", "teams": [...], "logs": [...]}
-//       (each team: {"id", "name", "abbr", "offense": [plays], "defense": [plays]},
+//       (each team: {"id", "name", "abbr", "offense": [plays], "defense": [plays],
+//        "kicking": [kickoffs, punts, field goals], "receiving": [returns, blocks]},
 //        a play {"id", "name", "type", "formation", "formation_name", "tags"})
 //   {"type": "run_play", "offense", "play", "defense"?, "def_play"?, "seed"?, "hash"?, "yard_line"?, "flip"?, "huddle"?}
 //                                              -> {"type": "play", "summary", "outcome", "yards", "file", "tracking"}
 //       one play outside a game (cfbsim_run_play), saved to out/plays/ as well
+//   {"type": "run_kick", "kicking", "kick", "receiving", "return"?, "seed"?, "hash"?, "yard_line"?}
+//                                              -> {"type": "play", ...} as for run_play (cfbsim_run_kick)
 //   {"type": "new_game", "home", "away", "seed"?, "user": ["home"]}
 //   {"type": "replay", "file": "out/games/x.gamelog.jsonl"} (a file from "logs")
 //   {"type": "advance", "to_tick"?: N}         -> {"type": "advance", "result": {...}}
@@ -24,6 +27,7 @@
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocketServer.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -117,6 +121,7 @@ class Server {
             return {Json{{"type", "hello"}, {"version", cfbsim_version()}, {"teams", teams_}, {"logs", list_logs(c_)}}.dump()};
         }
         if (type == "run_play") return run_play(msg);
+        if (type == "run_kick") return run_kick(msg);
         if (type == "new_game") return new_game(s, msg);
         if (type == "replay") return replay(s, msg);
         if (!s.match) return {error_message("no game: send new_game or replay first")};
@@ -144,13 +149,13 @@ class Server {
   private:
     // The teams and the plays in their playbooks, for the viewer's menus.
     static Json catalog(const cfbsim::DataSet& data) {
-        const auto plays = [&](const std::string& playbook, bool offense) {
+        using cfbsim::PlayType;
+        const auto plays = [&](const std::string& playbook, std::initializer_list<PlayType> types) {
             Json out = Json::array();
             const auto it = data.playbooks.find(playbook);
             if (it == data.playbooks.end()) return out;
             for (const cfbsim::Play& p : it->second.plays) {
-                if (offense && p.type != cfbsim::PlayType::Pass && p.type != cfbsim::PlayType::Run) continue;
-                if (!offense && p.type != cfbsim::PlayType::Defense) continue;
+                if (std::find(types.begin(), types.end(), p.type) == types.end()) continue;
                 const auto f = data.formations.find(p.formation);
                 out.push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))},
                                {"formation", p.formation},
@@ -162,7 +167,11 @@ class Server {
         Json teams = Json::array();
         for (const auto& [id, t] : data.teams) {
             teams.push_back({{"id", id}, {"name", t.name}, {"abbr", t.abbr},
-                             {"offense", plays(t.offense_playbook, true)}, {"defense", plays(t.defense_playbook, false)}});
+                             {"offense", plays(t.offense_playbook, {PlayType::Pass, PlayType::Run})},
+                             {"defense", plays(t.defense_playbook, {PlayType::Defense})},
+                             {"kicking", plays(t.special_playbook, {PlayType::Kickoff, PlayType::Punt, PlayType::FieldGoal})},
+                             {"receiving", plays(t.special_playbook, {PlayType::KickoffReturn, PlayType::PuntReturn,
+                                                                      PlayType::FieldGoalBlock})}});
         }
         return teams;
     }
@@ -172,12 +181,27 @@ class Server {
         o.erase("type");
         const char* r = cfbsim_run_play(c_.data.c_str(), o.dump().c_str());
         if (!r) return {error_message(cfbsim_last_error())};
-        Json reply = Json::parse(r);
-        // Also save it, so it can be reopened later (Repo files, cfbsim replay tools).
         const std::string name = o.value("offense", "") + "_" + o.value("play", "") + "_vs_" +
                                  (o.value("defense", "").empty() ? std::string("empty")
                                                                  : o.value("defense", "") + "_" + o.value("def_play", "")) +
                                  "_seed" + std::to_string(o.value("seed", std::uint64_t{1})) + ".jsonl";
+        return {played(o, Json::parse(r), name)};
+    }
+
+    std::vector<std::string> run_kick(const Json& msg) {
+        Json o = msg;
+        o.erase("type");
+        const char* r = cfbsim_run_kick(c_.data.c_str(), o.dump().c_str());
+        if (!r) return {error_message(cfbsim_last_error())};
+        const std::string name = o.value("kicking", "") + "_" + o.value("kick", "") + "_vs_" + o.value("receiving", "") +
+                                 (o.value("return", "").empty() ? std::string() : "_" + o.value("return", "")) + "_seed" +
+                                 std::to_string(o.value("seed", std::uint64_t{1})) + ".jsonl";
+        return {played(o, Json::parse(r), name)};
+    }
+
+    // A run play or kick's reply, also saved to out/plays/ so it can be
+    // reopened later (Replays, cfbsim tools).
+    std::string played(const Json& o, Json reply, const std::string& name) {
         std::error_code ec;
         fs::create_directories(c_.plays, ec);
         const fs::path path = fs::path(c_.plays) / name;
@@ -186,7 +210,7 @@ class Server {
         if (f) reply["file"] = path.generic_string();
         reply["type"] = "play";
         std::cout << "play: " << o.dump() << " -> " << reply["summary"].get<std::string>() << std::endl;
-        return {reply.dump()};
+        return reply.dump();
     }
 
     std::vector<std::string> new_game(Session& s, const Json& msg) {

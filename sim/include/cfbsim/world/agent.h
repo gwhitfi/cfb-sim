@@ -78,6 +78,9 @@ struct Agent {
     double z = 0.0;         // yd: his feet above the ground (a jump)
     double vz = 0.0;        // yd/s, up
     bool carrying = false;  // has the ball
+    // On the ground (knocked down): other players don't push him and he
+    // doesn't push them; they step over him. Set by the play each tick.
+    bool grounded = false;
 
     bool airborne() const { return z > 0.0 || vz > 0.0; }
 };

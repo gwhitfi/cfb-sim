@@ -63,9 +63,21 @@ std::vector<Spot> look(const std::string& formation) {
     return out;
 }
 
-std::unique_ptr<Between> stretch(Tempo tempo, Rng& rng) {
+// The game tuning with the huddle ring on or off (Between keeps a reference:
+// these live for the whole run).
+const GameTuning& ring_tuning(bool ring) {
+    static const auto make = [](bool on) {
+        GameTuning g = tuning();
+        g.huddle_ring = on;
+        return g;
+    };
+    static const GameTuning off = make(false), on = make(true);
+    return ring ? on : off;
+}
+
+std::unique_ptr<Between> stretch(Tempo tempo, Rng& rng, const GameTuning& game = tuning()) {
     return std::make_unique<Between>(nullptr, TrackingInfo{}, kFrame, TeamSide::Home, tempo, data().tuning.movement,
-                                     data().tuning.play, tuning(), &rng);
+                                     data().tuning.play, game, &rng);
 }
 
 // Yards behind the ball (the play frame's -y).
@@ -109,39 +121,51 @@ TEST(Huddle, TheBreakIsStaggered) {
     EXPECT_LT(tuning().stagger_receivers, tuning().stagger_backs);
 }
 
-TEST(Huddle, GathersThenHuddles) {
+TEST(Huddle, GathersThenTakesTheCall) {
     // Before the call: a loose cluster behind the ball, the linemen nearer
-    // it, everyone facing his sideline (home: -y). The ring forms only when
+    // it, everyone facing his sideline (home: -y). With the ring off (the
+    // default) he takes the call right there; with it on the ring forms when
     // the call comes in: huddle_depth behind the ball, a sugar huddle's sugar_depth.
-    for (const Tempo tempo : {Tempo::Huddle, Tempo::Sugar}) {
-        const Lineup u = unit("gun_2x2");
-        Rng rng(1);
-        const auto b = stretch(tempo, rng);
-        b->start(u.men, 0, std::nullopt);
-        b->clock(40.0, 0);
-        step_until(*b, 0, [&] { return b->assembled(TeamSide::Home); });
-        EXPECT_FALSE(b->gathered(TeamSide::Home));
-        double line_deepest = 0.0, others_nearest = 100.0;
-        for (const BetweenMan& m : u.men) {
-            const Spot s = by_id(*b).at(m.player->id);
-            EXPECT_NEAR((s.facing - Vec2{0.0, -1.0}).length(), 0.0, 1e-9) << m.label;
-            if (is_lineman(*m.player)) {
-                line_deepest = std::max(line_deepest, behind(s.pos));
-            } else {
-                others_nearest = std::min(others_nearest, behind(s.pos));
+    for (const bool ring : {false, true}) {
+        for (const Tempo tempo : {Tempo::Huddle, Tempo::Sugar}) {
+            const std::string what = std::string(ring ? "ring " : "no ring ") + (tempo == Tempo::Sugar ? "sugar" : "huddle");
+            const Lineup u = unit("gun_2x2");
+            Rng rng(1);
+            const auto b = stretch(tempo, rng, ring_tuning(ring));
+            b->start(u.men, 0, std::nullopt);
+            b->clock(40.0, 0);
+            step_until(*b, 0, [&] { return b->assembled(TeamSide::Home); });
+            EXPECT_FALSE(b->gathered(TeamSide::Home)) << what;
+            double line_deepest = 0.0, others_nearest = 100.0;
+            const std::map<std::string, Spot> gathered = by_id(*b);
+            for (const BetweenMan& m : u.men) {
+                const Spot& s = gathered.at(m.player->id);
+                EXPECT_NEAR((s.facing - Vec2{0.0, -1.0}).length(), 0.0, 1e-9) << m.label;
+                if (is_lineman(*m.player)) {
+                    line_deepest = std::max(line_deepest, behind(s.pos));
+                } else {
+                    others_nearest = std::min(others_nearest, behind(s.pos));
+                }
             }
-        }
-        EXPECT_GT(line_deepest, 3.0);
-        EXPECT_LT(line_deepest, others_nearest);
+            EXPECT_GT(line_deepest, 3.0) << what;
+            EXPECT_LT(line_deepest, others_nearest) << what;
 
-        // The call: the ring.
-        b->lineup(200, TeamSide::Home, u.men, u.spots, true, 200 + 2 * kTicksPerSecond);
-        EXPECT_FALSE(b->gathered(TeamSide::Home));
-        step_until(*b, 200, [&] { return b->gathered(TeamSide::Home); });
-        double center = 0.0;
-        for (const Spot& s : b->where()) center += behind(s.pos) / static_cast<double>(u.men.size());
-        const double depth = tempo == Tempo::Sugar ? tuning().sugar_depth : data().tuning.play.huddle_depth;
-        EXPECT_NEAR(center, depth, 0.3) << (tempo == Tempo::Sugar ? "sugar" : "huddle");
+            // The call.
+            b->lineup(200, TeamSide::Home, u.men, u.spots, true, 200 + 2 * kTicksPerSecond);
+            step_until(*b, 200, [&] { return b->gathered(TeamSide::Home); });
+            if (!ring) {
+                // Nobody moved: still where he gathered, still facing his sideline.
+                for (const auto& [id, s] : by_id(*b)) {
+                    EXPECT_NEAR((s.pos - gathered.at(id).pos).length(), 0.0, 1e-9) << what << " " << id;
+                    EXPECT_NEAR((s.facing - Vec2{0.0, -1.0}).length(), 0.0, 1e-9) << what << " " << id;
+                }
+                continue;
+            }
+            double center = 0.0;
+            for (const Spot& s : b->where()) center += behind(s.pos) / static_cast<double>(u.men.size());
+            const double depth = tempo == Tempo::Sugar ? tuning().sugar_depth : data().tuning.play.huddle_depth;
+            EXPECT_NEAR(center, depth, 0.3) << what;
+        }
     }
 }
 

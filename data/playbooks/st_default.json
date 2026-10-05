@@ -17,12 +17,12 @@
       "formation": "kickoff_std",
       "kick": {"kind": "deep", "target": {"x": 0, "y": {"from": "goal_line", "offset": -2}}, "hang": "high"},
       "assignments": {
-        "K":  {"kick": true, "then": {"safety": true}},
+        "K":  {"kick": true, "then": {"safety": {"depth": 15}}},
         "L5": {"contain": true}, "R5": {"contain": true},
-        "L4": {"cover_lane": {"x": -15}}, "L3": {"cover_lane": {"x": -9}},
-        "L2": {"cover_lane": {"x": -5}},  "L1": {"cover_lane": {"x": -2}},
-        "R1": {"cover_lane": {"x": 2}},   "R2": {"cover_lane": {"x": 5}},
-        "R3": {"cover_lane": {"x": 9}},   "R4": {"cover_lane": {"x": 15}}
+        "L4": {"cover_lane": {"x": -13}}, "L3": {"cover_lane": {"x": -8}},
+        "L2": {"safety": {"x": -4, "depth": 10}}, "L1": {"cover_lane": {"x": -3}},
+        "R1": {"cover_lane": {"x": 3}},   "R2": {"safety": {"x": 4, "depth": 10}},
+        "R3": {"cover_lane": {"x": 8}},   "R4": {"cover_lane": {"x": 13}}
       },
       "tags": ["base"]
     },
@@ -34,12 +34,12 @@
       "formation": "kickoff_std",
       "kick": {"kind": "squib", "target": {"x": 0, "y": {"from": "goal_line", "offset": -25}}},
       "assignments": {
-        "K":  {"kick": true, "then": {"safety": true}},
+        "K":  {"kick": true, "then": {"safety": {"depth": 15}}},
         "L5": {"contain": true}, "R5": {"contain": true},
-        "L4": {"cover_lane": {"x": -15}}, "L3": {"cover_lane": {"x": -9}},
-        "L2": {"cover_lane": {"x": -5}},  "L1": {"cover_lane": {"x": -2}},
-        "R1": {"cover_lane": {"x": 2}},   "R2": {"cover_lane": {"x": 5}},
-        "R3": {"cover_lane": {"x": 9}},   "R4": {"cover_lane": {"x": 15}}
+        "L4": {"cover_lane": {"x": -13}}, "L3": {"cover_lane": {"x": -8}},
+        "L2": {"safety": {"x": -4, "depth": 10}}, "L1": {"cover_lane": {"x": -3}},
+        "R1": {"cover_lane": {"x": 3}},   "R2": {"safety": {"x": 4, "depth": 10}},
+        "R3": {"cover_lane": {"x": 8}},   "R4": {"cover_lane": {"x": 13}}
       },
       "tags": ["base"]
     },

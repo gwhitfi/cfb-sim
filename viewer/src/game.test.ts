@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byFormation, describeLine, downText, periodText, playClockLeft, StepQueue, type GameState } from "./game";
+import { byFormation, clockText, describeLine, downText, gameClockLeft, periodText, playClockAt, playClockLeft, StepQueue, type GameState } from "./game";
 
 const state: GameState = {
   tick: 0,
@@ -100,5 +100,40 @@ describe("playClockLeft", () => {
     expect(playClockLeft(25, 6, true)).toBe(25); // not ready yet
     expect(playClockLeft(25, 6, true, 8.4)).toBe(25); // ready later in the file
     expect(playClockLeft(25, 18.4, true, 8.4)).toBeCloseTo(15);
+  });
+});
+
+describe("playClockAt", () => {
+  it("finds when the play clock reads a value", () => {
+    expect(playClockAt(40, 12, false)).toBe(28);
+    expect(playClockAt(25, 12, true)).toBeUndefined();
+    expect(playClockAt(25, 12, true, 8)).toBe(21);
+  });
+});
+
+describe("gameClockLeft", () => {
+  it("runs with the play clock when the clock is running", () => {
+    expect(gameClockLeft({ game_clock: 600, game_clock_starts: 0 }, 12)).toBe(588);
+  });
+  it("starts on the ready signal", () => {
+    expect(gameClockLeft({ game_clock: 600, game_clock_starts: 7 }, 5)).toBe(600);
+    expect(gameClockLeft({ game_clock: 600, game_clock_starts: 7 }, 12)).toBe(595);
+    // A 25-second clock: from the ready event in the file.
+    const admin = { game_clock: 600, game_clock_starts: 0, waits_for_ready: true };
+    expect(gameClockLeft(admin, 6)).toBe(600);
+    expect(gameClockLeft(admin, 10, 8)).toBe(598);
+  });
+  it("stays stopped until the snap, and stops at the two-minute timeout", () => {
+    expect(gameClockLeft({ game_clock: 600 }, 30)).toBe(600);
+    expect(gameClockLeft({ game_clock: 125, game_clock_starts: 0, game_clock_stops: 120 }, 20)).toBe(120);
+    expect(gameClockLeft({ game_clock: 10, game_clock_starts: 0 }, 20)).toBe(0);
+  });
+  it("is null with no game clock (overtime)", () => {
+    expect(gameClockLeft({}, 5)).toBeNull();
+  });
+  it("formats like the scoreboard", () => {
+    expect(clockText(754)).toBe("12:34");
+    expect(clockText(59.2)).toBe("1:00");
+    expect(clockText(0)).toBe("0:00");
   });
 });

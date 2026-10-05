@@ -12,6 +12,7 @@
 #include "cfbsim/data/load.h"
 #include "cfbsim/field/geometry.h"
 #include "cfbsim/log/tracking.h"
+#include "cfbsim/play/kick_sim.h"
 #include "cfbsim/play/play_sim.h"
 #include "cfbsim/version.h"
 
@@ -154,6 +155,77 @@ const char* cfbsim_run_play(const char* data_dir, const char* options_json) {
         cfbsim::TrackingWriter writer(tracking);
         const cfbsim::PlayResult r = cfbsim::run_play(report.data, po, &writer);
         out = Json{{"summary", r.summary}, {"outcome", r.outcome}, {"yards", r.yards}, {"tracking", tracking.str()}}
+                  .dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+const char* cfbsim_run_kick(const char* data_dir, const char* options_json) {
+    using cfbsim::Json;
+    using cfbsim::PlayType;
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        const Json o = Json::parse(options_json ? options_json : "{}");
+        cfbsim::KickOptions ko;
+        ko.kicking_team = o.value("kicking", "");
+        ko.receiving_team = o.value("receiving", "");
+        ko.kick_play = o.value("kick", "");
+        if (ko.kicking_team.empty() || ko.receiving_team.empty() || ko.kick_play.empty()) {
+            return fail("run_kick needs \"kicking\", \"receiving\", and \"kick\"");
+        }
+        ko.return_play = o.value("return", "");
+        ko.seed = o.value("seed", std::uint64_t{1});
+        const auto hash = cfbsim::from_name(cfbsim::kHashNames, o.value("hash", "middle"));
+        if (!hash) return fail("hash must be left, middle, or right");
+        ko.hash = *hash;
+        const std::string direction = o.value("direction", "right");
+        if (direction != "right" && direction != "left") return fail("direction must be right or left");
+        ko.kicking_right = direction == "right";
+        ko.return_aggression = o.value("return_aggression", 50.0);
+
+        cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+        if (!report.ok()) return fail("the data folder has errors: " + report.errors.front());
+        const cfbsim::DataSet& data = report.data;
+        const auto book_of = [&](const std::string& team) -> const cfbsim::Playbook* {
+            const auto t = data.teams.find(team);
+            if (t == data.teams.end()) return nullptr;
+            const auto b = data.playbooks.find(t->second.special_playbook);
+            return b == data.playbooks.end() ? nullptr : &b->second;
+        };
+        if (!data.teams.contains(ko.kicking_team)) return fail("unknown team '" + ko.kicking_team + "'");
+        if (!data.teams.contains(ko.receiving_team)) return fail("unknown team '" + ko.receiving_team + "'");
+        const cfbsim::Playbook* kicks = book_of(ko.kicking_team);
+        const cfbsim::Play* kick = kicks ? kicks->find(ko.kick_play) : nullptr;
+        if (!kick) return fail("no kick '" + ko.kick_play + "' in " + ko.kicking_team + "'s special teams playbook");
+        PlayType answer;
+        double yard_line;
+        switch (kick->type) {
+            case PlayType::Kickoff: answer = PlayType::KickoffReturn; yard_line = 35.0; break;
+            case PlayType::Punt: answer = PlayType::PuntReturn; yard_line = 30.0; break;
+            case PlayType::FieldGoal: answer = PlayType::FieldGoalBlock; yard_line = 70.0; break;
+            default: return fail("'" + ko.kick_play + "' isn't a kickoff, punt, or field goal");
+        }
+        ko.yard_line = o.value("yard_line", yard_line);
+        if (ko.return_play.empty()) {
+            // The receiving team's first answer to that kind of kick.
+            if (const cfbsim::Playbook* returns = book_of(ko.receiving_team)) {
+                for (const cfbsim::Play& p : returns->plays) {
+                    if (p.type == answer) {
+                        ko.return_play = p.id;
+                        break;
+                    }
+                }
+            }
+            if (ko.return_play.empty()) return fail(ko.receiving_team + " has no " + std::string(cfbsim::to_string(answer)) + " play");
+        }
+
+        std::ostringstream tracking;
+        cfbsim::TrackingWriter writer(tracking);
+        const cfbsim::KickResult r = cfbsim::run_kick(data, ko, &writer);
+        out = Json{{"summary", r.summary}, {"outcome", r.result}, {"yards", r.return_yards}, {"tracking", tracking.str()}}
                   .dump();
         return out.c_str();
     } catch (const std::exception& e) {

@@ -196,17 +196,21 @@ TEST(Defense, BallSkillsMakeInterceptions) {
 
 TEST(Defense, QbThrowsItAwayWhenNothingOpens) {
     // A QB who never sees anything open enough throws it away when his time
-    // is up (no rush here: under pressure he throws it away sooner).
+    // is up (no rush here: under pressure he throws it away sooner). A
+    // four-man rush, not a blitz: against Cover 0 the free linebacker gets
+    // the QB to panic before his time is up, even with the rush crippled.
     DataSet d = data();
     without_rush(d);
     no_scrambles(d);
     d.tuning.passing.throw_threshold = Curve::linear({{0.0, 1.5}});
     d.tuning.passing.threshold_floor = 1.5;
     d.tuning.passing.give_up_seconds = 2.5;
-    const PlayResult r = run_play(d, matchup("trips_stick", "nickel_cover0"));
-    EXPECT_TRUE(r.thrown_away);
-    EXPECT_EQ(r.outcome, "incomplete");
-    EXPECT_GE(r.time_to_throw, 2.5);
+    for (std::uint64_t seed = 1; seed <= 10; ++seed) {
+        const PlayResult r = run_play(d, matchup("trips_stick", "nickel_cover2", seed));
+        EXPECT_TRUE(r.thrown_away) << seed;
+        EXPECT_EQ(r.outcome, "incomplete") << seed;
+        EXPECT_GE(r.time_to_throw, 2.5) << seed;
+    }
 }
 
 TEST(Defense, OptionRouteReadsMan) {
@@ -420,3 +424,4 @@ TEST(Coverage, UnderneathZonesDontComeUpUnderVerticals) {
     }
     EXPECT_GE(held, total * 9 / 10) << held << " of " << total;
 }
+

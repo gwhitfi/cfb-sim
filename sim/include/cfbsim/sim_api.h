@@ -45,14 +45,29 @@ const char* cfbsim_match_log(cfbsim_match* match);
 
 /* Runs one play outside a game, like `cfbsim run-play`. It loads the data
  * folder on every call, so edited data takes effect at once. `options_json`:
- *   {"offense": "r80_a", "play": "gun_inside_zone",     required
- *    "defense": "r80_b", "def_play": "43_over_cover3",   optional: an empty field without them
+ *   {"offense": "clemson_2025", "play": "gun_inside_zone",          required
+ *    "defense": "clemson_2018", "def_play": "43_over_cover3",        optional: an empty field without them
  *    "seed": 1, "hash": "middle", "yard_line": 25, "direction": "right",
  *    "flip": false, "huddle": false, "target": "Z", "hold": false}
  * Returns {"summary": "...", "outcome": "...", "yards": 3.2, "tracking": "<JSON Lines>"},
  * or NULL on error (see cfbsim_last_error). The string stays valid until the
  * next cfbsim_run_play call on the same thread. */
 const char* cfbsim_run_play(const char* data_dir, const char* options_json);
+
+/* Runs one kicking play outside a game, like `cfbsim run-kick`. It loads the
+ * data folder on every call. `options_json`:
+ *   {"kicking": "clemson_2025", "kick": "kickoff_deep",  required (a kickoff, punt, or field goal)
+ *    "receiving": "clemson_2018",                        required
+ *    "return": "kr_middle",                              optional: the receiving team's first
+ *                                                        return (or block) for that kind of kick
+ *    "seed": 1, "hash": "middle",
+ *    "yard_line": 35,                                    the kicking team's own yard line; default
+ *                                                        35 kickoff, 30 punt, 70 field goal
+ *    "direction": "right", "return_aggression": 50}
+ * Returns {"summary": "...", "outcome": "<result>", "yards": <return yards>,
+ * "tracking": "<JSON Lines>"}, or NULL on error (see cfbsim_last_error). The
+ * string stays valid until the next cfbsim_run_kick call on the same thread. */
+const char* cfbsim_run_kick(const char* data_dir, const char* options_json);
 
 #ifdef __cplusplus
 }

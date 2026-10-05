@@ -283,10 +283,22 @@ Intent Pursuer::decide(const PlayState& play, int self, Actions& /*actions*/) {
     const Vec2 intercept = found.value_or(predict(std::min(t.pursue_horizon, reach_time(predict(0.0)))));
 
     // Close: he attacks the carrier instead of waiting on the spot, leading
-    // him by what he sees late plus the time to get there.
+    // him by what he sees late plus the time to get there. The lead fades as
+    // he comes into reach, so at the end he steps into the body, not to a spot
+    // ahead of it (a long lead from beside him only ran him alongside).
     const double dist = (play.agent(carrier).pos - me.pos).length();
-    const double lead = s_.lag + std::min(t.attack_lead, dist / me.move.top_speed);
-    Vec2 aim = dist <= t.attack_range ? seen.pos + seen.vel * lead : intercept;
+    Vec2 aim = intercept;
+    if (dist <= t.attack_range) {
+        const double fade =
+            std::clamp((dist - me.body.reach) / std::max(1e-6, t.attack_range - me.body.reach), 0.0, 1.0);
+        aim = seen.pos + seen.vel * (s_.lag + fade * std::min(t.attack_lead, dist / me.move.top_speed));
+        // Alongside and not gaining: he cuts straight into him.
+        const Vec2 to_c = seen.pos - me.pos;
+        const double closing = to_c.length() > 1e-6 ? (me.vel - seen.vel).dot(to_c.normalized()) : 0.0;
+        if (dist <= me.body.reach + t.close_band && closing < t.close_min) {
+            aim = seen.pos + seen.vel * s_.lag + unit_or(to_c, down * -1.0) * me.body.reach;
+        }
+    }
 
     // A deeper defender stays on top: he keeps at least a share of his
     // cushion downfield of the carrier, so a cut upfield doesn't beat him.
@@ -296,11 +308,13 @@ Intent Pursuer::decide(const PlayState& play, int self, Actions& /*actions*/) {
         const double keep = cushion * t.top_keep;
         if (ahead < keep) aim += down * (keep - ahead);
     }
-    // Leverage: the carrier on his outside shoulder (inside for contain).
-    // Near a sideline, the sideline is his leverage: he squeezes.
+    // Leverage: the carrier on his outside shoulder (inside for contain, or
+    // a side of his own). Near a sideline, the sideline is his leverage: he squeezes.
     Vec2 a = f.to_play(aim);
     const double room = std::min(a.x - f.sideline_x(Side::Left), f.sideline_x(Side::Right) - a.x);
-    if (dist > t.leverage_range && room > t.squeeze_room) {
+    if (dist > t.leverage_range && room > t.squeeze_room && s_.side.length() > 0.5) {
+        aim += s_.side * t.leverage;
+    } else if (dist > t.leverage_range && room > t.squeeze_room) {
         const double center = (f.sideline_x(Side::Left) + f.sideline_x(Side::Right)) / 2.0;
         const double inside = std::abs(center - a.x) < 0.5 ? 0.0 : (center > a.x ? 1.0 : -1.0);
         a.x += (s_.contain ? -inside : inside) * t.leverage;
@@ -309,13 +323,17 @@ Intent Pursuer::decide(const PlayState& play, int self, Actions& /*actions*/) {
     aim_ = aim;
 
     double speed = dist <= t.effort_range ? me.move.top_speed : me.move.top_speed * s_.effort;
-    // The carrier coming at him, close: he breaks down, coming under control
-    // so a cut doesn't take him out of the play.
+    // The carrier coming at him: he breaks down, slowing at a steady rate so
+    // he gets to him under control and a cut doesn't take him out of the play.
     const Vec2 at_me = me.pos - seen.pos;
     const bool coming_at_me = speed_c > 1.0 && at_me.length() > 0.1 &&
                               (seen.vel / speed_c).dot(at_me.normalized()) > t.breakdown_cos;
-    if (dist <= t.attack_range && cushion > 0.0 && coming_at_me) {
-        speed = std::min(speed, std::max(t.breakdown_speed, me.move.top_speed * dist / t.attack_range));
+    if (cushion > 0.0 && coming_at_me) {
+        const double closing = (me.vel - seen.vel).dot(at_me.normalized() * -1.0);
+        if (closing > 0.5) {
+            const double to_contact = std::max(0.0, at_me.length() - me.body.reach) / closing;
+            speed = std::min(speed, s_.breakdown + (t.breakdown_decel + s_.breakdown_extra) * to_contact);
+        }
     }
     in.velocity = steer::seek(me, aim, speed);
     return in;

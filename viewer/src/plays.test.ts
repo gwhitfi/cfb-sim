@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playRequest, playTitle, stepSeed, type PlayForm, type TeamInfo } from "./plays";
+import { answersTo, kickYardLine, playRequest, playTitle, stepSeed, type PlayForm, type TeamInfo } from "./plays";
 
 const form: PlayForm = {
   offense: "r80_a",
@@ -50,5 +50,58 @@ describe("run a play", () => {
   it("names the play by teams, plays, and seed", () => {
     expect(playTitle(form, teams)).toBe("R80A Gun Inside Zone vs R80B Over Cover 3 · seed 7");
     expect(playTitle({ ...form, defense: "", defPlay: "" }, teams)).toBe("R80A Gun Inside Zone vs empty field · seed 7");
+  });
+});
+
+describe("run a kick", () => {
+  const kick: PlayForm = {
+    mode: "kicks",
+    offense: "r80_a",
+    play: "kickoff_deep",
+    defense: "r80_b",
+    defPlay: "kr_middle",
+    seed: 4,
+    hash: "middle",
+    yardLine: 35,
+    flip: false,
+    huddle: false,
+  };
+  const st: TeamInfo[] = [
+    { id: "r80_a", name: "Test 80 A", abbr: "R80A", kicking: [{ id: "kickoff_deep", name: "Kickoff: Deep Middle", type: "kickoff", formation: "kickoff_std" }] },
+    { id: "r80_b", name: "Test 80 B", abbr: "R80B", receiving: [{ id: "kr_middle", name: "Kickoff Return: Middle", type: "kickoff_return", formation: "kickoff_return_std" }] },
+  ];
+
+  it("builds the server's run_kick message", () => {
+    expect(playRequest(kick)).toEqual({
+      type: "run_kick",
+      kicking: "r80_a",
+      kick: "kickoff_deep",
+      receiving: "r80_b",
+      return: "kr_middle",
+      seed: 4,
+      hash: "middle",
+      yard_line: 35,
+    });
+  });
+
+  it("offers only the returns for the kind of kick", () => {
+    const plays = [
+      { id: "kr_middle", name: "", type: "kickoff_return", formation: "" },
+      { id: "pr_middle", name: "", type: "punt_return", formation: "" },
+      { id: "fg_block", name: "", type: "field_goal_block", formation: "" },
+    ];
+    expect(answersTo("kickoff", plays).map((p) => p.id)).toEqual(["kr_middle"]);
+    expect(answersTo("punt", plays).map((p) => p.id)).toEqual(["pr_middle"]);
+    expect(answersTo("field_goal", plays).map((p) => p.id)).toEqual(["fg_block"]);
+  });
+
+  it("kicks from each kind's usual spot", () => {
+    expect(kickYardLine("kickoff")).toBe(35);
+    expect(kickYardLine("punt")).toBe(30);
+    expect(kickYardLine("field_goal")).toBe(70);
+  });
+
+  it("names the kick by teams, kick, return, and seed", () => {
+    expect(playTitle(kick, st)).toBe("R80A Kickoff: Deep Middle vs R80B Kickoff Return: Middle · seed 4");
   });
 });

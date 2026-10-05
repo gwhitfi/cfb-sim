@@ -13,6 +13,7 @@
 #include "cfbsim/api/match.h"
 #include "cfbsim/field/geometry.h"
 #include "cfbsim/log/tracking.h"
+#include "cfbsim/play/kick_sim.h"
 #include "cfbsim/play/play_sim.h"
 #include "cfbsim/sim_api.h"
 
@@ -276,7 +277,7 @@ TEST(Match, TheDefenseChecksAtTheLine) {
 }
 
 TEST(Match, KicksAreCalls) {
-    Match m(data(), options(21, true));
+    Match m(data(), options(23, true));
     int fourth = 0, tries = 0, twos = 0;
     const Played p = play(m, [&](const Json& prompt) -> Json {
         if (prompt["input"] != "call_play" || prompt["options"]["side"] != "offense") return take_suggestion(prompt);
@@ -361,21 +362,21 @@ TEST(Match, CApiRunsOnePlay) {
     EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"play": "smash"})"), nullptr);
     EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "nobody", "play": "smash"})"), nullptr);
     EXPECT_NE(std::string(cfbsim_last_error()).find("nobody"), std::string::npos);
-    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "r80_a", "play": "smash", "defense": "r80_b"})"),
+    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "clemson_2025", "play": "smash", "defense": "clemson_2018"})"),
               nullptr);
-    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "r80_a", "play": "no_such_play"})"), nullptr);
+    EXPECT_EQ(cfbsim_run_play(CFBSIM_DATA_DIR, R"({"offense": "clemson_2025", "play": "no_such_play"})"), nullptr);
 
     // The same play as run_play, with its tracking file.
-    const char* opts = R"({"offense": "r80_a", "play": "gun_inside_zone", "defense": "r80_b",
+    const char* opts = R"({"offense": "clemson_2025", "play": "gun_inside_zone", "defense": "clemson_2018",
                            "def_play": "43_over_cover3", "seed": 5, "hash": "left"})";
     const char* r = cfbsim_run_play(CFBSIM_DATA_DIR, opts);
     ASSERT_NE(r, nullptr) << cfbsim_last_error();
     const Json got = Json::parse(r);
 
     PlayOptions po;
-    po.team = "r80_a";
+    po.team = "clemson_2025";
     po.play = "gun_inside_zone";
-    po.defense = "r80_b";
+    po.defense = "clemson_2018";
     po.defense_play = "43_over_cover3";
     po.seed = 5;
     po.hash = Hash::Left;
@@ -388,6 +389,34 @@ TEST(Match, CApiRunsOnePlay) {
     EXPECT_EQ(got["tracking"], tracking.str());
     // Same options, same play.
     EXPECT_EQ(Json::parse(cfbsim_run_play(CFBSIM_DATA_DIR, opts)), got);
+}
+
+TEST(Match, CApiRunsOneKick) {
+    EXPECT_EQ(cfbsim_run_kick(CFBSIM_DATA_DIR, R"({"kicking": "clemson_2025", "kick": "kickoff_deep"})"), nullptr);
+    EXPECT_EQ(cfbsim_run_kick(CFBSIM_DATA_DIR, R"({"kicking": "clemson_2025", "kick": "smash", "receiving": "clemson_2018"})"),
+              nullptr);
+    EXPECT_NE(std::string(cfbsim_last_error()).find("smash"), std::string::npos);
+
+    // The same kick as run_kick, with the receiving team's kickoff return
+    // picked for it and the kickoff's own yard line.
+    const char* opts = R"({"kicking": "clemson_2025", "kick": "kickoff_deep", "receiving": "clemson_2018", "seed": 3})";
+    const char* r = cfbsim_run_kick(CFBSIM_DATA_DIR, opts);
+    ASSERT_NE(r, nullptr) << cfbsim_last_error();
+    const Json got = Json::parse(r);
+
+    KickOptions ko;
+    ko.kicking_team = "clemson_2025";
+    ko.receiving_team = "clemson_2018";
+    ko.kick_play = "kickoff_deep";
+    ko.return_play = "kr_middle";
+    ko.yard_line = 35.0;
+    ko.seed = 3;
+    std::ostringstream tracking;
+    TrackingWriter writer(tracking);
+    const KickResult want = run_kick(data(), ko, &writer);
+    EXPECT_EQ(got["summary"], want.summary);
+    EXPECT_EQ(got["outcome"], want.result);
+    EXPECT_EQ(got["tracking"], tracking.str());
 }
 
 TEST(Match, ALiveClockKeepsPace) {

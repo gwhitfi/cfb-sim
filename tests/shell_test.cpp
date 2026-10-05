@@ -104,7 +104,7 @@ TEST(LateDefense, ALateLineIsStillBlocked) {
     // home more often than one that's set.
     const auto pressured = [](double seconds) {
         int n = 0;
-        for (std::uint64_t seed = 1; seed <= 100; ++seed) {
+        for (std::uint64_t seed = 1; seed <= 300; ++seed) {
             PlayOptions o = matchup("smash", "43_over_cover3", seed);
             if (seconds > 0.0) o = late(o, seconds);
             n += run_play(data(), o).time_to_pressure >= 0.0 ? 1 : 0;
@@ -113,7 +113,7 @@ TEST(LateDefense, ALateLineIsStillBlocked) {
     };
     const int set = pressured(0.0);
     const int walking = pressured(0.5);
-    EXPECT_LE(walking, set + 6) << "set " << set << ", walking up " << walking;
+    EXPECT_LE(walking, set + 18) << "set " << set << ", walking up " << walking;
 }
 
 TEST(Shell, LinesUpAsThePlayWould) {

@@ -662,6 +662,14 @@ canvas.panning {
   gap: 6px;
   align-items: end;
 }
+/* Scrimmage or kicks: the picked one is lit. */
+.mode-pair button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+#play-scrimmage-options[hidden] {
+  display: none;
+}
 .plays-center .field {
   display: flex;
   flex-direction: column;

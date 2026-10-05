@@ -160,6 +160,16 @@ Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view 
             value.allow_only({"x"});
             job.lane_x = value.number("x");
             break;
+        case JobKind::Safety:
+            // {"safety": true}, or on a kickoff {"safety": {"x": -4, "depth": 10}}.
+            if (value.is_bool()) {
+                require_true(value, job.kind);
+                break;
+            }
+            value.allow_only({"x", "depth"});
+            if (auto x = value.find("x")) job.lane_x = x->as_number();
+            if (auto depth = value.find("depth")) job.depth = depth->as_number();
+            break;
         case JobKind::ReturnBlock:
             value.allow_only({"target", "rule"});
             job.target = value.string_or("target", "");

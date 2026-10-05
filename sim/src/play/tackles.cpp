@@ -93,24 +93,42 @@ double Tackles::swept_distance(int a, int b) const {
 }
 
 double Tackles::contact_quality(int tackler, int carrier) const {
-    const TacklingTuning& t = play_.tuning().tackling;
     const Agent& k = play_.agent(tackler);
     const Agent& c = play_.agent(carrier);
-    // Distance: the gap between the bodies.
+    // The gap between the bodies at the closest point of the tick.
     const double gap = std::max(0.0, swept_distance(tackler, carrier) - k.body.radius - c.body.radius);
-    const double distance = 1.0 - (1.0 - t.contact_far) * std::clamp(gap / t.contact_gap, 0.0, 1.0);
-    // Angle: where he is against the carrier's heading. From behind, a man
-    // running him down gets more of him than one standing there.
-    const Vec2 heading = unit_or(c.vel, play_.downfield_for(carrier));
-    const Vec2 to = c.pos - k.pos;
-    const double cs = heading.dot(unit_or(k.pos - c.pos, heading));  // 1: he's in front
+    return contact_quality_at(tackler, k.pos, k.vel, c.pos, c.vel, gap, carrier);
+}
+
+double Tackles::contact_quality_at(int tackler, Vec2 k_pos, Vec2 k_vel, Vec2 c_pos, Vec2 c_vel, double gap,
+                                   int carrier) const {
+    const TacklingTuning& t = play_.tuning().tackling;
+    // Distance, against his own arm: the gap between the bodies at the edge
+    // of his reach. Inside it the factor falls slowly at first (half an arm
+    // still gets most of him); past it (a dive or a lunge) it keeps falling.
+    const Body& kb = play_.agent(tackler).body;
+    const double arm = std::max(0.05, kb.reach - kb.radius - play_.agent(carrier).body.radius);
+    double distance = 0.0;
+    if (gap <= arm) {
+        distance = 1.0 - (1.0 - t.contact_far) * std::pow(gap / arm, t.contact_shape);
+    } else {
+        const double past = std::clamp((gap - arm) / t.dive_extra, 0.0, 1.0);
+        distance = t.contact_far * (1.0 - (1.0 - t.dive_far) * past);
+    }
+    // Angle: where he is against the carrier's heading. A man driving into
+    // him (from the side, or running him down from behind) gets more of him
+    // than one standing there.
+    const Vec2 heading = unit_or(c_vel, play_.downfield_for(carrier));
+    const Vec2 to = c_pos - k_pos;
+    const double cs = heading.dot(unit_or(k_pos - c_pos, heading));  // 1: he's in front
+    const double closing = to.length() > 1e-6 ? (k_vel - c_vel).dot(to.normalized()) : 0.0;
+    const double drive = std::clamp(closing / t.contact_chase_speed, 0.0, 1.0);
     double angle = 0.0;
     if (cs >= 0.0) {
         angle = t.contact_side + (1.0 - t.contact_side) * cs;
+        angle += (1.0 - angle) * t.contact_side_drive * drive * (1.0 - cs);
     } else {
-        const double closing = to.length() > 1e-6 ? (k.vel - c.vel).dot(to.normalized()) : 0.0;
-        const double behind = t.contact_behind + (t.contact_chase - t.contact_behind) *
-                                                     std::clamp(closing / t.contact_chase_speed, 0.0, 1.0);
+        const double behind = t.contact_behind + (t.contact_chase - t.contact_behind) * drive;
         angle = t.contact_side + (behind - t.contact_side) * -cs;
     }
     return std::max(t.contact_min, distance * angle);
@@ -129,7 +147,15 @@ bool Tackles::waits(int tackler, int carrier) const {
     if (v2 < 1e-9) return false;
     const double when = -p.dot(v) / v2;
     if (when <= 0.0 || when > t.contact_wait) return false;
-    return (p + v * when).length() < dist - t.contact_gain;
+    if ((p + v * when).length() >= dist - t.contact_gain) return false;
+    // Closer isn't always better: a carrier going by him gets closer as he
+    // goes past, onto his side. He only waits for a squarer contact than he
+    // has now.
+    const Vec2 k_then = k.pos + k.vel * when;
+    const Vec2 c_then = c.pos + c.vel * when;
+    const double gap_then = std::max(0.0, (c_then - k_then).length() - k.body.radius - c.body.radius);
+    return contact_quality_at(tackler, k_then, k.vel, c_then, c.vel, gap_then, carrier) >
+           contact_quality(tackler, carrier);
 }
 
 std::array<double, 4> Tackles::outcome_odds(double tackle, double resistance, int carrier) const {
@@ -325,6 +351,7 @@ TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
         }
         stats_.tackler = play_.slot_name(tackler);
         stats_.tackler_index = tackler;
+        go_down(carrier);
         out.down = true;
         out.spot = spot_ahead(carrier, fall);
         return out;
@@ -387,6 +414,7 @@ TackleResult Tackles::finish_drag(Rng& rng) {
     }
     stats_.tackler = play_.slot_name(d.tackler);
     stats_.tackler_index = d.tackler;
+    go_down(d.carrier);
     out.down = true;
     // Forward progress: the furthest he got.
     out.spot = spot_ahead(d.carrier, d.best_y - forward_y(play_.agent(d.carrier).pos, d.carrier));
@@ -449,13 +477,19 @@ TackleResult Tackles::interact(Rng& rng) {
     const Agent& ca = play_.agent(c);
     for (int j = 0; j < play_.count(); ++j) {
         if (play_.engaged(j) || !can_try(j, c, t.dive_extra)) continue;
-        // He dives once he stops gaining, or as he's about to go past.
+        // He dives only once he can't get to him on his feet: the most he
+        // could close running straight at him (his top speed less the
+        // carrier's speed away from him) is too slow or too late. As he's about
+        // to go past he dives anyway.
         const Agent& a = play_.agent(j);
         const Vec2 to = ca.pos - a.pos;
         const Vec2 rel = a.vel - ca.vel;
         const double passing = rel.length_squared() > 1e-9 ? to.dot(rel) / rel.length_squared() : 1e9;
-        if (to.length() > 1e-6 && rel.dot(to.normalized()) > t.dive_closing && passing > kTickSeconds) {
-            continue;
+        const bool going_past = passing > 0.0 && passing <= kTickSeconds;
+        if (to.length() > 1e-6 && !going_past) {
+            const double can_close = a.move.top_speed - ca.vel.dot(to.normalized());
+            const double short_of_reach = std::max(0.0, swept_distance(j, c) - a.body.reach);
+            if (can_close > t.dive_closing && short_of_reach / can_close <= t.dive_wait) continue;
         }
         return attempt(c, j, rng, true);
     }
@@ -463,6 +497,32 @@ TackleResult Tackles::interact(Rng& rng) {
 }
 
 void Tackles::reset_carrier() { play_.drag.reset(); }
+
+void Tackles::go_down(int carrier) {
+    // He and the pile on him (his tacklers, anyone arriving) brake hard enough
+    // to stop within `slide` yd (never softer than their own), so nobody
+    // shoves him on after the whistle.
+    const TacklingTuning& t = play_.tuning().tackling;
+    const Vec2 at = play_.agent(carrier).pos;
+    downed_.clear();
+    for (int i = 0; i < play_.count(); ++i) {
+        const Agent& a = play_.agent(i);
+        if (i != carrier && (a.pos - at).length() > t.pile) continue;
+        const double v = a.vel.length();
+        downed_.emplace_back(i, std::max(a.move.decel, v * v / (2.0 * t.slide)));
+    }
+}
+
+void Tackles::settle(std::span<Intent> intents) {
+    for (const auto& [i, decel] : downed_) {
+        Agent& a = play_.world().agents()[static_cast<std::size_t>(i)];
+        const double v = a.vel.length();
+        const double keep = v > 1e-9 ? std::max(0.0, v - decel * kTickSeconds) / v : 0.0;
+        // He's slowed here; asking for that speed keeps Move from adding any back.
+        a.vel = a.vel * keep;
+        intents[static_cast<std::size_t>(i)].velocity = a.vel;
+    }
+}
 
 void Tackles::draw(Json& shapes) const {
     for (int i = 0; i < play_.count(); ++i) {

@@ -71,6 +71,8 @@ class PassBlocker final : public Behavior {
         double release_at = std::numeric_limits<double>::infinity();  // back: s after the snap
         double block_release_at = std::numeric_limits<double>::infinity();  // back who stays in: s after the snap
         double lag = 0.2;       // s: how late he sees rushers
+        bool misread = false;   // back: commits to the wrong rusher this snap
+        double misread_hold = 0.6;  // s he stays on the wrong man
         double max_depth = 2.5; // yd behind his stance he may set
         Vec2 home;              // field frame: his set spot with nobody to block
         double start_y = -1.0;  // play frame: his stance
@@ -93,12 +95,17 @@ class PassBlocker final : public Behavior {
     static constexpr double kBackClaim = 100.0;
 
   private:
-    int pick_target(const PlayState& play, int self) const;
+    // The rusher he should take; `wrong`, if given, gets the best of the
+    // ones he should leave because another blocker is going for him (not
+    // one already blocked: nobody mistakes him for a free rusher).
+    int pick_target(const PlayState& play, int self, int* wrong = nullptr) const;
     bool rushing(const PlayState& play, int defender, Vec2& pos, Vec2& vel) const;
 
     Setup s_;
     int target_ = -1;
     bool picked_up_ = false;  // a back with a rusher to block (now) stays in
+    bool misread_done_ = false;
+    double committed_until_ = -1.0;  // s after the snap: on the wrong man until then
 };
 
 // ---------------------------------------------------------------------------
@@ -307,7 +314,11 @@ class Pursuer final : public Behavior {
         double quality = 1.0;  // share of the carrier's velocity he projects
         double lag = 0.2;      // s: how late he sees the carrier
         bool contain = false;  // keeps outside-in leverage
+        Vec2 side{};           // field frame: if set, he stays this side of the carrier instead
+                               // (kickoff coverage: the carrier on his inside shoulder)
         double effort = 1.0;   // share of top speed far from the play
+        double breakdown = 4.0;  // yd/s he arrives at when breaking down in front of the carrier
+        double breakdown_extra = 0.0;  // yd/s^2 added to breakdown_decel (kickoff coverage)
     };
     Pursuer() = default;
     explicit Pursuer(Setup setup) : s_(setup) {}

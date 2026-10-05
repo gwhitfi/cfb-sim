@@ -1107,6 +1107,19 @@ void Game::open_between(int number, const PlayFrame& frame, int offense, Tempo t
         if (window) info.details["play_clock"] = segment_clock_;
         // The play clock starts at the "ready" event, not the file's start.
         if (waits_for_ready) info.details["waits_for_ready"] = true;
+        // The game clock, for the viewer to run with the play clock: it starts
+        // `game_clock_starts` s into the play clock's run (none: at the snap), as
+        // runoff_before_snap() has it, and stops at the two-minute timeout.
+        // (A walk-on, before a kickoff or a try, is outside game time.)
+        if (window && !g_.overtime() && !g_.untimed) {
+            info.details["game_clock"] = g_.clock;
+            const ClockAfter& c = g_.clock_state;
+            if (c.start == ClockStart::Running) info.details["game_clock_starts"] = 0.0;
+            if (c.start == ClockStart::OnReady) info.details["game_clock_starts"] = c.admin ? 0.0 : tuning_.ready_delay;
+            if (g_.second_or_fourth() && !g_.two_minute_done && g_.clock > rules_.two_minute) {
+                info.details["game_clock_stops"] = rules_.two_minute;
+            }
+        }
     }
     // A window's walks draw their paces; a walk-on (outside game time) doesn't.
     between_ = std::make_unique<Between>(std::move(out), info, frame, side_of(offense), tempo, data_.tuning.movement,
@@ -1603,7 +1616,7 @@ SnapResult Game::snap() {
 
     double play_clock = g_.clock_state.admin ? rules_.admin_play_clock : rules_.play_clock;
     BetweenPlays when = between_plays_schedule(play_clock, rules_.play_clock, tempo, false, tuning_);
-    const std::int64_t huddle_ticks = ticks(tuning_.huddle_seconds);
+    const std::int64_t huddle_ticks = ticks(tuning_.huddle_ring ? tuning_.huddle_seconds : tuning_.call_signal);
 
     // What's been decided.
     bool have_call = false;

@@ -13,6 +13,9 @@ import {
   penaltyName,
   periodText,
   playClockLeft,
+  playClockAt,
+  gameClockLeft,
+  clockText,
   promptTitle,
   StepQueue,
   type AdvanceResult,
@@ -48,6 +51,8 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 
 const HOLD_AFTER_SNAP = 0.9; // s to linger on a play's last frame
 const LOOKAHEAD = 8; // ticks: between plays, the game runs this far ahead of the screen
+// Your offense's call in with more than this on the play clock: on to it.
+const FAST_FORWARD_TO = 12;
 
 // A between-plays file streaming in while the play clock runs (game-flow.md).
 interface LiveWindow {
@@ -56,10 +61,12 @@ interface LiveWindow {
   done: boolean; // the last part is in
   start: number; // the game tick its tick 0 is
   playClock: number;
+  details?: Record<string, any>; // the file header's (the game clock)
   waits: boolean; // the play clock starts at the "ready" event
   shown: boolean; // loaded in the viewer
   dirty: boolean; // new parts since
   hiddenTick?: number; // skip animations or dev mode: the clock we keep instead (file ticks)
+  fastForward?: boolean; // your offense called: skip on to FAST_FORWARD_TO on the play clock
 }
 
 const key = (p: { input: string; team: string }) => `${p.input}/${p.team}`;
@@ -415,6 +422,7 @@ export class Live {
       w.start = Number(head.details?.start_tick ?? 0);
       w.playClock = Number(head.details?.play_clock ?? 0);
       w.waits = head.details?.waits_for_ready === true;
+      w.details = head.details ?? {};
     }
     let pb = this.host.playback();
     if (!hidden && w.dirty && w.text.includes('"type":"tick"')) {
@@ -430,6 +438,31 @@ export class Live {
     }
     if (!hidden && w.shown && pb && deciding) pb.speed = 1; // your 40 seconds are real seconds
 
+    // Your offense has its call in early: skip ahead to :12 on the play clock
+    // (the game runs on to it; the screen jumps once the frames are in).
+    if (w.fastForward && w.playClock) {
+      const ready = /"tick":(\d+),"event":"ready"/.exec(w.text);
+      const at = playClockAt(w.playClock, FAST_FORWARD_TO, w.waits, ready ? Number(ready[1]) / 20 : undefined);
+      if (at !== undefined) {
+        const target = Math.round(at * 20); // file ticks
+        const now = hidden || !w.shown || !pb ? this.simTick - w.start : pb.tick;
+        if (now >= target || w.done) {
+          w.fastForward = false;
+        } else if (hidden) {
+          w.hiddenTick = Math.max(w.hiddenTick ?? 0, target);
+          w.fastForward = false;
+        } else if (!this.waiting) {
+          if (this.simTick - w.start < target + LOOKAHEAD) this.advanceTo(w.start + target + LOOKAHEAD);
+          if (w.shown && pb) {
+            const ticks = pb.rec.ticks;
+            const f = ticks.findIndex((t) => t >= target);
+            pb.seek(f >= 0 ? f : pb.lastFrame);
+            if (f >= 0) w.fastForward = false;
+          }
+        }
+      }
+    }
+
     // The play clock on the scoreboard.
     let fileTick = this.simTick - w.start;
     if (!hidden && w.shown && pb) {
@@ -438,8 +471,11 @@ export class Live {
     } else if (w.playClock) {
       const pc = document.getElementById("sb-play-clock");
       const ready = /"tick":(\d+),"event":"ready"/.exec(w.text);
-      const left = playClockLeft(w.playClock, (this.simTick - w.start) / 20, w.waits, ready ? Number(ready[1]) / 20 : undefined);
+      const seconds = (this.simTick - w.start) / 20;
+      const readyAt = ready ? Number(ready[1]) / 20 : undefined;
+      const left = playClockLeft(w.playClock, seconds, w.waits, readyAt);
       if (pc) pc.textContent = `:${Math.max(0, Math.ceil(left)).toString().padStart(2, "0")}`;
+      this.showGameClock(gameClockLeft(w.details ?? {}, seconds, readyAt));
     }
 
     // The pace: just ahead of the screen; paused, not at all; hidden, on to
@@ -494,12 +530,26 @@ export class Live {
   private betweenClock(pb: Playback): void {
     const pc = document.getElementById("sb-play-clock");
     const full = Number(pb.rec.header.details.play_clock ?? 0);
-    if (!pc || !full) return;
     const ready = pb.rec.events.find((e) => e.event === "ready");
     const readyAt = ready ? (ready.tick - pb.rec.ticks[0]!) / pb.rec.header.tickRate : undefined;
+    this.showGameClock(gameClockLeft(pb.rec.header.details, pb.seconds, readyAt));
+    if (!pc || !full) return;
     const left = playClockLeft(full, pb.seconds, pb.rec.header.details.waits_for_ready === true, readyAt);
     pc.textContent = `:${Math.max(0, Math.ceil(left)).toString().padStart(2, "0")}`;
     pc.classList.toggle("low", left < 5);
+  }
+
+  // The play clock the scoreboard shows (undefined: none).
+  private shownPlayClock(): number | undefined {
+    const text = document.getElementById("sb-play-clock")?.textContent ?? "";
+    const m = /^:(\d+)$/.exec(text);
+    return m ? Number(m[1]) : undefined;
+  }
+
+  // The game clock on the scoreboard, running between plays (null: leave it).
+  private showGameClock(left: number | null): void {
+    const gc = document.getElementById("sb-game-clock");
+    if (gc && left !== null && !this.state?.overtime) gc.textContent = clockText(left);
   }
 
   private applyLine(line: any, state: GameState): void {
@@ -531,7 +581,7 @@ export class Live {
     box.replaceChildren(
       team("away"),
       team("home"),
-      el("div", { className: "sb-clock" }, el("span", { textContent: periodText(s) }), el("strong", { textContent: s.overtime ? "" : s.clock_text })),
+      el("div", { className: "sb-clock" }, el("span", { textContent: periodText(s) }), el("strong", { id: "sb-game-clock", textContent: s.overtime ? "" : s.clock_text })),
       el("div", { className: "sb-down", textContent: `${downText(s)} · ${s.situation.replace(/^.* at /, "")}` }),
       el("div", { className: "sb-play-clock", id: "sb-play-clock" }),
     );
@@ -547,6 +597,10 @@ export class Live {
       // Between plays: it names its decision; the game takes it on its next tick.
       this.lastLive = key(p);
       this.answeredLive.add(this.lastLive);
+      if (p.input === "call_play" && p.options?.side === "offense" && this.win) {
+        const left = this.shownPlayClock();
+        if (left !== undefined && left > FAST_FORWARD_TO) this.win.fastForward = true;
+      }
       this.send({ type: "command", command: { type: "answer", input: p.input, team: p.team, ...fields } });
       this.answering = p;
       this.hidePrompt();

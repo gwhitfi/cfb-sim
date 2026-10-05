@@ -108,6 +108,7 @@ void separate_agents(std::span<Agent> agents, const MovementTuning& tuning) {
         for (std::size_t j = i + 1; j < agents.size(); ++j) {
             const Agent& a = agents[i];
             const Agent& b = agents[j];
+            if (a.grounded || b.grounded) continue;  // a man on the ground gets stepped over
             const Vec2 d = b.pos - a.pos;
             const double min_dist = a.body.radius + b.body.radius;
             const double dist_sq = d.length_squared();

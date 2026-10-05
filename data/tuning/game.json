@@ -17,7 +17,7 @@
   // stoppage, so the call and the break come 15 s earlier on it.
   "between_plays": {
     "call": {"huddle": 10, "sugar": 8, "no_huddle": 7, "hurry": 3},   // the offense's call comes in, by tempo
-    "huddle": 3.5,                  // s from everyone in the ring to the break (the QB gives the call)
+    "huddle": 3.5,                  // s from everyone in the ring to the break (the QB gives the call; offense.huddle_ring)
     "defense_call": 2,              // s after the offense's call: its personnel is on the field, the defense calls
     "line_up": 3,                   // s to get set at the line with a kneel or a spike
     // The walks (step 5): nobody warps; the break, the set, and the snap
@@ -55,7 +55,9 @@
     // The offense between plays (step 7): before the call it gathers loosely
     // behind the ball (linemen `gather.line` yd back, the rest `gather.others`),
     // facing its sideline for the signal; the ring forms when the call comes
-    // in (a sugar huddle's `sugar_depth` yd off the ball). The break is
+    // in (a sugar huddle's `sugar_depth` yd off the ball) if `huddle_ring`;
+    // without it, the offense takes the call where it gathered and breaks
+    // `call_signal` s after everyone is there. The break is
     // staggered: the line first, the receivers and then the QB and backs
     // that many s later. With no huddle it walks to its base formation, and
     // shifts into the called one `no_huddle_signal` s after the call.
@@ -63,7 +65,9 @@
       "gather": {"line": 4.5, "others": [6, 9]},
       "sugar_depth": 4,
       "break_stagger": {"receivers": 0.3, "backs": 0.6},
-      "no_huddle_signal": 1.0
+      "no_huddle_signal": 1.0,
+      "huddle_ring": false,
+      "call_signal": 1.0
     }
   },
 

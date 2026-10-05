@@ -309,6 +309,8 @@ struct BlockingTuning {
     Blend pickup_skill;      // backs
     double pickup_pk_weight = 0.5;
     Curve pickup_lag;
+    Curve pickup_misread;           // skill -> chance per snap
+    double misread_hold = 0.6;      // s a misreading back stays on the wrong man
     double rushing_line = 1.5;      // yd: a defender this close to the line (or past it) is rushing
     double rushing_speed = 2.0;     // yd/s toward the QB ...
     double rushing_depth = 6.0;     // ... within this far off the line
@@ -327,7 +329,7 @@ struct BlockingTuning {
     double set_give = 0.2;          // yd: a lineman's set spot is at least this far behind his stance
     double back_front = 3.0;        // yd: a back meets a rusher no further than this in front of the QB
     double back_step_up = 1.0;      // yd: a back scans from this far in front of his stance (man side B gap)
-    double back_block_release = 2.0;  // s after the snap: a back who stayed in releases into his route
+    double back_block_release = 2.0;  // s after the snap: a back who stayed in (not blocking) releases
     double set_depth_min = 1.5;     // max set depth = min + Footwork / 100 x range
     double set_depth_range = 2.0;
 
@@ -456,8 +458,12 @@ struct TacklingTuning {
     double upfield = 0.5;           // the carrier's heading bent this far toward downfield
     double pursue_horizon = 3.0, pursue_step = 0.05;
     double attack_range = 4.0, attack_lead = 0.4;  // close: straight at the carrier, leading him
-    double breakdown_speed = 4.0;   // yd/s floor while breaking down in front of him
-    double breakdown_cos = 0.7;     // ... with the carrier heading within this of him
+    // Alongside him: within close_band yd past his reach and closing slower
+    // than close_min yd/s, he cuts straight into the carrier's body.
+    double close_band = 1.0, close_min = 1.5;
+    Curve breakdown_speed;          // pursuit skill -> yd/s he arrives at, breaking down in front of him
+    double breakdown_decel = 5.0;   // yd/s^2: the steady rate he slows at to get there
+    double breakdown_cos = 0.5;     // ... with the carrier heading within this of him
     double leverage = 1.0;          // yd inside (or outside, contain) of the intercept point
     double leverage_range = 3.0;    // yd: closer than this, no offset
     double squeeze_room = 4.0;      // yd from a sideline: no offset
@@ -481,9 +487,13 @@ struct TacklingTuning {
     // Contact quality (0-1): distance factor x angle factor. Points on the
     // tackle score: contact_points + contact_per_ln x ln(quality).
     double contact_points = 25.0, contact_per_ln = 43.5, contact_min = 0.05;
-    double contact_gap = 0.35;      // yd between the bodies where the distance factor bottoms out ...
-    double contact_far = 0.4;       // ... at this
-    double contact_side = 0.2;      // angle factor beside the carrier (in front: 1)
+    // Distance factor: 1 touching, falling to contact_far at full arm's length
+    // (reach - radius) as (gap / arm)^contact_shape; past his arm (a dive or a
+    // lunge) on down to contact_far x dive_far across the dive band.
+    double contact_shape = 1.5;
+    double contact_far = 0.4;
+    double contact_side = 0.55;     // angle factor beside the carrier (in front: 1) ...
+    double contact_side_drive = 0.4;  // ... rising this share of the way to 1 when he drives into him
     double contact_behind = 0.15;   // behind him ...
     double contact_chase = 0.4;     // ... or this, closing at contact_chase_speed or more
     double contact_chase_speed = 3.0;  // yd/s
@@ -497,7 +507,9 @@ struct TacklingTuning {
     // A free defender closing on the carrier lunges: extra reach per yd/s of
     // closing speed, up to lunge_max yd, costing up to lunge_penalty points.
     double lunge_per_closing = 0.12, lunge_max = 0.7, lunge_penalty = 8.0;
-    double dive_closing = 0.5;      // yd/s: he dives when he isn't closing faster than this
+    double dive_closing = 0.5;      // yd/s: he dives when he can't close faster than this ...
+    double dive_wait = 0.3;         // ... or would take longer than this many s to get to his reach
+    double dive_far = 0.5;          // distance factor at the far end of a dive, x contact_far
     double dive_penalty = 12.0;     // points off the tackle score
     double dive_down_min = 0.8, dive_down_max = 1.2;  // s on the ground after a failed dive
     double arm_min_shed = 0.3, arm_reach = 0.8, arm_retry = 0.5;
@@ -514,6 +526,8 @@ struct TacklingTuning {
     double miss_stumble = 0.6, miss_keep = 0.95;
     double stumble_speed = 0.6;     // share of top speed while stumbling
     double fall_max = 1.5, fall_speed = 9.0;
+    double slide = 0.75;            // yd the tackled carrier and the pile on him slide after the whistle, at most ...
+    double pile = 1.5;              // ... the pile: everyone this close to him (yd)
 
     // Fumbles.
     Curve fumble_chance;            // Ball Security -> chance per tackle event
@@ -584,6 +598,10 @@ struct GameTuning {
     double sugar_depth = 4.0;
     double stagger_receivers = 0.3, stagger_backs = 0.6;
     double no_huddle_signal = 1.0;
+    // The ring: off, a huddling offense takes its call at the gather spots
+    // (facing its sideline) and breaks `call_signal` s after it's all there.
+    bool huddle_ring = false;
+    double call_signal = 1.0;
 
     // Fatigue.
     double drain_base = 0.012, drain_per_yard = 0.0006, drain_per_engaged = 0.008,
@@ -627,10 +645,24 @@ struct SpecialTuning {
     // Returns.
     double catch_range = 1.6;
     Curve muff_punt, muff_kickoff;
-    double fair_catch_kickoff = 1.2, fair_catch_punt = 0.7;
-    double touchback_depth = 1.0, end_zone_return = 0.25, let_bounce = 10.0;
+    double fair_catch_punt = 0.7, let_bounce = 10.0;
     double set_depth = 12.0, hold_up = 1.2, jam = 1.5, protect_release = 0.3;
-    double aggression_margin = 0.4, aggression_depth = 2.0;  // return_aggression at 100
+    double aggression_margin = 0.4;  // return_aggression at 100: s off the punt fair catch margin
+    Curve secure;               // Vision -> s before a returner caught standing still runs
+    double secure_speed = 4.0;  // yd/s at the catch: no delay
+    // Kickoff fair catch read: `fc_look` s before the ball comes down, he fair
+    // catches (a knee in the end zone) at the chance of the first zone whose
+    // own yard line (`max_yl`, the end zone counts as 0) covers the landing.
+    struct FairCatchZone {
+        double max_yl = 0.0, chance = 0.0;
+    };
+    double fc_look = 1.0;
+    std::vector<FairCatchZone> fc_zones;  // empty: off
+    // Kickoff coverage after the catch.
+    double squeeze_depth = 25.0, break_range = 8.0, contain_width = 4.0;
+    double breakdown_extra = 0.0;  // yd/s^2 added to pursuit breakdown_decel for kickoff coverage
+    double safety_depth = 15.0, safety_range = 10.0;
+    Curve stay_in_lane;  // Discipline -> chance
 };
 
 // Situation weights for auto play calling (data/tactics/situations.json):

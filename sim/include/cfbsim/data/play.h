@@ -97,7 +97,8 @@ struct Job {
     std::string ref;                   // Zone id, Support role, Rush lane, ReturnBlock rule, Man leverage
     std::string gap;                   // Gap, Blitz, Rush: "A".."D"
     Side side = Side::None;            // Gap, Blitz, Rush
-    std::optional<double> lane_x;      // CoverLane
+    std::optional<double> lane_x;      // CoverLane, Safety (kickoff: his spot across from the ball)
+    std::optional<double> depth;       // Safety (kickoff): yd behind the front of the coverage
 };
 
 struct Assignment {

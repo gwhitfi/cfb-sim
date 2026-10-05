@@ -792,7 +792,10 @@ std::unique_ptr<Behavior> PlaySim::pass_blocker(int i, const Job& job) {
         s.release_at = tuning().check_release_seconds;
         s.block_release_at = std::max(t.back_block_release, s.release_at);
         s.home = state_.frame.to_field(back_scan_spot(i));
-        s.lag = t.pickup_lag((1.0 - t.pickup_pk_weight) * t.pickup_skill(r) + t.pickup_pk_weight * pk);
+        const double skill = (1.0 - t.pickup_pk_weight) * t.pickup_skill(r) + t.pickup_pk_weight * pk;
+        s.lag = t.pickup_lag(skill);
+        s.misread = world_.rng().chance(t.pickup_misread(skill));
+        s.misread_hold = t.misread_hold;
         return std::make_unique<PassBlocker>(s);
     }
     s.home = state_.frame.to_field(at + Vec2{0.0, -tuning().pass_set_depth});
@@ -1271,6 +1274,7 @@ Pursuer::Setup PlaySim::pursuit(int i, bool contain) const {
     s.lag = t.pursue_lag(skill);
     s.contain = contain;
     s.effort = t.effort(r[Attr::WorkRate]);
+    s.breakdown = t.breakdown_speed(skill);
     return s;
 }
 
@@ -2391,13 +2395,17 @@ PlayResult PlaySim::run() {
                 live_intents(intents, actions);
                 break;
             case PlayPhase::Dead:
-                break;  // everyone pulls up (a zero desired velocity)
+                tackles_.settle(intents);  // everyone else pulls up (a zero desired velocity)
+                break;
         }
         apply(actions);
         if (state_.phase == PlayPhase::Live) {
             blocking_.steer(intents);
             tackles_.steer(intents);
             plan_jumps();
+        }
+        for (int i = 0; i < state_.count(); ++i) {
+            world_.agents()[static_cast<std::size_t>(i)].grounded = state_.knocked_down(i);
         }
         world_.step(intents);
         if (state_.phase == PlayPhase::Live) {

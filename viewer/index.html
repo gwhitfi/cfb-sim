@@ -129,12 +129,16 @@
         <section id="plays-bar" class="plays-bar" hidden>
             <div class="picker">
                 <div class="picker-head">
-                    <span class="side-tag">Offense</span>
+                    <span id="play-offense-tag" class="side-tag">Offense</span>
                     <select id="play-offense"></select>
                 </div>
                 <div id="play-offense-grid" class="picker-plays"></div>
             </div>
             <div class="plays-center">
+                <div class="center-pair mode-pair">
+                    <button id="play-mode-plays" title="Offense against defense">Scrimmage</button>
+                    <button id="play-mode-kicks" title="Kickoffs, punts, and field goals against their returns and blocks">Kicks</button>
+                </div>
                 <div class="side-tag">Seed</div>
                 <div class="seed-row">
                     <button id="play-prev" class="seed-arrow" title="Previous seed and run (,)">&#8249;</button>
@@ -155,10 +159,10 @@
                         </select>
                     </label>
                     <label class="field"
-                        >Own yard line <input id="play-yard" type="number" min="1" max="99" value="25"
+                        ><span id="play-yard-label">Own yard line</span> <input id="play-yard" type="number" min="1" max="99" value="25"
                     /></label>
                 </div>
-                <div class="center-pair">
+                <div id="play-scrimmage-options" class="center-pair">
                     <label class="check"><input type="checkbox" id="play-flip" /> Flip</label>
                     <label class="check"><input type="checkbox" id="play-huddle" /> Huddle</label>
                 </div>
@@ -166,7 +170,7 @@
             </div>
             <div class="picker">
                 <div class="picker-head">
-                    <span class="side-tag">Defense</span>
+                    <span id="play-defense-tag" class="side-tag">Defense</span>
                     <select id="play-defense"></select>
                 </div>
                 <div id="play-defense-grid" class="picker-plays"></div>

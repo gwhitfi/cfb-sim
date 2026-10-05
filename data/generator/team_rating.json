@@ -1,0 +1,24 @@
+{
+  // Team ratings (`cfbsim team-rating`; ratings.md#team-ratings). A player's rating at a position
+  // is the mean of that position's key attributes (templates.json `key`), the same 1-100 scale the
+  // real rosters give as `rating`. Each starting slot is his starter's rating blended with the man
+  // behind him, so depth counts a little; each unit is the slots' weighted mean.
+  "format_version": 1,
+  "depth": {
+    "starter": 0.88,
+    "backup": 0.12,
+    "missing_backup": 30            // a slot with nobody behind him counts a walk-on
+  },
+  "units": {"offense": 0.45, "defense": 0.45, "special": 0.10},   // shares of the overall
+  "offense": {
+    "personnel": "11",              // the starters: this personnel group's slots
+    "weights": {"QB": 2.0, "RB": 1.0, "FB": 0.5, "WR": 1.0, "TE": 0.8, "OT": 1.0, "OG": 0.8, "C": 0.8}
+  },
+  "defense": {
+    "package": "base",
+    "weights": {"DE": 1.1, "DT": 0.9, "OLB": 0.9, "MLB": 1.0, "CB": 1.1, "SS": 0.9, "FS": 0.9}
+  },
+  "special": {
+    "weights": {"K": 1.0, "P": 1.0}  // each position's #1, backed by his #2
+  }
+}

@@ -21,6 +21,7 @@
 #include "cfbsim/data/load.h"
 #include "cfbsim/drills/drills.h"
 #include "cfbsim/gen/roster_gen.h"
+#include "cfbsim/gen/team_rating.h"
 #include "cfbsim/play/kick_sim.h"
 #include "cfbsim/play/play_sim.h"
 #include "cfbsim/rules/game.h"
@@ -48,6 +49,8 @@ void print_usage() {
            "files\n"
            "      --spec FILE           a real roster (data/generator/real/*.json) instead of\n"
            "                            the options above: names, numbers, sizes, ratings\n"
+           "  team-rating             overall, offense, defense, and special teams ratings\n"
+           "      --team ID             one team (default: every team)   --detail  each slot\n"
            "  run-drill forty         40-yard dash times\n"
            "      --speed N --accel N [--agility N --weight LB]   one runner (default 95/95)\n"
            "      --runners 95/95,70/70,50/50                    several runners, speed/accel\n"
@@ -292,6 +295,58 @@ void print_forty_table(const std::vector<cfbsim::FortyResult>& results) {
         std::printf("%-14s %6.2f %6.2f %6.2f %9.1f\n", r.id.c_str(), r.t10, r.t20, r.t40,
                     r.top_speed * 3600.0 / 1760.0);
     }
+}
+
+// team-rating: data/generator/team_rating.json (ratings.md#team-ratings).
+int cmd_team_rating(const Options& opt) {
+    const fs::path root = opt.get("data", "data");
+    try {
+        const cfbsim::LoadReport report = cfbsim::load_data_dir(root);
+        if (!report.ok()) {
+            std::cerr << "cfbsim team-rating: the data has errors (run validate)\n";
+            return 1;
+        }
+        const cfbsim::DataSet& d = report.data;
+        const auto templates = cfbsim::parse_generator_templates(
+            cfbsim::read_json_file(root / "generator" / "templates.json", "generator/templates.json"),
+            "generator/templates.json");
+        const auto config = cfbsim::parse_team_rating_config(
+            cfbsim::read_json_file(root / "generator" / "team_rating.json", "generator/team_rating.json"),
+            "generator/team_rating.json");
+        std::vector<const cfbsim::Team*> teams;
+        if (opt.has("team")) {
+            const auto it = d.teams.find(opt.get("team"));
+            if (it == d.teams.end()) {
+                std::cerr << "cfbsim team-rating: no team '" << opt.get("team") << "'\n";
+                return 1;
+            }
+            teams.push_back(&it->second);
+        } else {
+            for (const auto& [id, team] : d.teams) teams.push_back(&team);
+        }
+        std::printf("%-22s %5s %5s %5s %5s\n", "team", "OVR", "OFF", "DEF", "ST");
+        for (const cfbsim::Team* team : teams) {
+            const cfbsim::Roster& roster = d.rosters.at(team->id);
+            const cfbsim::TeamRating r = cfbsim::rate_team(*team, roster, templates, config);
+            std::printf("%-22s %5.1f %5.1f %5.1f %5.1f\n", team->id.c_str(), r.overall, r.offense, r.defense,
+                        r.special);
+            if (!opt.has("detail")) continue;
+            const auto name = [&](const std::string& id) {
+                const cfbsim::Player* p = roster.find(id);
+                return p ? p->first_name.substr(0, 1) + ". " + p->last_name : std::string("-");
+            };
+            for (const cfbsim::RatedSlot& s : r.slots) {
+                std::printf("    %-8s %-5s %-4s w%.1f  %-22s %5.1f   %-22s %5.1f   -> %5.1f\n", s.unit.c_str(),
+                            s.slot.c_str(), std::string(cfbsim::to_string(s.position)).c_str(), s.weight,
+                            name(s.starter).c_str(), s.starter_rating,
+                            s.backup.empty() ? "(none)" : name(s.backup).c_str(), s.backup_rating, s.value);
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "cfbsim team-rating: " << e.what() << "\n";
+        return 1;
+    }
+    return 0;
 }
 
 int cmd_run_drill(const std::string_view drill, const Options& opt) {
@@ -1235,8 +1290,37 @@ int cmd_batch(const Options& opt) {
     line("penalties", [](const cfbsim::TeamStats& s) { return double(s.penalties); });
     line("turnovers", [](const cfbsim::TeamStats& s) { return double(s.turnovers()); });
     line("timeouts used", [](const cfbsim::TeamStats& s) { return double(s.timeouts_used); });
-    std::printf("%-26s %8s %8.1f %10.1f %10.1f\n", "3rd down conv %", "", 100.0 * ratio(both.third_conv, both.third_att),
-                100.0 * ratio(sum[0].third_conv, sum[0].third_att), 100.0 * ratio(sum[1].third_conv, sum[1].third_att));
+    line("points", [](const cfbsim::TeamStats& s) { return double(s.points); });
+    line("plays", [](const cfbsim::TeamStats& s) { return double(s.plays); });
+    line("total yds", [](const cfbsim::TeamStats& s) { return s.total_yds(); });
+    line("pass cmp", [](const cfbsim::TeamStats& s) { return double(s.pass_cmp); });
+    line("interceptions", [](const cfbsim::TeamStats& s) { return double(s.ints); });
+    line("fumbles lost", [](const cfbsim::TeamStats& s) { return double(s.fumbles_lost); });
+    line("penalty yds", [](const cfbsim::TeamStats& s) { return s.penalty_yds; });
+    line("punt yds (gross)", [](const cfbsim::TeamStats& s) { return s.punt_yds; });
+    line("field goals made", [](const cfbsim::TeamStats& s) { return double(s.fg_made); });
+    line("kick returns", [](const cfbsim::TeamStats& s) { return double(s.kr_att); });
+    line("kick return yds", [](const cfbsim::TeamStats& s) { return s.kr_yds; });
+    line("punt returns", [](const cfbsim::TeamStats& s) { return double(s.pr_att); });
+    line("punt return yds", [](const cfbsim::TeamStats& s) { return s.pr_yds; });
+    line("possession min", [](const cfbsim::TeamStats& s) { return s.possession_seconds / 60.0; });
+    // Rates over the whole batch, not per game.
+    const auto rate = [&](const char* label, auto num, auto den, double scale) {
+        std::printf("%-26s %8s %8.1f %10.1f %10.1f\n", label, "", scale * ratio(num(both), den(both)),
+                    scale * ratio(num(sum[0]), den(sum[0])), scale * ratio(num(sum[1]), den(sum[1])));
+    };
+    rate("3rd down conv %", [](const cfbsim::TeamStats& s) { return double(s.third_conv); },
+         [](const cfbsim::TeamStats& s) { return double(s.third_att); }, 100.0);
+    rate("4th down conv %", [](const cfbsim::TeamStats& s) { return double(s.fourth_conv); },
+         [](const cfbsim::TeamStats& s) { return double(s.fourth_att); }, 100.0);
+    rate("field goal %", [](const cfbsim::TeamStats& s) { return double(s.fg_made); },
+         [](const cfbsim::TeamStats& s) { return double(s.fg_att); }, 100.0);
+    rate("punt avg (gross)", [](const cfbsim::TeamStats& s) { return s.punt_yds; },
+         [](const cfbsim::TeamStats& s) { return double(s.punts); }, 1.0);
+    rate("kick return avg", [](const cfbsim::TeamStats& s) { return s.kr_yds; },
+         [](const cfbsim::TeamStats& s) { return double(s.kr_att); }, 1.0);
+    rate("punt return avg", [](const cfbsim::TeamStats& s) { return s.pr_yds; },
+         [](const cfbsim::TeamStats& s) { return double(s.pr_att); }, 1.0);
     return failed > 0 ? 1 : 0;
 }
 
@@ -1301,6 +1385,7 @@ int main(int argc, char* argv[]) {
 
     if (command == "validate") return cmd_validate(opt);
     if (command == "generate-team") return cmd_generate_team(opt);
+    if (command == "team-rating") return cmd_team_rating(opt);
     if (command == "run-drill") return cmd_run_drill(drill, opt);
     if (command == "run-play") return cmd_run_play(opt);
     if (command == "matrix") return cmd_matrix(opt);

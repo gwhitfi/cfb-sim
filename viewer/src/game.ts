@@ -217,6 +217,34 @@ export function playClockLeft(full: number, seconds: number, waits: boolean, rea
   return full - Math.max(0, seconds - readyAt);
 }
 
+// Seconds into a between-plays file at which the play clock reads `reading`
+// (undefined: a file waiting for the ready signal that hasn't come yet).
+export function playClockAt(full: number, reading: number, waits: boolean, readyAt?: number): number | undefined {
+  if (!waits) return full - reading;
+  return readyAt === undefined ? undefined : readyAt + full - reading;
+}
+
+// Between plays: the game clock `seconds` into a between-plays file, from its
+// header's details (null: no game clock, overtime or an untimed down). It runs
+// once the play clock has run `game_clock_starts` s (none: stopped until the
+// snap), and stops at `game_clock_stops` (the two-minute timeout).
+export function gameClockLeft(details: Record<string, any>, seconds: number, readyAt?: number): number | null {
+  const clock = details.game_clock;
+  if (typeof clock !== "number") return null;
+  const starts = details.game_clock_starts;
+  if (typeof starts !== "number") return clock;
+  // The play clock's run so far (a file that waits for the ready signal starts it there).
+  const run = details.waits_for_ready === true ? (readyAt === undefined ? 0 : Math.max(0, seconds - readyAt)) : seconds;
+  const floor = typeof details.game_clock_stops === "number" ? Math.min(clock, details.game_clock_stops) : 0;
+  return Math.max(floor, clock - Math.max(0, run - starts));
+}
+
+// m:ss, rounded up like the scoreboard's (rules/game.cpp clock_text).
+export function clockText(seconds: number): string {
+  const s = Math.ceil(Math.max(0, seconds) - 1e-9);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+}
+
 export function isScore(line: any): boolean {
   return line.type === "play" && line.home !== undefined;
 }

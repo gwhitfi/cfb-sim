@@ -69,6 +69,10 @@
     "pickup_skill": {"anticipation": 1.0},
     "pickup_pk_weight": 0.5,
     "pickup_lag": {"curve": "linear", "points": [[0, 0.5], [100, 0.15]]},
+    // Pickup skill -> chance (rolled once per snap) that he misreads: with two
+    // rushers in his range he commits to the wrong one for misread_hold s.
+    "pickup_misread": {"curve": "linear", "points": [[0, 0.5], [100, 0.03]]},
+    "misread_hold": 0.9,
     "rushing_line": 1.5,       // yd: this close to the line (or past it) is rushing
     "rushing_speed": 2.0,      // yd/s toward the QB ...
     "rushing_depth": 6.0,      // ... within this far off the line
@@ -90,7 +94,7 @@
     "set_give": 0.2,           // yd: a lineman sets at least this far behind his stance
     "back_front": 3.0,         // yd: a back meets a rusher no further than this in front of the QB
     "back_step_up": 1.0,       // yd: a back scans from this far in front of his stance, at the man side's B gap
-    "back_block_release": 2.0, // s after the snap: a back who stayed in to block releases into his route
+    "back_block_release": 2.0, // s after the snap: a back who stayed in but isn't blocking anyone releases into his route
     "set_depth": [1.5, 2.0]    // max depth = first + Footwork / 100 x second
   },
 

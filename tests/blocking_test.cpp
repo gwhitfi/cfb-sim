@@ -196,8 +196,9 @@ TEST(Blocking, BlitzersArePickedUp) {
 }
 
 TEST(Blocking, PickupTakesAnticipation) {
-    // A back who reads blitzes late (Anticipation and Playbook Knowledge 1)
-    // picks up fewer blitzers than one who reads them early.
+    // A back who reads blitzes poorly (Anticipation and Playbook Knowledge 1)
+    // misreads more often: he goes for the blitzer the guard has and the
+    // free one gets by him. A double team on the guard's man isn't a pickup.
     const auto back = [](double rating) {
         DataSet d = data();
         set(d, "clemson_2018", {Position::RB}, {Attr::Anticipation}, rating);
@@ -213,10 +214,15 @@ TEST(Blocking, PickupTakesAnticipation) {
         for (std::uint64_t seed = 1; seed <= 40; ++seed) {
             PlayOptions o = matchup("smash", "nickel_cover0", seed);
             o.hold_ball = true;
-            const std::string file = tracking(d, o);
-            n += has(file, R"("player":"RB","on":"MIKE")") || has(file, R"("player":"RB","on":"WILL")")
-                     ? 1
-                     : 0;
+            const Track track(tracking(d, o));
+            for (const Json& e : track.events) {
+                const std::string on = e.value("on", "");
+                if (e.value("event", "") == "block" && e.value("player", "") == "RB" && !e.contains("double") &&
+                    (on == "MIKE" || on == "WILL")) {
+                    ++n;
+                    break;
+                }
+            }
         }
         return n;
     };
@@ -307,28 +313,26 @@ TEST(Blocking, BackReleasesWithNobodyToBlock) {
     EXPECT_EQ(out_late, runs);
 }
 
-TEST(Blocking, BackWhoStaysInReleasesFromHisBlock) {
-    // Cover 0 brings a blitzer the back has to take: he blocks him, then
-    // lets go at the block release time (2.0 s) and runs his route.
+TEST(Blocking, BackWhoIsBlockingStaysIn) {
+    // Cover 0 brings a blitzer the back has to take. At the block release
+    // time (2.0 s) a back who is still blocking him stays in; he doesn't let
+    // the blitzer go to run his route.
     const double release = data().tuning.blocking.back_block_release;
     const int tick_rate = 20;
     const int runs = 30;
-    int picked_up = 0, still_engaged = 0;
+    int blocking = 0, stayed = 0;
     for (int k = 0; k < runs; ++k) {
         PlayOptions o = matchup("smash", "nickel_cover0", static_cast<std::uint64_t>(k + 1));
         o.hold_ball = true;
         const Track t(tracking(data(), o));
         const int rb = t.index("RB");
-        const Json* block = t.first("block", "player", "RB");
-        if (!block) continue;
-        ++picked_up;
-        const int after = t.snap + static_cast<int>(release * tick_rate) + 2;
-        bool engaged_late = false;
-        for (int tick = after; tick < after + 20 && t.at(tick); ++tick) engaged_late = engaged_late || t.engaged(rb, tick);
-        still_engaged += engaged_late ? 1 : 0;
+        const int at = t.snap + static_cast<int>(release * tick_rate);
+        if (!t.at(at + 2) || !t.engaged(rb, at)) continue;
+        ++blocking;
+        stayed += t.engaged(rb, at + 2) && !t.receiver(rb, at + 2) ? 1 : 0;
     }
-    EXPECT_GE(picked_up, runs * 7 / 10);
-    EXPECT_EQ(still_engaged, 0);
+    EXPECT_GE(blocking, runs * 6 / 10);
+    EXPECT_GE(stayed, blocking * 9 / 10);
 }
 
 TEST(Blocking, QbNeverThrowsToABackWhoIsBlocking) {
