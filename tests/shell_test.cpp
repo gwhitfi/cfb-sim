@@ -1,4 +1,4 @@
-// The defense between plays (docs/design/game-flow.md, step 6): it stands
+// The defense between plays (docs/cfbsim_design.md#the-defense-the-shell-and-the-read): it stands
 // in a shell until it sees the formation, and defenders who aren't at their
 // spots at the snap start the play where they are.
 

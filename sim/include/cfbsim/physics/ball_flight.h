@@ -1,5 +1,5 @@
 // 3D ball flight: a ballistic arc under gravity, no drag yet
-// (movement-and-interaction.md#ball-flight-3d).
+// (cfbsim_design.md#ball-flight).
 #pragma once
 
 #include <optional>

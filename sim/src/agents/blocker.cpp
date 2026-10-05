@@ -1,5 +1,5 @@
 // Blockers: pass protection and run blocking
-// (movement-and-interaction.md#blocking--pass-rush-phase-6). The fight itself
+// (cfbsim_design.md#blocking-and-pass-rush). The fight itself
 // (control, shed, moving together) is in play/engagements.cpp; these decide
 // whom to block and where to be.
 
@@ -47,7 +47,7 @@ bool PassBlocker::rushing(const PlayState& play, int d, Vec2& pos, Vec2& vel) co
     const Vec2 to_qb = qb_play_pos(play) - pos;
     const double closing = to_qb.length() > 0.1 ? vel.dot(to_qb.normalized()) : 0.0;
     // A lineman still walking up to his spot at the snap counts as if he were
-    // there, until he's seen dropping off (game-flow.md, step 6).
+    // there, until he's seen dropping off (cfbsim_design.md#the-defense-the-shell-and-the-read).
     const bool walking_up = play.late(d) && play.set_pos(d).y <= t.rushing_line && vel.y < t.late_drop_speed;
     return pos.y <= t.rushing_line || walking_up || (closing > t.rushing_speed && pos.y <= t.rushing_depth);
 }

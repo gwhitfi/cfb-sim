@@ -1,5 +1,5 @@
 {
-  // Movement physics constants (docs/design/movement-and-interaction.md#movement-physics).
+  // Movement physics constants (docs/cfbsim_design.md#movement-physics).
   // Calibrated so 40-yard dash times land in the target table; see tests/movement_test.cpp.
   "format_version": 1,
 

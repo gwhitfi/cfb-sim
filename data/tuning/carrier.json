@@ -1,6 +1,6 @@
 {
   // The ball carrier: lanes, run reads, evasion moves, and the QB's scrambles
-  // (docs/design/movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
+  // (docs/cfbsim_design.md#ball-carrier-pursuit-and-tackling).
   "format_version": 1,
 
   "lanes": {

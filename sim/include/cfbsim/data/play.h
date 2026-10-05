@@ -1,4 +1,4 @@
-// Plays and playbooks (docs/design/plays-and-data.md).
+// Plays and playbooks (docs/cfbsim_design.md#part-iii-play-data).
 #pragma once
 
 #include <functional>
@@ -106,7 +106,7 @@ struct Assignment {
     std::optional<Job> run;     // defense: run responsibility
     std::optional<Job> pass;    // defense: pass responsibility
     // Defense: where this call lines him up, replacing the formation slot's
-    // x and/or y (plays-and-data.md#defensive-plays).
+    // x and/or y (cfbsim_design.md#defensive-plays).
     std::optional<Anchor> align_x;
     std::optional<Anchor> align_y;
 };

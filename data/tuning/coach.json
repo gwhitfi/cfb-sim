@@ -1,5 +1,5 @@
 {
-  // The auto coach (phase 10; docs/design/rules-and-flow.md#auto-coach-phase-10).
+  // The auto coach (phase 10; docs/cfbsim_design.md#the-auto-coach).
   // The situation tables for play calls are in data/tactics/situations.json.
   "format_version": 1,
 

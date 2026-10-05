@@ -1,5 +1,5 @@
 // One team's players through a game: energy, rest, injuries, and who fills
-// each slot (internal; rules-and-flow.md#fatigue-substitutions-injuries).
+// each slot (internal; cfbsim_design.md#fatigue-substitutions-and-injuries).
 #pragma once
 
 #include <map>

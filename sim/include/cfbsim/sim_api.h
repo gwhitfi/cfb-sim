@@ -1,4 +1,4 @@
-/* The sim's C API (phase 11; docs/design/rules-and-flow.md#interactive-games-phase-11).
+/* The sim's C API (phase 11; docs/cfbsim_design.md#the-c-api).
  *
  * Plain C, so any language or engine that can call a C function can host the
  * sim: a C++ server, a game engine plugin, Python through ctypes, ... Every

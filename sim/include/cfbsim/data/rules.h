@@ -1,6 +1,6 @@
 // The rules table loaded from data/rules/ncaa_fbs.json: game structure,
 // spots, and how each foul is flagged and enforced
-// (docs/design/rules-and-flow.md).
+// (docs/cfbsim_design.md#part-v-the-game).
 #pragma once
 
 #include <array>

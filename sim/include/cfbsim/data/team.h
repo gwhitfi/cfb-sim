@@ -1,4 +1,4 @@
-// Teams, depth charts, and game setup (docs/design/plays-and-data.md#teams).
+// Teams, depth charts, and game setup (docs/cfbsim_design.md#teams).
 #pragma once
 
 #include <cstdint>
@@ -34,9 +34,9 @@ struct DepthChart {
     std::map<std::string, SlotMap, std::less<>> special_units;      // "kickoff" -> slots
 };
 
-// The auto coach's settings (rules-and-flow.md#tactics-team-file-tactics).
+// The auto coach's settings (cfbsim_design.md#tactics).
 // 0-100 unless noted; 50 is neutral.
-// Sugar: a huddle a few yards off the ball (game-flow.md, step 7).
+// Sugar: a huddle a few yards off the ball (cfbsim_design.md#the-offense-gather-huddle-break).
 enum class Tempo : std::uint8_t { Huddle, Sugar, NoHuddle, Hurry };
 
 struct Tactics {
@@ -54,8 +54,8 @@ struct Tactics {
         double man_zone = 50.0;  // 0 all man, 100 all zone
         double aggression = 50.0;
         double tendency = 50.0;  // response to the offense's run/pass share
-        // The call it shows between plays before it calls (game-flow.md,
-        // step 6: the shell). Empty: the first play of its base package.
+        // The call it shows between plays before it calls, in its shell
+        // (cfbsim_design.md#the-defense-the-shell-and-the-read). Empty: the first play of its base package.
         std::string base_call;
     } defense;
     struct Special {

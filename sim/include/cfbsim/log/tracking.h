@@ -1,5 +1,5 @@
 // Tracking files: every player's and the ball's position each tick, as JSON
-// Lines, for the viewer to play back (rules-and-flow.md#game-log--replay).
+// Lines, for the viewer to play back (cfbsim_design.md#the-game-log-and-replay).
 //
 //   {"type":"header", "format_version":2, "tick_rate":20, "players":[...], ...}
 //   (optional "frame_ticks":4: a frame every 4 ticks, the viewer plays 5 a second)
@@ -13,7 +13,7 @@
 //
 // Debug overlays are "shapes" the viewer draws on named, toggleable layers:
 // the header's "overlays" are shown the whole time, a tick's "dbg" only on
-// that tick. Both are optional. Shape kinds (movement-and-interaction.md#debug-overlays):
+// that tick. Both are optional. Shape kinds (cfbsim_design.md#debug-overlays):
 //   {"kind":"line", "layer":"routes", "pts":[[x, y], ...], "color":"#RRGGBB", "dash":true}
 //   {"kind":"link", "layer":"engagements", "a":0, "b":12}   (player indices)
 //   {"kind":"ring", "layer":"read", "player":0}

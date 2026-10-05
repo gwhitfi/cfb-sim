@@ -172,7 +172,7 @@ std::array<double, 4> Tackles::outcome_odds(double tackle, double resistance, in
 }
 
 void Tackles::resolve_evasion(const Actions::Evasion& move, Rng& rng) {
-    // (movement-and-interaction.md#evasion-moves)
+    // (cfbsim_design.md#evasion-moves)
     const int c = move.from;
     const int d = move.tackler;
     if (!play_.has_ball(c)) return;
@@ -279,7 +279,7 @@ bool Tackles::fumble_roll(int carrier, int tackler, bool big_hit, Rng& rng) cons
 }
 
 TackleResult Tackles::attempt(int carrier, int tackler, Rng& rng, bool dive) {
-    // (movement-and-interaction.md#tackles)
+    // (cfbsim_design.md#tackles)
     const TacklingTuning& t = play_.tuning().tackling;
     const double now = play_.since_snap();
     Agent& c = play_.world().agents()[static_cast<std::size_t>(carrier)];

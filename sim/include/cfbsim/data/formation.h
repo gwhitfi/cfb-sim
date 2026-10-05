@@ -1,4 +1,4 @@
-// Position anchors and formations (docs/design/plays-and-data.md).
+// Position anchors and formations (docs/cfbsim_design.md#part-iii-play-data).
 #pragma once
 
 #include <optional>

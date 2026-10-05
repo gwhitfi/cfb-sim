@@ -1,5 +1,5 @@
 // Catch resolution with no defenders: can he get to the ball, and does he
-// hold on to it (movement-and-interaction.md#catch-resolution)? Contested
+// hold on to it (cfbsim_design.md#catches)? Contested
 // catches, breakups, and interceptions come in phase 5.
 #pragma once
 

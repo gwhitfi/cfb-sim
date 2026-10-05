@@ -1,6 +1,6 @@
 // Defenders: run/pass recognition, man and zone coverage, playing the ball,
 // and the stand-ins for the rush and run fits
-// (movement-and-interaction.md#defense--coverage-phase-5).
+// (cfbsim_design.md#defense-and-coverage).
 
 #include <algorithm>
 #include <cmath>
@@ -65,7 +65,7 @@ Defender::Defender(std::unique_ptr<Behavior> run_job, std::unique_ptr<Behavior> 
       run_hold_(run_hold) {}
 
 bool Defender::should_pursue(const PlayState& play, int self, int carrier) const {
-    // (movement-and-interaction.md#run-fits)
+    // (cfbsim_design.md#run-fits)
     if (pursuing_) return true;
     const Behavior* cb = play.behavior(carrier);
     if (!cb->carrying()) return false;  // the QB in the pocket

@@ -1,5 +1,5 @@
 // A full game: the rules layer around the play sim (phase 8;
-// docs/design/rules-and-flow.md#first-build-phase-8). Downs, distance, the
+// docs/cfbsim_design.md#part-v-the-game). Downs, distance, the
 // clock, penalties, scoring, kicks (stubbed), overtime, fatigue and
 // substitutions, the game log, and replays.
 #pragma once
@@ -20,14 +20,14 @@
 namespace cfbsim {
 
 // A decision the game needs from a coach (phase 11;
-// rules-and-flow.md#interactive-games-phase-11). Every one of them is also
+// cfbsim_design.md#asking). Every one of them is also
 // answered by the auto coach (`suggestion`), so an outside decider can let
 // it stand.
 struct Prompt {
     std::string input;   // "call_play", "hike", "coaching_decision", "penalty_decision", "runoff", "timeout"
     int team = 0;        // 0 home, 1 away
     bool optional = false;  // may go unanswered (timeouts between plays)
-    // Between plays (game-flow.md): asked every tick while the decision is
+    // Between plays (cfbsim_design.md#between-plays): asked every tick while the decision is
     // open, for a side coached live; unanswered, the game goes on.
     bool live = false;
     Json suggestion;     // the auto coach's answer (null: none, on an optional prompt; live: not now)
@@ -57,7 +57,7 @@ struct GameOptions {
     std::function<std::optional<Json>(const Prompt&)> decide;
     // Optional: every game log line as it's written, with the game state after it.
     std::function<void(const Json& line, const Json& state)> observe;
-    // Optional (game-flow.md, step 3): sides coached live between plays. The
+    // Optional (cfbsim_design.md#the-window): sides coached live between plays. The
     // game then steps those windows tick by tick, asking each open decision
     // (Prompt::live), and calls `window` after each tick (the caller may wait
     // there: that's how a live game keeps pace with the screen), and with -1

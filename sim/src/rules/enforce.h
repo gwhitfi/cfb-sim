@@ -1,5 +1,5 @@
 // Downs, spots, and penalty enforcement as pure functions (internal;
-// rules-and-flow.md#penalties). Yard lines are the offense's own (0 = its
+// cfbsim_design.md#penalties). Yard lines are the offense's own (0 = its
 // goal line, 100 = the opponent's).
 #pragma once
 

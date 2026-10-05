@@ -1,4 +1,4 @@
-// The universal attribute set (docs/design/ratings.md). Every player has every
+// The universal attribute set (docs/cfbsim_design.md#ratings-and-attributes). Every player has every
 // attribute. Playbook Knowledge is per scheme, so it lives on Player instead.
 #pragma once
 

@@ -57,7 +57,7 @@ struct Actions {
 std::string_view to_string(Actions::Move move);
 
 // The result of an evasion move, kept while it applies to that tackler's try
-// (movement-and-interaction.md#evasion-moves).
+// (cfbsim_design.md#evasion-moves).
 struct EvasionResult {
     int carrier = -1;
     int tackler = -1;
@@ -90,7 +90,7 @@ struct DragDown {
 enum class BlockStyle : std::uint8_t { None, Pass, Run, Space };
 
 // A blocker and a defender locked together
-// (movement-and-interaction.md#blocking--pass-rush-phase-6).
+// (cfbsim_design.md#blocking-and-pass-rush).
 struct Engagement {
     int blocker = -1;
     int defender = -1;
@@ -122,7 +122,7 @@ struct Engagement {
 // calls `decide()` and the call goes to whichever subclass the object really
 // is, looked up at run time through the object's vtable.
 // ---------------------------------------------------------------------------
-// What a player shows the defense at the snap (movement-and-interaction.md#play-recognition).
+// What a player shows the defense at the snap (cfbsim_design.md#play-recognition).
 enum class Key : std::uint8_t { None, PassSet, RunBlock, Drop, Handoff };
 
 class Behavior {

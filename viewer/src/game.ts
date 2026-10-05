@@ -43,7 +43,7 @@ export interface Prompt {
   suggestion: any;
   options: any;
   state: GameState;
-  live?: boolean; // between plays: open while the play clock runs (game-flow.md)
+  live?: boolean; // between plays: open while the play clock runs (cfbsim_design.md#between-plays)
 }
 
 export interface AdvanceResult {

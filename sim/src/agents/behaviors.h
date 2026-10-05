@@ -57,7 +57,7 @@ class RouteRunner final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Pass protection (movement-and-interaction.md#pass-protection): own an area,
+// Pass protection (cfbsim_design.md#pass-protection): own an area,
 // pick the rusher threatening it, set between him and the QB. A back
 // (`check_release`) steps up and looks for a free rusher: with none by his
 // check time he releases into his route; one who blocks releases later.
@@ -109,7 +109,7 @@ class PassBlocker final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Run blocking (movement-and-interaction.md#run-blocking): one behavior set
+// Run blocking (cfbsim_design.md#run-blocking): one behavior set
 // up per action. Targets are resolved at the snap from the scheme's rules.
 // ---------------------------------------------------------------------------
 class RunBlocker final : public Behavior {
@@ -190,7 +190,7 @@ class PassingQb final : public Behavior {
     void sense(const PlayState& play, int self);
     // Where to stand in the pocket this tick (field frame).
     Vec2 pocket_spot(const PlayState& play, int self);
-    // Takes off running (movement-and-interaction.md#scrambles).
+    // Takes off running (cfbsim_design.md#scrambles).
     void start_scramble(const PlayState& play, int self, Actions& actions);
     // Scrambling: runs by the lane AI, still looking to throw behind the line.
     Intent scramble(const PlayState& play, int self, Actions& actions);
@@ -251,7 +251,7 @@ class HandoffQb final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Ball carrier (movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7):
+// Ball carrier (cfbsim_design.md#ball-carrier-pursuit-and-tackling):
 // follow the designed path, make the run read, then run free by the lane AI,
 // with evasion moves near contact. With no path he is free at once (a
 // receiver after the catch, a returner).
@@ -307,7 +307,7 @@ Intent run_with_ball(const PlayState& play, int self, LaneRunner& lane, Rng& rng
                      std::optional<Vec2> bias = std::nullopt, double bias_cone = 0.0);
 
 // Chases the ball carrier through his intercept point, keeping leverage
-// (movement-and-interaction.md#pursuit).
+// (cfbsim_design.md#pursuit).
 class Pursuer final : public Behavior {
   public:
     struct Setup {
@@ -344,7 +344,7 @@ class LooseBall final : public Behavior {
 std::optional<std::pair<Vec2, double>> ball_drop_spot(const PlayState& play);
 
 // ===========================================================================
-// Defense (movement-and-interaction.md#defense--coverage-phase-5)
+// Defense (cfbsim_design.md#defense-and-coverage)
 // ===========================================================================
 
 // A zone's area in the play frame: a box (width and a depth band) or, with a
@@ -487,7 +487,7 @@ class ZoneCoverage final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// Pass rush (movement-and-interaction.md#pass-rush): through his lane, then
+// Pass rush (cfbsim_design.md#pass-rush): through his lane, then
 // at the QB; rush moves while he's engaged.
 // ---------------------------------------------------------------------------
 class Rusher final : public Behavior {
@@ -513,7 +513,7 @@ class Rusher final : public Behavior {
 };
 
 // ---------------------------------------------------------------------------
-// A run fit (movement-and-interaction.md#run-fits): fill his gap, flowing
+// A run fit (cfbsim_design.md#run-fits): fill his gap, flowing
 // with the ball carrier. A down lineman attacks it past the line.
 // ---------------------------------------------------------------------------
 class GapFit final : public Behavior {

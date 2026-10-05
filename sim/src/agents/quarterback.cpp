@@ -1,5 +1,5 @@
 // The QB on pass plays (drop, reads, throw) and run plays (mesh, handoff,
-// fake) (movement-and-interaction.md#passing-game).
+// fake) (cfbsim_design.md#the-passing-game).
 
 #include <algorithm>
 #include <cmath>
@@ -61,7 +61,7 @@ double PassingQb::threshold(const PlayState& play) const {
 }
 
 void PassingQb::sense(const PlayState& play, int self) {
-    // (movement-and-interaction.md#the-qb-under-pressure)
+    // (cfbsim_design.md#the-qb-under-pressure)
     const BlockingTuning& t = play.tuning().blocking;
     const Agent& me = play.agent(self);
     pressure_ = 0.0;
@@ -127,7 +127,7 @@ Intent PassingQb::decide(const PlayState& play, int self, Actions& actions) {
     Intent in;
     in.face = play.downfield();  // eyes downfield the whole time (he backpedals his drop)
 
-    // His reads (movement-and-interaction.md#qb-reads). He reads while he
+    // His reads (cfbsim_design.md#qb-reads). He reads while he
     // drops (the clock on his first read starts when he starts the drop) but
     // can only throw once he's set. Returns true when he decides to throw.
     const BlockingTuning& bt = play.tuning().blocking;
@@ -329,7 +329,7 @@ void PassingQb::start_scramble(const PlayState& play, int self, Actions& actions
 }
 
 Intent PassingQb::scramble(const PlayState& play, int self, Actions& actions) {
-    // (movement-and-interaction.md#scrambles)
+    // (cfbsim_design.md#scrambles)
     const PassingTuning& t = play.tuning().passing;
     const CarrierTuning& ct = play.tuning().carrier;
     const double now = play.since_snap();

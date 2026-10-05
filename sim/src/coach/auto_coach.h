@@ -1,4 +1,4 @@
-// The auto coach (internal; rules-and-flow.md#auto-coach-phase-10): weighted
+// The auto coach (internal; cfbsim_design.md#the-auto-coach): weighted
 // play calls from the team's tactics and the situation tables, and the
 // coaching decisions (4th down, tries, timeouts, the clock, accept/decline,
 // kickoffs). Each team's coach has its own RNG, so a replay (which takes
@@ -47,7 +47,7 @@ class AutoCoach {
     // `offense_play`: the offense's call (its formation shows the personnel); may be null.
     // `stay_in`: a package the defense must stay in (the offense is at the
     // line and didn't substitute: a package change would be caught with
-    // 12 on the field; game-flow.md, step 6); empty: any.
+    // 12 on the field; cfbsim_design.md#the-defense-the-shell-and-the-read); empty: any.
     std::string defense_call(const GameState& g, const Play* offense_play, const std::string& stay_in = "");
     // The pre-snap check once the formation shows: a play in `called`'s
     // package (most often `called` itself).

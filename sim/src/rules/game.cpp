@@ -1,4 +1,4 @@
-// A full game (rules-and-flow.md#first-build-phase-8): the game state
+// A full game (cfbsim_design.md#part-v-the-game): the game state
 // machine around the play sim. Every decision goes through ask(), which
 // takes it from the auto coach (and logs it as an input) or, in a replay,
 // from the log.
@@ -55,7 +55,7 @@ Hash mirrored(Hash h) {
     return h;
 }
 
-// The game log's format. 2: timed between plays (docs/design/game-flow.md):
+// The game log's format. 2: timed between plays (docs/cfbsim_design.md#between-plays):
 // the calls, the check, and the hike each at their own tick; kicks are calls.
 // 3: between plays decided tick by tick (live): the hike is logged when it's
 // given, audibles and hot routes on their own, timeouts any time.
@@ -203,7 +203,7 @@ class Game {
     // A snap's tracking file name: "007_q1_1432_home_<label>".
     std::string snap_name(int team, const std::string& label) const;
 
-    // --- the walks between plays (game-flow.md, step 5) --------------------
+    // --- the walks between plays (cfbsim_design.md#paces) --------------------
     // A window's walks run in every game (the break, the set, and the snap
     // come from them); a file is written only with tracking. They open at the
     // start of a window (`window`; else a kickoff or a try, walked straight
@@ -235,14 +235,14 @@ class Game {
     // the animation only: each side's base unit (no RNG, nothing decided).
     std::vector<Spot> base_units(int off);
     // The formation a team's offense lines up in before its call with no
-    // huddle (game-flow.md, step 7): the first of its base personnel (11).
+    // huddle (cfbsim_design.md#the-offense-gather-huddle-break): the first of its base personnel (11).
     const Formation* base_formation(int team) const;
     // That formation set at this snap's spot, by slot (no ids).
     std::vector<Spot> base_look(int off) const;
     // The call a team's defense shows before it calls this snap: its
     // `base_call` tactic, or the first play of its base package.
     std::string base_call(int team) const;
-    // The defense's shell (game-flow.md, step 6): `call` lined up against the
+    // The defense's shell (cfbsim_design.md#the-defense-the-shell-and-the-read): `call` lined up against the
     // stock formation (`between_plays.shell`), everyone a little deeper.
     std::vector<Spot> shell(int def, const std::string& call) const;
 
@@ -627,7 +627,7 @@ void Game::coin_toss() {
 }
 
 SnapResult Game::kickoff(int kicking, bool free_kick) {
-    // (rules-and-flow.md#kicks-verify-stubbed-in-phase-8) The kicking team
+    // (cfbsim_design.md#kick-rules) The kicking team
     // chooses deep, squib, or onside; the receivers answer with their return.
     const Json c = ask(
         "coaching_decision", kicking,
@@ -907,7 +907,7 @@ GameResult Game::run() {
 }
 
 void Game::overtime() {
-    // (rules-and-flow.md#overtime-checked) The toss winner takes defense
+    // (cfbsim_design.md#overtime) The toss winner takes defense
     // first; the order alternates.
     const int first = 1 - toss_winner_;
     for (int ot = 1;; ++ot) {
@@ -1582,7 +1582,7 @@ void Game::count_stats(const PlayResult& r, const Situation& before, const Next&
 }
 
 SnapResult Game::snap() {
-    // Between plays (docs/design/game-flow.md): a window on the play clock in
+    // Between plays (docs/cfbsim_design.md#between-plays): a window on the play clock in
     // which each side's decisions come tick by tick. The offense calls (on 4th
     // down a punt or a field goal may be the call), the defense once the
     // offense's personnel is on, and at the line the defense may check, the
@@ -1652,7 +1652,7 @@ SnapResult Game::snap() {
     const bool new_units = last_kick_ || last_offense_ != off;
     const bool fresh = fresh_ || last_end_quarter_ != g_.quarter;
     // A 25-second clock waits for the ready signal: the ball spotted, the new
-    // units on, a huddling offense gathered (game-flow.md: before the ready signal).
+    // units on, a huddling offense gathered (cfbsim_design.md#before-the-ready-signal).
     const bool pre_ready = g_.clock_state.admin && !fresh;
     segment_clock_ = play_clock;
     const std::optional<std::int64_t> walk_back_due =
@@ -1964,7 +1964,7 @@ SnapResult Game::snap() {
         // The set: the offense at the line, once the defense has called (a
         // kneel or a spike: once they've lined up; a kick: both units). The
         // defense doesn't hold it up: a defender still walking at the snap
-        // starts the play where he is (game-flow.md, step 6).
+        // starts the play where he is (cfbsim_design.md#the-defense-the-shell-and-the-read).
         const bool defense_in = kicking || clock_play || !defense_play.empty();
         if (have_call && defense_in && !set_tick &&
             (clock_play ? t >= call_tick + ticks(tuning_.line_up)
@@ -2004,7 +2004,7 @@ SnapResult Game::snap() {
         // (A kick also waits for the receiving team still moving.) The
         // matching rule: when the offense substituted, or a hurt defender is
         // going off (the injury lets the defense substitute), the umpire holds
-        // the snap until the defense's substitutions are done (game-flow.md, step 6).
+        // the snap until the defense's substitutions are done (cfbsim_design.md#the-defense-the-shell-and-the-read).
         const bool umpire_holds = !clock_play && defense_may_sub() && !between_->matched(side_of(def));
         const bool defense_set = (!kicking || between_->arrived(side_of(def))) && !umpire_holds;
         if (lined && t >= earliest_tick && umpire_holds != umpire_held) {

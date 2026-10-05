@@ -1,5 +1,5 @@
 // Team ratings: one 1-100 number each for the offense, the defense, special
-// teams, and the team overall (data/generator/team_rating.json; ratings.md#team-ratings).
+// teams, and the team overall (data/generator/team_rating.json; cfbsim_design.md#team-ratings).
 // Built from the depth chart's starters, with a share for the man behind each.
 #pragma once
 

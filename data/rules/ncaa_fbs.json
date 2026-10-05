@@ -1,5 +1,5 @@
 {
-  // NCAA FBS rules for the game flow (docs/design/rules-and-flow.md), checked
+  // NCAA FBS rules for the game flow (docs/cfbsim_design.md#part-v-the-game), checked
   // against the 2025 rules in phase 8. Fouls are committed by the play sim
   // (or pre-snap by the rules layer); this table says how often officials
   // flag them and how they're enforced.

@@ -1,7 +1,7 @@
 {
   // Blocking and the pass rush: engagements, rush moves, pass protection,
   // run blocks, and the QB under pressure
-  // (docs/design/movement-and-interaction.md#blocking--pass-rush-phase-6).
+  // (docs/cfbsim_design.md#blocking-and-pass-rush).
   "format_version": 1,
 
   "engagement": {
@@ -76,8 +76,8 @@
     "rushing_line": 1.5,       // yd: this close to the line (or past it) is rushing
     "rushing_speed": 2.0,      // yd/s toward the QB ...
     "rushing_depth": 6.0,      // ... within this far off the line
-    // A down lineman still walking up to his spot at the snap (game-flow.md,
-    // step 6) is rushing, as if he were there, until he's seen moving away
+    // A down lineman still walking up to his spot at the snap
+    // (cfbsim_design.md#the-defense-the-shell-and-the-read) is rushing, as if he were there, until he's seen moving away
     // from the line faster than this (yd/s): dropping off.
     "late_drop_speed": 0.5,
     "project_seconds": 0.4,

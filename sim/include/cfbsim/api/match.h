@@ -1,5 +1,5 @@
 // A game you can step through and play (phase 11;
-// docs/design/rules-and-flow.md#interactive-games-phase-11). The C API
+// docs/cfbsim_design.md#the-match). The C API
 // (cfbsim/sim_api.h) and the server are built on this.
 //
 // The game loop (`play_game`) is ordinary straight-line code that asks for

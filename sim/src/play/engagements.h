@@ -1,6 +1,6 @@
 // Engagements: forming blocks, the per-tick contest (control, shed,
 // leverage), moving engaged pairs together, rush moves, pancakes, and holds
-// (internal; movement-and-interaction.md#engagements).
+// (internal; cfbsim_design.md#engagements).
 #pragma once
 
 #include <functional>

@@ -1,6 +1,6 @@
 // Running one kicking play (phase 9): a kickoff, a punt, or a field goal
 // (PAT), with the return, coverage, and rush
-// (docs/design/movement-and-interaction.md#special-teams-phase-9).
+// (docs/cfbsim_design.md#special-teams-play).
 #pragma once
 
 #include <cstdint>

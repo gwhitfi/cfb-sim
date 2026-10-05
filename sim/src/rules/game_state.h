@@ -1,4 +1,4 @@
-// The game's state between snaps (internal; rules-and-flow.md#game-state-machine).
+// The game's state between snaps (internal; cfbsim_design.md#game-flow).
 #pragma once
 
 #include <array>

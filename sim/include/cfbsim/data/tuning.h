@@ -15,7 +15,7 @@
 
 namespace cfbsim {
 
-// data/tuning/movement.json (docs/design/movement-and-interaction.md#movement-physics).
+// data/tuning/movement.json (docs/cfbsim_design.md#movement-physics).
 struct MovementTuning {
     Curve top_speed;      // Speed -> yd/s
     Curve t90;            // Acceleration -> seconds to reach 90% of top speed
@@ -41,7 +41,7 @@ struct MovementTuning {
     double collision_stiffness = 0.5;  // share of an overlap pushed apart each tick
 };
 
-// data/tuning/play.json: running a play (movement-and-interaction.md#assignment-execution).
+// data/tuning/play.json: running a play (cfbsim_design.md#pre-snap-and-the-snap).
 struct PlayTuning {
     // Pre-snap: from the huddle to the set.
     double huddle_depth = 9.0;
@@ -96,7 +96,7 @@ struct PlayTuning {
 };
 
 // data/tuning/passing.json: the QB, throws, ball flight, catches
-// (movement-and-interaction.md#passing-game).
+// (cfbsim_design.md#the-passing-game).
 struct PassingTuning {
     double gravity = 10.73;  // yd/s^2
 
@@ -104,7 +104,7 @@ struct PassingTuning {
     Curve look_seconds;  // look skill -> seconds per read
     double min_look_seconds = 0.15;
 
-    // Reading openness (movement-and-interaction.md#qb-reads).
+    // Reading openness (cfbsim_design.md#qb-reads).
     Blend perceive_skill;
     Curve perceive_sd;       // perceive skill -> sd of the bias on a read's openness
     Curve throw_threshold;   // Decisions -> perceived openness needed to throw
@@ -118,7 +118,7 @@ struct PassingTuning {
     double give_up_seconds = 4.5;  // after the snap: throw the best he's seen, or throw it away
     double throw_away_past = 5.0;  // yd past the receiver, out of bounds
 
-    // Openness (movement-and-interaction.md#openness).
+    // Openness (cfbsim_design.md#openness).
     double contest_scale = 0.15;  // s
     double contest_bias = 0.5;
     double contest_weight = 0.9;
@@ -141,7 +141,7 @@ struct PassingTuning {
     double arms_up_factor = 1.2;
     Curve jump_reach;  // Jumping -> yd
     double catch_low = 0.15;
-    // How far he can stretch (movement-and-interaction.md#catch-resolution):
+    // How far he can stretch (cfbsim_design.md#catches):
     // body control (a blend, Agility and Balance) sets how much of his height
     // range he keeps away from his body, and how far he can dive.
     Blend body_control;
@@ -150,7 +150,7 @@ struct PassingTuning {
     double dive_max_height = 1.6;  // yd: no diving for a ball higher than this
     double dive_down_min = 0.8, dive_down_max = 1.2;  // s on the ground after a dive
     double dive_slide = 0.25;  // share of his speed a diver keeps (a short slide)
-    // Jumping for the ball (movement-and-interaction.md#passing-game).
+    // Jumping for the ball (cfbsim_design.md#the-passing-game).
     double jump_comfort = 0.3;  // yd: he jumps to put the ball this far under his hands
     Blend jump_timing_defense;  // a defender's timing skill
     Blend jump_timing_offense;  // the target's
@@ -164,7 +164,7 @@ struct PassingTuning {
     double fast_ball_speed = 22.0;
     double fast_ball_penalty = 0.01;
 
-    // Catches against defenders (movement-and-interaction.md#catches-against-defenders).
+    // Catches against defenders (cfbsim_design.md#catches).
     double traffic_range = 1.5;
     Curve traffic_penalty;  // Catch in Traffic -> share of catch chance lost
     double traffic_bravery_share = 0.25;
@@ -186,7 +186,7 @@ struct PassingTuning {
 };
 
 // data/tuning/defense.json: alignment, play recognition, coverage, and the
-// run-fit and rush stand-ins (movement-and-interaction.md#defense--coverage-phase-5).
+// run-fit and rush stand-ins (cfbsim_design.md#defense-and-coverage).
 struct DefenseTuning {
     double shade = 0.5;
     double ghost_te_split = 1.4;
@@ -255,7 +255,7 @@ struct DefenseTuning {
 };
 
 // data/tuning/blocking.json: engagements, rush moves, pass protection, run
-// blocks, and the QB under pressure (movement-and-interaction.md#blocking--pass-rush-phase-6).
+// blocks, and the QB under pressure (cfbsim_design.md#blocking-and-pass-rush).
 struct BlockingTuning {
     // Engagements.
     double contact_angle_deg = 75.0;  // the blocker must face within this of the defender
@@ -386,7 +386,7 @@ struct RunnerTuning {
 };
 
 // data/tuning/carrier.json: the ball carrier's lanes, reads, evasion moves,
-// and the QB's scrambles (movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
+// and the QB's scrambles (cfbsim_design.md#ball-carrier-pursuit-and-tackling).
 struct CarrierTuning {
     RunnerTuning designed_run;  // the handoff carrier and the QB
     // Lanes.
@@ -548,14 +548,14 @@ struct TacklingTuning {
 };
 
 // data/tuning/game.json: the game flow's modeled pieces
-// (docs/design/rules-and-flow.md#first-build-phase-8).
+// (docs/cfbsim_design.md#part-v-the-game).
 struct GameTuning {
     // Tempo: play clock reading (s) at the snap.
     std::pair<double, double> tempo_normal{12.0, 22.0}, tempo_sugar{10.0, 19.0}, tempo_no_huddle{20.0, 28.0},
         tempo_hurry{26.0, 33.0}, tempo_milk{0.5, 3.0};
     double ready_delay = 7.0;
 
-    // Between plays (docs/design/game-flow.md): play clock seconds used (on a
+    // Between plays (docs/cfbsim_design.md#between-plays): play clock seconds used (on a
     // 40-second clock; on a 25-second clock 15 s earlier) when the offense's call
     // comes in, by tempo; how long the huddle lasts once everyone is in the
     // ring; when the defense calls (its look at the offense's personnel); and
@@ -565,7 +565,7 @@ struct GameTuning {
     double defense_call_after = 2.0;
     double line_up = 3.0;
 
-    // The walks between plays (game-flow.md, step 5): each player's pace,
+    // The walks between plays (cfbsim_design.md#paces): each player's pace,
     // walk, jog, or hurry, drawn by play clock band (`odds` above `above`
     // s left), tilted by Work Rate, raised to what he needs to get there by
     // his walk's due time.
@@ -678,7 +678,7 @@ struct SituationTable {
     }
 };
 
-// data/tuning/coach.json: the auto coach (phase 10; rules-and-flow.md#auto-coach-phase-10).
+// data/tuning/coach.json: the auto coach (phase 10; cfbsim_design.md#the-auto-coach).
 struct CoachTuning {
     SituationTable offense, defense;  // from data/tactics/situations.json
 
@@ -691,7 +691,7 @@ struct CoachTuning {
     int tendency_min = 8;
     double tendency_gain = 1.0;
 
-    // The defense's pre-snap check (docs/design/game-flow.md): plays in the
+    // The defense's pre-snap check (docs/cfbsim_design.md#between-plays): plays in the
     // called play's package, reweighted by the offense's formation.
     double check_stay = 24.0;     // the called play's weight x this
     double check_box = 5.0;       // yd from the ball: a receiver outside this is split out

@@ -140,7 +140,7 @@ TEST(Coach, DefenseReadsPersonnelAndTendencies) {
 
 TEST(Coach, StaysInItsPackageAgainstAnOffenseAtTheLine) {
     // An offense at the line that didn't substitute: the defense calls only
-    // plays of the package it has on the field (game-flow.md, step 6).
+    // plays of the package it has on the field (cfbsim_design.md#the-defense-the-shell-and-the-read).
     AutoCoach c(data(), data().teams.at("clemson_2025"), 1, 3);
     const Play* eleven = data().playbooks.at("spread_base").find("smash");
     ASSERT_NE(eleven, nullptr);

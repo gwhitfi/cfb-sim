@@ -297,7 +297,7 @@ void print_forty_table(const std::vector<cfbsim::FortyResult>& results) {
     }
 }
 
-// team-rating: data/generator/team_rating.json (ratings.md#team-ratings).
+// team-rating: data/generator/team_rating.json (cfbsim_design.md#team-ratings).
 int cmd_team_rating(const Options& opt) {
     const fs::path root = opt.get("data", "data");
     try {
@@ -507,7 +507,7 @@ int cmd_run_play(const Options& opt) {
     if (!yard_line || !seed || !runs) return 1;
     o.yard_line = *yard_line;
     if (opt.has("late-defense")) {
-        // A defense caught still lining up (game-flow.md, step 6): each
+        // A defense caught still lining up (cfbsim_design.md#the-defense-the-shell-and-the-read): each
         // defender is S seconds short of his spot, walking straight up to it
         // from deeper (as from the shell), easing in as the walks between
         // plays do.
@@ -1140,7 +1140,7 @@ int cmd_play_game(const Options& opt) {
 }
 
 // Many games on all cores, against the calibration targets
-// (rules-and-flow.md#batch-calibration). Game g plays seed + g, and odd games
+// (cfbsim_design.md#calibration-targets-and-current-numbers). Game g plays seed + g, and odd games
 // swap home and away. Each game is independent and deterministic, so the
 // totals don't depend on how many threads run them.
 int cmd_batch(const Options& opt) {

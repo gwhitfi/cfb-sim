@@ -1,5 +1,5 @@
 // A receiver running his route
-// (movement-and-interaction.md#routes-route-running-playbook-knowledge).
+// (cfbsim_design.md#routes).
 
 #include <algorithm>
 #include <cmath>

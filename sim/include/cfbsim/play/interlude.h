@@ -1,4 +1,4 @@
-// Between plays (docs/design/game-flow.md, steps 5-7): from the whistle, the
+// Between plays (docs/cfbsim_design.md#between-plays): from the whistle, the
 // offense gathers behind the ball (with no huddle: in its base formation) and
 // the defense stands in a shell; when a side's call comes in, players who
 // aren't in it jog off and the new ones come on; the offense huddles and
@@ -38,7 +38,7 @@ namespace cfbsim {
 enum class Pace : std::uint8_t { Walk, Jog, Hurry };
 
 // The pace a walk's draw `u` (in [0, 1)) gives with `clock_left` s on the
-// play clock, tilted by `work_rate` (game-flow.md: the bands).
+// play clock, tilted by `work_rate` (cfbsim_design.md#paces).
 Pace drawn_pace(double u, double work_rate, double clock_left, const GameTuning& t);
 // The slowest pace that covers `distance` yd in `seconds` (with the margin);
 // hurry when none does.
@@ -75,7 +75,7 @@ class Between {
     // side's stop before its call (men with no `at` start there), the
     // offense by `due` (the coach's call; none: no hurry). The ball is
     // spotted at `ball_tick`. `looks`: each side's stops before its call, by
-    // team and slot: the defense's shell (game-flow.md, step 6), and with no
+    // team and slot: the defense's shell (cfbsim_design.md#the-defense-the-shell-and-the-read), and with no
     // huddle the offense's base formation (step 7). A huddling offense
     // gathers behind the ball; anyone else whose slot isn't in a look goes to
     // his side's huddle.
@@ -114,7 +114,7 @@ class Between {
     // offense's break), and not before now. No draw: it's his rating.
     void read(std::int64_t tick, TeamSide side, std::int64_t from);
     // Players of `side` still going off hurry to be off by `due` (the
-    // earliest snap: game-flow.md, step 6).
+    // earliest snap: cfbsim_design.md#the-defense-the-shell-and-the-read).
     void hurry_off(std::int64_t tick, TeamSide side, std::int64_t due);
     void event(std::int64_t tick, const std::string& name);
 

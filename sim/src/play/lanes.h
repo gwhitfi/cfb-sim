@@ -1,5 +1,5 @@
 // Lanes: how a runner with the ball picks his heading, from what he can see
-// (internal; movement-and-interaction.md#lanes). Every runner uses it: a
+// (internal; cfbsim_design.md#lanes). Every runner uses it: a
 // ball carrier past his path, a receiver after the catch, a returner, a
 // scrambling QB.
 #pragma once

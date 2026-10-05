@@ -1,4 +1,4 @@
-// Players and rosters (docs/design/plays-and-data.md#players--rosters).
+// Players and rosters (docs/cfbsim_design.md#rosters).
 #pragma once
 
 #include <functional>
@@ -19,7 +19,7 @@ struct Measurables {
     double hand_in = 9.5;
 };
 
-// Hidden attributes (ratings.md#hidden-attributes). Default to an average 50.
+// Hidden attributes (cfbsim_design.md#hidden-attributes). Default to an average 50.
 struct HiddenAttributes {
     double consistency = 50.0;
     double big_games = 50.0;

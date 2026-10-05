@@ -1,4 +1,4 @@
-// The walks between plays (game-flow.md, step 5): each walk's pace (the
+// The walks between plays (cfbsim_design.md#paces): each walk's pace (the
 // play clock bands, Work Rate, what he needs to get there, the side's
 // floor), and walks that are real: nobody goes faster than his pace, and
 // arriving takes as long as the walk.

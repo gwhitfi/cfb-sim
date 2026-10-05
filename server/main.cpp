@@ -1,5 +1,5 @@
 // cfbsim-server: hosts games for the browser viewer over a local WebSocket
-// (phase 11; docs/design/rules-and-flow.md#interactive-games-phase-11).
+// (phase 11; docs/cfbsim_design.md#the-server).
 //
 // Each browser connection gets its own session with at most one match. The
 // matches run through the C API (cfbsim/sim_api.h), the same way a game

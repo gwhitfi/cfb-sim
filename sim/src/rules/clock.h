@@ -1,4 +1,4 @@
-// NCAA clock rules as pure functions (internal; rules-and-flow.md#clock-rules-checked).
+// NCAA clock rules as pure functions (internal; cfbsim_design.md#clock-rules).
 #pragma once
 
 #include "cfbsim/data/rules.h"
@@ -37,7 +37,7 @@ ClockAfter clock_after(const ClockEvent& e);
 // how the clock was left and how much of the play clock was used.
 double runoff_before_snap(const ClockAfter& c, double play_clock_used, const GameTuning& t);
 
-// Between plays (docs/design/game-flow.md): when the calls come, in seconds
+// Between plays (docs/cfbsim_design.md#between-plays): when the calls come, in seconds
 // of play clock used since the play clock started. The break, the set, and
 // the snap come from the walks (`Between`), not from here.
 struct BetweenPlays {

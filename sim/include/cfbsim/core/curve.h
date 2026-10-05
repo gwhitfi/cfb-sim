@@ -1,5 +1,5 @@
 // Response curves, blends, and opposed contests: the small toolkit that turns
-// ratings into outcomes (docs/design/movement-and-interaction.md#response-curves--contests).
+// ratings into outcomes (docs/cfbsim_design.md#response-curves-and-contests).
 // Every curve's shape comes from tuning data, never from code.
 #pragma once
 

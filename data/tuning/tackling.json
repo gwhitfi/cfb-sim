@@ -1,6 +1,6 @@
 {
   // Pursuit, run fits, tackles, fumbles, and the loose ball
-  // (docs/design/movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
+  // (docs/cfbsim_design.md#ball-carrier-pursuit-and-tackling).
   "format_version": 1,
 
   "pursuit": {

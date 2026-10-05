@@ -1,6 +1,6 @@
 // Draws an NCAA field: end zones, yard lines every 5, hash marks every yard
 // (60 ft from each sideline), sideline ticks, and the yard numbers with their
-// direction arrows. Field frame: plays-and-data.md#field-frame-engine-and-viewer.
+// direction arrows. Field frame: cfbsim_design.md#field-frame.
 
 import { Camera, FIELD_LENGTH, FIELD_WIDTH } from "./camera";
 import type { TeamInfo } from "./tracking";

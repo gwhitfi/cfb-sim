@@ -1,6 +1,6 @@
 // The ball carrier (designed path, run read, lanes, evasion moves), pursuit,
 // and the scramble for a loose ball
-// (movement-and-interaction.md#ball-carrier-pursuit--tackling-phase-7).
+// (cfbsim_design.md#ball-carrier-pursuit-and-tackling).
 
 #include <algorithm>
 #include <cmath>
@@ -19,7 +19,7 @@ constexpr double kDeg = std::numbers::pi / 180.0;
 Vec2 unit_or(Vec2 v, Vec2 fallback) { return v.length() > 1e-6 ? v.normalized() : fallback; }
 
 // Near contact: picks a move against the tackler who will get to him first
-// and asks for it through `actions` (movement-and-interaction.md#evasion-moves).
+// and asks for it through `actions` (cfbsim_design.md#evasion-moves).
 void try_evasion(const PlayState& play, int self, Rng& rng, std::vector<int>& tried,
                  Actions& actions) {
     if (actions.evasion || !play.has_ball(self)) return;
@@ -139,7 +139,7 @@ BallCarrier::BallCarrier(Setup setup, std::uint64_t seed)
 }
 
 void BallCarrier::make_read(const PlayState& play, int self, Actions& actions) {
-    // (movement-and-interaction.md#run-reads)
+    // (cfbsim_design.md#run-reads)
     const CarrierTuning& t = play.tuning().carrier;
     const PlayFrame& f = play.frame;
     const Agent& me = play.agent(self);
@@ -242,7 +242,7 @@ void BallCarrier::draw(const PlayState& play, int self, Json& shapes) const {
 // ---------------------------------------------------------------------------
 
 Intent Pursuer::decide(const PlayState& play, int self, Actions& /*actions*/) {
-    // (movement-and-interaction.md#pursuit)
+    // (cfbsim_design.md#pursuit)
     Intent in;
     const int carrier = play.carrier();
     aim_.reset();

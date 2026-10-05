@@ -14,7 +14,7 @@ constexpr bool contains(const std::array<std::string_view, N>& list, std::string
     return std::find(list.begin(), list.end(), word) != list.end();
 }
 
-// Play tags (plays-and-data.md#play-tags).
+// Play tags (cfbsim_design.md#play-tags).
 inline constexpr std::array<std::string_view, 30> kOffenseTags{
     "quick_game", "dropback",  "play_action", "screen",     "option",     "short",
     "medium",     "deep",      "inside",      "outside",    "base",       "1st_down",
@@ -33,7 +33,7 @@ inline constexpr std::array<std::string_view, 3> kRunReads{"bang", "bend", "boun
 inline constexpr std::array<std::string_view, 5> kStrengthCalls{"te", "passing_strength", "field",
                                                                 "boundary", "back"};
 
-// Blocking rules (plays-and-data.md#blocking-schemes).
+// Blocking rules (cfbsim_design.md#blocking-schemes).
 inline constexpr std::array<std::string_view, 4> kBlockConditions{"covered", "covered_playside",
                                                                   "uncovered", "has_inside_threat"};
 inline constexpr std::array<std::string_view, 10> kBlockTargets{

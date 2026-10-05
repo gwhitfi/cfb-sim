@@ -147,7 +147,7 @@ std::map<std::string, SlotMap, std::less<>> parse_slot_maps(const Reader& r) {
     return maps;
 }
 
-// rules-and-flow.md#tactics-team-file-tactics. Every setting is optional.
+// cfbsim_design.md#tactics. Every setting is optional.
 Tactics parse_tactics(const Reader& r) {
     r.allow_only({"offense", "defense", "special"});
     Tactics t;

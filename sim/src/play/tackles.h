@@ -1,6 +1,6 @@
 // Tackles: evasion moves, tackle tries and their outcomes (clean, drag-down,
 // broken, missed), forward progress, stumbles, and the fumble roll
-// (internal; movement-and-interaction.md#tackles).
+// (internal; cfbsim_design.md#tackles).
 #pragma once
 
 #include <array>

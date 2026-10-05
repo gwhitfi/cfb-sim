@@ -58,7 +58,7 @@ add_library(cfbsim_options INTERFACE)
 target_compile_options(cfbsim_options INTERFACE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion>
     # Never -ffast-math: it lets the compiler reorder float math, which breaks
-    # replay determinism (see docs/design/movement-and-interaction.md#determinism).
+    # replay determinism (see docs/cfbsim_design.md#determinism).
     $<$<CXX_COMPILER_ID:GNU,Clang>:-fno-fast-math>
     # No fused multiply-add: a*b+c computed in one step rounds differently from
     # two steps, and compilers only fuse when the CPU supports it, so results

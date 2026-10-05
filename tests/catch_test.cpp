@@ -1,5 +1,5 @@
 // The catch window: how far a player can stretch for a ball, and what a dive
-// costs (movement-and-interaction.md#catch-resolution).
+// costs (cfbsim_design.md#catches).
 
 #include <gtest/gtest.h>
 

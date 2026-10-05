@@ -1,5 +1,5 @@
 // Reads a tracking file (JSON Lines written by the sim's TrackingWriter) into
-// a Recording. Format: docs/design/movement-and-interaction.md#tracking-files.
+// a Recording. Format: docs/cfbsim_design.md#tracking-files.
 
 export interface TeamInfo {
   name: string;

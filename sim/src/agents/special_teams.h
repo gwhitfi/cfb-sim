@@ -1,4 +1,4 @@
-// Special teams behaviors (phase 9; movement-and-interaction.md#special-teams-phase-9):
+// Special teams behaviors (phase 9; cfbsim_design.md#special-teams-play):
 // coverage, returners, return blockers, field goal protection and rush.
 // The kick sim (play/kick_sim.cpp) swaps these for LaneCoverage, Pursuer,
 // BallCarrier, and LooseBall when the ball is fielded or comes loose.
@@ -67,7 +67,7 @@ class Cover final : public Behavior {
 
 // Kickoff coverage after the catch: keeps his lane, sliding across with the
 // returner and squeezing as he closes, then breaks to the ball as a Pursuer
-// (movement-and-interaction.md#coverage-and-the-return).
+// (cfbsim_design.md#coverage-and-the-return).
 class LaneCoverage final : public Behavior {
   public:
     struct Setup {

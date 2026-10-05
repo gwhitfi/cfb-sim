@@ -1,4 +1,4 @@
-// Fouls committed during a live play (internal; rules-and-flow.md#first-build-phase-8):
+// Fouls committed during a live play (internal; cfbsim_design.md#live-ball-fouls):
 // defensive holding, pass interference both ways, roughing the passer,
 // facemask, and intentional grounding. (Offensive holding is rolled in the
 // engagement contest.) Rolls use their own RNG stream, so watching for

@@ -1,5 +1,5 @@
 {
-  // Kicks, returns, and coverage (phase 9; docs/design/movement-and-interaction.md#special-teams-phase-9).
+  // Kicks, returns, and coverage (phase 9; docs/cfbsim_design.md#special-teams-play).
   "format_version": 1,
 
   "kickoff": {
@@ -64,7 +64,7 @@
   },
 
   // Kickoff coverage after the catch: lanes until they close in
-  // (movement-and-interaction.md#coverage-and-the-return).
+  // (cfbsim_design.md#coverage-and-the-return).
   "coverage": {
     "squeeze_depth": 25,            // yd downfield to the returner: further than this he keeps his whole lane ...
     "break_range": 8,               // ... it narrows to nothing here, and this close he breaks to the ball

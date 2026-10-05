@@ -23,3 +23,6 @@ out/
 
 # Personal guided tour of the codebase (not shared)
 /tour/
+
+# Earlier design docs, kept locally for reference
+_old_docs/

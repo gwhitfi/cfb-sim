@@ -1,5 +1,5 @@
 // The rules layer's pure pieces (phase 8): one test per rule in the clock
-// and enforcement tables of docs/design/rules-and-flow.md.
+// and enforcement tables in docs/cfbsim_design.md (#clock-rules, #enforcement).
 
 #include <gtest/gtest.h>
 

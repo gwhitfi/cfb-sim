@@ -1,5 +1,5 @@
 // Kinematic movement: turning a behavior's *desired* velocity into the velocity
-// a player can actually reach this tick (movement-and-interaction.md#movement-physics).
+// a player can actually reach this tick (cfbsim_design.md#movement-physics).
 #pragma once
 
 #include <optional>

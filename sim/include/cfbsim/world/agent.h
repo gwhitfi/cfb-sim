@@ -20,7 +20,7 @@ inline constexpr std::array<EnumName<TeamSide>, 2> kTeamSideNames{{
     {TeamSide::Away, "away"},
 }};
 
-// The multipliers in ratings.md#effective-ratings. All 1.0 until fatigue,
+// The multipliers in cfbsim_design.md#effective-ratings. All 1.0 until fatigue,
 // injuries, form, and pressure are built (phase 8 and later).
 struct RatingModifiers {
     double fatigue = 1.0;
@@ -34,7 +34,7 @@ struct RatingModifiers {
 // base x modifiers, kept within 1-100. The sim reads only effective ratings.
 Attributes effective_attributes(const Attributes& base, const RatingModifiers& mods);
 
-// Body size, from measurables (movement-and-interaction.md#body).
+// Body size, from measurables (cfbsim_design.md#body).
 struct Body {
     double radius = 0.4;  // yd, for collisions and spacing
     double reach = 1.2;   // yd, contact range for blocks, tackles, and catches
@@ -71,7 +71,7 @@ struct Agent {
     Body body;
     MovementProfile move;
 
-    // Kinematic state, in the field frame (plays-and-data.md#field-frame-engine-and-viewer).
+    // Kinematic state, in the field frame (cfbsim_design.md#field-frame).
     Vec2 pos;
     Vec2 vel;
     Vec2 facing{1.0, 0.0};  // unit vector

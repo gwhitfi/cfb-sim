@@ -1,6 +1,6 @@
 // Openness: the chance a good throw right now would be completed, from where
 // the defenders can get to by the time the ball does (internal;
-// movement-and-interaction.md#openness).
+// cfbsim_design.md#openness).
 #pragma once
 
 #include "cfbsim/core/vec.h"

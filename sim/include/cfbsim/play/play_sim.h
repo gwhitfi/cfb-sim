@@ -16,7 +16,7 @@
 namespace cfbsim {
 
 // Where a player stands and faces (field frame), for the between-plays
-// animation (docs/design/game-flow.md): it starts where everyone ended the
+// animation (docs/cfbsim_design.md#between-plays): it starts where everyone ended the
 // last play and ends where the next one lines them up.
 struct Spot {
     std::string id;
@@ -53,7 +53,7 @@ struct PlayOptions {
     // Pre-snap hot routes (phase 11): slot -> a route id from the route
     // library. Replaces the slot's first route job (and its coverage options).
     std::map<std::string, std::string> hot_routes;
-    // Defenders who weren't at their spots at the snap (game-flow.md, step 6),
+    // Defenders who weren't at their spots at the snap (cfbsim_design.md#the-defense-the-shell-and-the-read),
     // by player id: where each one really is (field frame: position, velocity,
     // facing). He starts the play from there, and his job takes him on.
     // Only with `huddle` false; `play_start()` ignores it (it returns the spots
@@ -62,7 +62,7 @@ struct PlayOptions {
 };
 
 // A foul that happened on the play. The rules layer decides whether it's
-// flagged, accepted, and how it's enforced (rules-and-flow.md#penalties).
+// flagged, accepted, and how it's enforced (cfbsim_design.md#penalties).
 struct Foul {
     std::string type;  // penalty type in the rules table ("offensive_holding")
     bool by_offense = true;
@@ -74,7 +74,7 @@ struct Foul {
 
 // Where team `defense`'s play `defense_play` lines up against offensive
 // formation `offense_formation` set at `frame` (the offense's view, not
-// flipped), by the play's own alignment code (game-flow.md, step 6: the
+// flipped), by the play's own alignment code (cfbsim_design.md#the-defense-the-shell-and-the-read: the
 // shell). Field frame, in the defensive formation's slot order, facing the
 // offense; `label` is the slot, and `id` and `team` are left to the caller.
 std::vector<Spot> align_defense(const DataSet& data, const std::string& defense, const std::string& defense_play,

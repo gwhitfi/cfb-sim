@@ -1,5 +1,5 @@
 // Turning route templates into a receiver's actual path, and the busts
-// (movement-and-interaction.md#routes-route-running-playbook-knowledge).
+// (cfbsim_design.md#routes).
 #pragma once
 
 #include <optional>

@@ -1,7 +1,7 @@
 {
   // Defense: alignment, play recognition, man and zone coverage, and run
   // support spots
-  // (docs/design/movement-and-interaction.md#defense--coverage-phase-5).
+  // (docs/cfbsim_design.md#defense-and-coverage).
   "format_version": 1,
 
   "alignment": {

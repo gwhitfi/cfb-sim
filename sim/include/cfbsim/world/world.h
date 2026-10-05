@@ -1,5 +1,5 @@
 // The world state and the fixed-step tick loop
-// (movement-and-interaction.md#tick-loop).
+// (cfbsim_design.md#the-tick-loop).
 #pragma once
 
 #include <cstdint>

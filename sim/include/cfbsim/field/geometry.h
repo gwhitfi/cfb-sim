@@ -1,6 +1,6 @@
 // Field geometry: the play frame <-> field frame conversion, landmarks
 // (hashes, numbers, sidelines), anchor resolution, line gaps, and mirroring
-// (docs/design/plays-and-data.md#coordinate-systems).
+// (docs/cfbsim_design.md#coordinates-and-anchors).
 #pragma once
 
 #include <array>
@@ -114,7 +114,7 @@ LineGaps find_gaps(double center_x, std::span<const double> line_x, double max_s
 
 // What a defense sees when it lines up: the offense's line, its receivers
 // counted from the sideline in, its backs, and the strength call
-// (movement-and-interaction.md#alignment). Positions are play-frame.
+// (cfbsim_design.md#reading-the-offense). Positions are play-frame.
 struct OffenseRead {
     double center_x = 0.0;
     // Per side (index 0 = left, 1 = right), from the inside out: G, T, and an

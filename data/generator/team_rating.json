@@ -1,5 +1,5 @@
 {
-  // Team ratings (`cfbsim team-rating`; ratings.md#team-ratings). A player's rating at a position
+  // Team ratings (`cfbsim team-rating`; cfbsim_design.md#team-ratings). A player's rating at a position
   // is the mean of that position's key attributes (templates.json `key`), the same 1-100 scale the
   // real rosters give as `rating`. Each starting slot is his starter's rating blended with the man
   // behind him, so depth counts a little; each unit is the slots' weighted mean.

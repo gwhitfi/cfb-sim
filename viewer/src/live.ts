@@ -54,7 +54,7 @@ const LOOKAHEAD = 8; // ticks: between plays, the game runs this far ahead of th
 // Your offense's call in with more than this on the play clock: on to it.
 const FAST_FORWARD_TO = 12;
 
-// A between-plays file streaming in while the play clock runs (game-flow.md).
+// A between-plays file streaming in while the play clock runs (cfbsim_design.md#between-plays).
 interface LiveWindow {
   name: string;
   text: string;
@@ -376,7 +376,7 @@ export class Live {
         continue;
       }
       const skip = $<HTMLInputElement>("game-skip").checked;
-      // Between plays (the walk back, the huddle, lining up: docs/design/game-flow.md).
+      // Between plays (the walk back, the huddle, lining up: docs/cfbsim_design.md#between-plays).
       const between = step.name.includes("_between");
       if (between && step.streaming !== undefined && this.mode === "live" && this.user.size > 0) {
         // A live window: it streams in while the play clock runs.

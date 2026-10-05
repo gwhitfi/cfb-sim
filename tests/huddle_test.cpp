@@ -1,4 +1,4 @@
-// The offense between plays (docs/design/game-flow.md, step 7): before the
+// The offense between plays (docs/cfbsim_design.md#the-offense-gather-huddle-break): before the
 // call it gathers loosely behind the ball, the ring forms when the call comes
 // in (a sugar huddle's near the ball), the break is staggered (the line
 // first), and with no huddle it waits in its base formation and shifts.

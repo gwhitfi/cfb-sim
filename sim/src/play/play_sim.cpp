@@ -1,6 +1,6 @@
 // Running one play: huddle, alignment, snap, the live ball, and the whistle.
 // The offense plays against a defense (phase 5) or an empty field.
-// The tick loop follows movement-and-interaction.md#tick-loop: Decide (each
+// The tick loop follows cfbsim_design.md#the-tick-loop: Decide (each
 // behavior), actions, Move + Interact (World::step), Ball, then the rules.
 
 #include "cfbsim/play/play_sim.h"
@@ -80,7 +80,7 @@ Closest closest_approach(Vec3 p0, Vec3 p1, Vec2 r) {
 
 // A bust, rolled at the snap and applied when his job starts. Receivers:
 // wrong route, wrong depth, late release. Coverage: wrong man, wrong zone,
-// late (movement-and-interaction.md#busts-defense).
+// late (cfbsim_design.md#busts).
 struct Bust {
     enum class Kind : std::uint8_t {
         WrongRoute,
@@ -777,7 +777,7 @@ double PlaySim::playside() const {
 }
 
 std::unique_ptr<Behavior> PlaySim::pass_blocker(int i, const Job& job) {
-    // (movement-and-interaction.md#pass-protection)
+    // (cfbsim_design.md#pass-protection)
     const BlockingTuning& t = blocking();
     const SlotInfo& slot = state_.slots[static_cast<std::size_t>(i)];
     const Attributes& r = state_.agent(i).ratings;
@@ -1026,7 +1026,7 @@ BlockRule PlaySim::scheme_rule(int i, double side) const {
 }
 
 std::unique_ptr<Behavior> PlaySim::run_blocker(int i, const Job& job) {
-    // (movement-and-interaction.md#run-blocking)
+    // (cfbsim_design.md#run-blocking)
     const BlockingTuning& t = blocking();
     const PlayTuning& pt = tuning();
     const SlotInfo& slot = state_.slots[static_cast<std::size_t>(i)];
@@ -1265,7 +1265,7 @@ std::unique_ptr<Behavior> PlaySim::free_carrier(int i) {
 }
 
 Pursuer::Setup PlaySim::pursuit(int i, bool contain) const {
-    // (movement-and-interaction.md#pursuit)
+    // (cfbsim_design.md#pursuit)
     const TacklingTuning& t = tackling();
     const Attributes& r = state_.agent(i).ratings;
     const double skill = t.pursuit_skill(r);
@@ -1280,7 +1280,7 @@ Pursuer::Setup PlaySim::pursuit(int i, bool contain) const {
 
 const RouteRef& PlaySim::option_branch(int i, const Job& job) {
     // An option route reads man or zone at the snap
-    // (movement-and-interaction.md#option-and-settle-routes).
+    // (cfbsim_design.md#option-and-settle-routes).
     if (job.options.empty() || !state_.has_defense()) return job.route;
     bool man = false;
     for (int d = state_.offense_count; d < state_.count(); ++d) {
@@ -1499,7 +1499,7 @@ std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job*
         case JobKind::Spy:
             return std::make_unique<HoldSpot>("spy", field({o.center_x, 5.0}), 0.5);
 
-        // --- run jobs (movement-and-interaction.md#run-fits)
+        // --- run jobs (cfbsim_design.md#run-fits)
         case JobKind::Gap: {
             // A down lineman attacks his gap (into the blockers); a
             // linebacker fills it off the ball, flowing with the carrier.
@@ -1827,7 +1827,7 @@ void PlaySim::plan_jumps() {
     // where he'll be at his current velocity. If it will come within his
     // reach he's going for it (a defender: an interception attempt). If it
     // will pass above his hands, he jumps, timed to peak as it arrives (off by
-    // his timing error). See movement-and-interaction.md#passing-game.
+    // his timing error). See cfbsim_design.md#the-passing-game.
     std::fill(attacking_.begin(), attacking_.end(), false);
     const Ball& ball = world_.ball();
     if (state_.phase != PlayPhase::Live || ball.state != Ball::State::InFlight || !state_.pass ||
@@ -1877,7 +1877,7 @@ void PlaySim::play_the_ball(Vec3 before) {
     // Who can play the ball this tick: the target, any defender who has seen
     // the throw, and after a tip anyone who has seen it. Each plays it on
     // the tick it passes closest to him, once per touch
-    // (movement-and-interaction.md#catches-against-defenders).
+    // (cfbsim_design.md#catches).
     Ball& ball = world_.ball();
     const PassingTuning& t = passing();
     Rng& rng = world_.rng();
@@ -2246,7 +2246,7 @@ void PlaySim::handle_tackle(const TackleResult& r) {
 }
 
 void PlaySim::fumble(int carrier) {
-    // (movement-and-interaction.md#fumbles-and-the-loose-ball)
+    // (cfbsim_design.md#fumbles-and-the-loose-ball)
     const TacklingTuning& t = tackling();
     Rng& rng = world_.rng();
     const Agent& a = state_.agent(carrier);

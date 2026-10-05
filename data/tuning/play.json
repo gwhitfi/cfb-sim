@@ -1,7 +1,7 @@
 {
   // Running a play: the pre-snap, the snap, reactions, busts, routes, and the
   // stand-in blocking and run game used until phases 6-7
-  // (docs/design/movement-and-interaction.md#assignment-execution).
+  // (docs/cfbsim_design.md#pre-snap-and-the-snap).
   "format_version": 1,
 
   "presnap": {

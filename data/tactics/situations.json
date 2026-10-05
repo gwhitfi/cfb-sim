@@ -1,5 +1,5 @@
 {
-  // Situation weights for auto play calling (docs/design/rules-and-flow.md#play-calls).
+  // Situation weights for auto play calling (docs/cfbsim_design.md#play-calls).
   // bucket -> tag -> multiplier. A tag a bucket doesn't list counts 1. Several
   // buckets can be active on one call.
   "format_version": 1,

@@ -1,4 +1,4 @@
-// One kicking play (phase 9; movement-and-interaction.md#special-teams-phase-9).
+// One kicking play (phase 9; cfbsim_design.md#special-teams-play).
 //
 // Kickoffs and punts run with the *receiving* team as the "offense" (agents
 // [0, offense_count), the PlayState frame is theirs): after the kick they
@@ -572,7 +572,7 @@ void KickSim::advance(int i) {
 }
 
 void KickSim::plan_return() {
-    // (movement-and-interaction.md#returner-decisions) Field it, fair catch,
+    // (cfbsim_design.md#returner-decisions) Field it, fair catch,
     // take the touchback, or let it go, from where it's coming down and how
     // close the coverage is.
     if (returner_ < 0) return;
@@ -613,7 +613,7 @@ void KickSim::plan_return() {
 }
 
 void KickSim::read_fair_catch() {
-    // (movement-and-interaction.md#returner-decisions) A moment before a deep
+    // (cfbsim_design.md#returner-decisions) A moment before a deep
     // kickoff comes down, a returner set to field it may fair catch it (a
     // knee in the end zone) for the 25 rather than return it, at his landing
     // zone's chance.

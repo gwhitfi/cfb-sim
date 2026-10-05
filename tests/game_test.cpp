@@ -310,7 +310,7 @@ TEST(Game, BetweenPlaysIsOnlyToWatch) {
     EXPECT_GT(pairs, 150);
     EXPECT_GT(scrimmage, 100);
 
-    // Nobody warps (game-flow.md, step 5): between two frames, nobody moves
+    // Nobody warps (cfbsim_design.md#paces): between two frames, nobody moves
     // faster than a hurry (81% of top speed: under 9 yd/s), the last frame too.
     // After a change of possession the play clock waits for the ready signal.
     int waited = 0;
@@ -361,7 +361,7 @@ TEST(Game, TwelveMenAndTheMatchingRule) {
     // Both offenses hurry (no huddle, the snap as soon as they're set), and
     // an outside decider changes the defense's package on every call, so its
     // players are still running off when the offense is ready
-    // (game-flow.md, step 6). When the offense didn't substitute, a defender
+    // (cfbsim_design.md#the-defense-the-shell-and-the-read). When the offense didn't substitute, a defender
     // still on the field at the snap is 12 men: illegal substitution. When
     // the offense did, the umpire holds the snap until the defense has
     // matched, and there's no flag. A hurt defender being helped off is never
