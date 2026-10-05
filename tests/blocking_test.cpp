@@ -246,16 +246,29 @@ TEST(Blocking, ZoneBlitzConfusesTheProtection) {
 
 TEST(Blocking, RunSchemesFollowTheirRules) {
     // Power: the backside guard pulls and kicks out the first man outside
-    // the down blocks (the SAM over the TE in the Over front).
+    // the down blocks (the SAM over the TE in the Over front). It counts only
+    // before anyone gets to the back: a guard running into the SAM while he's
+    // already tackling isn't a kick-out.
     int kicks = 0;
-    for (std::uint64_t seed = 1; seed <= 20; ++seed) {
-        const std::string file = tracking(data(), matchup("sb_power", "43_over_cover3", seed));
-        kicks += has(file, R"("player":"LG","on":"SAM")") ? 1 : 0;
+    for (std::uint64_t seed = 1; seed <= 60; ++seed) {
+        const Track t(tracking(data(), matchup("sb_power", "43_over_cover3", seed)));
+        int block = -1, contact = -1;
+        for (const Json& e : t.events) {
+            const int tick = e.at("tick").get<int>();
+            if (block < 0 && e.value("event", "") == "block" && e.value("player", "") == "LG" &&
+                e.value("on", "") == "SAM") {
+                block = tick;
+            }
+            if (contact < 0 && e.contains("quality")) contact = tick;  // the first tackle try
+        }
+        kicks += block >= 0 && (contact < 0 || block < contact) ? 1 : 0;
     }
     // Misses: the end beats the down block, or the SAM beats the pull. Since
     // phase 7 the SAM scrapes and flows with the back instead of holding a
-    // spot, so the guard gets to him less often (a phase 10 tuning item).
-    EXPECT_GE(kicks, 4);
+    // spot, so the guard gets to him less often, and the run support (most
+    // often the SS) usually gets to the back before the pull does (a phase 10
+    // tuning item). About 10 of 60.
+    EXPECT_GE(kicks, 6);
 
     // Inside zone: the blocks open something now (phase 5, with stand-in
     // blockers, stopped every run at the line).
