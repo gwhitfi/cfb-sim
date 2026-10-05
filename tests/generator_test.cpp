@@ -106,6 +106,16 @@ TEST(Generator, SavedRosterLoadsBackIdentically) {
     EXPECT_EQ(to_json(parse_team(team_saved, "roundtrip")).dump(), team_saved.dump());
 }
 
+TEST(Generator, ScratchFlagSurvivesASaveAndLoad) {
+    GeneratedTeam g = generate_team(templates(), identity(), 50, 3);
+    EXPECT_FALSE(g.team.scratch);
+    EXPECT_FALSE(to_json(g.team).contains("scratch"));  // only written when set
+    g.team.scratch = true;
+    const Json saved = to_json(g.team);
+    EXPECT_TRUE(parse_team(saved, "scratch").scratch);
+    EXPECT_EQ(to_json(parse_team(saved, "scratch")).dump(), saved.dump());
+}
+
 TEST(TeamRating, AFlatRosterRatesItsRating) {
     const GeneratedTeam g = flat_team(70.0);
     const TeamRating r = rate_team(g.team, g.roster, templates(), rating_config());

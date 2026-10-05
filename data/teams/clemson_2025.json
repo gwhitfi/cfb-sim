@@ -4,6 +4,7 @@
   "name": "Clemson 2025",
   "nickname": "Tigers",
   "abbr": "CU25",
+  "scratch": true,
   "colors": {
     "primary": "#F56600",
     "secondary": "#522D80"

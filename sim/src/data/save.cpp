@@ -116,7 +116,7 @@ Json to_json(const Team& team) {
     };
     if (!dc.special_units.empty()) depth["special_units"] = slot_maps_to_json(dc.special_units);
 
-    return Json{
+    Json out = Json{
         {"format_version", 1},
         {"id", team.id},
         {"name", team.name},
@@ -128,6 +128,8 @@ Json to_json(const Team& team) {
         {"depth_chart", std::move(depth)},
         {"tactics", tactics_to_json(team.tactics)},
     };
+    if (team.scratch) out["scratch"] = true;
+    return out;
 }
 
 }  // namespace cfbsim

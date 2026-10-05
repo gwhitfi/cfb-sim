@@ -4,6 +4,7 @@
     "name": "Furman",
     "nickname": "Paladins",
     "abbr": "FUR",
+    "scratch": true,
     "colors": {
         "primary": "#582c83",
         "secondary": "##54585A"

@@ -4,6 +4,7 @@
   "name": "Clemson 2018",
   "nickname": "Tigers",
   "abbr": "CU18",
+  "scratch": true,
   "colors": {
     "primary": "#522D80",
     "secondary": "#F56600"

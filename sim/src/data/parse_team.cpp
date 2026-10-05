@@ -207,7 +207,7 @@ Tactics parse_tactics(const Reader& r) {
 
 Team parse_team(const Json& json, const std::string& source) {
     const Reader root(json, source);
-    root.allow_only({"format_version", "id", "name", "nickname", "abbr", "colors", "roster",
+    root.allow_only({"format_version", "id", "name", "nickname", "abbr", "scratch", "colors", "roster",
                      "playbooks", "depth_chart", "tactics"});
     detail::require_format_version(root);
 
@@ -216,6 +216,7 @@ Team parse_team(const Json& json, const std::string& source) {
     t.name = root.string("name");
     t.nickname = root.string_or("nickname", "");
     t.abbr = root.string("abbr");
+    t.scratch = root.boolean_or("scratch", false);
     if (auto colors = root.find("colors")) {
         colors->allow_only({"primary", "secondary"});
         t.color_primary = colors->string_or("primary", t.color_primary);

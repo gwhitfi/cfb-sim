@@ -4,6 +4,7 @@
     "name": "Georgia",
     "nickname": "Bulldogs",
     "abbr": "UGA",
+    "scratch": true,
     "colors": {
         "primary": "#BA0C2F",
         "secondary": "#000000"

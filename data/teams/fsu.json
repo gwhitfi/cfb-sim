@@ -4,6 +4,7 @@
     "name": "Florida State",
     "nickname": "Seminoles",
     "abbr": "FSU",
+    "scratch": true,
     "colors": {
         "primary": "#782F40",
         "secondary": "#FFFFFF"

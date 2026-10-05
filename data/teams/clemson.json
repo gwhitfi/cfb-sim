@@ -4,6 +4,7 @@
     "name": "Clemson",
     "nickname": "Tigers",
     "abbr": "CLEM",
+    "scratch": true,
     "colors": {
         "primary": "#F56600",
         "secondary": "#552D80"

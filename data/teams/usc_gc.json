@@ -4,6 +4,7 @@
     "name": "South Carolina",
     "nickname": "Gamecocks",
     "abbr": "USC",
+    "scratch": true,
     "colors": {
         "primary": "#73000A",
         "secondary": "#000000"

@@ -69,6 +69,7 @@ struct Team {
     std::string name;
     std::string nickname;
     std::string abbr;
+    bool scratch = false;  // an expendable test team (the Builder may delete it)
     std::string color_primary = "#444444";
     std::string color_secondary = "#ffffff";
     std::string roster_file;  // relative to the data directory
