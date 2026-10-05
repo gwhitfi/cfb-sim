@@ -62,7 +62,8 @@ export interface AdvanceResult {
 }
 
 // One thing to show, in order: a snap to animate, or a log line to apply.
-// `streaming`: a between-plays file still coming in.
+// `streaming`: a between-plays file sent in parts (true while still coming
+// in); absent for a file sent whole (a walk-on before a kick, a replay).
 export type Step =
   | { kind: "tracking"; name: string; data: string; streaming?: boolean }
   | { kind: "line"; line: any; state: GameState };
@@ -85,7 +86,9 @@ export class StepQueue {
         waiting.streaming = m.partial === true;
         continue;
       }
-      this.steps.push({ kind: "tracking", name: m.name, data: m.data, streaming: m.partial === true });
+      const step: Step = { kind: "tracking", name: m.name, data: m.data };
+      if (m.partial !== undefined) step.streaming = m.partial;
+      this.steps.push(step);
     }
   }
 
@@ -205,6 +208,15 @@ export function describeLine(line: any, state: GameState, names: Map<string, str
 }
 
 // Does this log line end a scoring play?
+// Between plays: the play clock `seconds` into a between-plays file. A file
+// that waits for the ready signal (after a change of possession) reads full
+// until its "ready" event (`readyAt`, s into the file; undefined: not yet).
+export function playClockLeft(full: number, seconds: number, waits: boolean, readyAt?: number): number {
+  if (!waits) return full - seconds;
+  if (readyAt === undefined) return full;
+  return full - Math.max(0, seconds - readyAt);
+}
+
 export function isScore(line: any): boolean {
   return line.type === "play" && line.home !== undefined;
 }

@@ -1011,7 +1011,9 @@ void KickSim::write_header() {
                     {"yard_line", opt_.yard_line},
                     {"hash", std::string(to_name(kHashNames, opt_.hash))},
                     // Whether the home team attacks +x (the viewer's vertical view uses it).
-                    {"home_right", opt_.kicking_right == opt_.kicking_home}};
+                    {"home_right", opt_.kicking_right == opt_.kicking_home},
+                    // The team with the ball at the snap (the viewer's "behind offense").
+                    {"offense", opt_.kicking_home ? "home" : "away"}};
     const double x = kframe_.ball().x;
     info.overlays.push_back(shapes::line("lines", {{x, 0.0}, {x, kFieldWidth}}, "#4fc3f7"));
     out_->header(info, world_);

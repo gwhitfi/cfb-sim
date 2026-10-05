@@ -18,7 +18,25 @@
     "call": {"huddle": 10, "no_huddle": 7, "hurry": 3},   // the offense's call comes in, by tempo
     "huddle": 6,                    // s from the call to the break (huddle tempo); then the walk-up, from the formation
     "defense_call": 2,              // s after the offense's call: its personnel is on the field, the defense calls
-    "line_up": 3                    // s to get set at the line with no huddle
+    "line_up": 3,                   // s to get set at the line with a kneel or a spike
+    // The walks (step 5): nobody warps; the break, the set, and the snap
+    // come from when players get there.
+    "walks": {
+      "pace": {"walk": 1.8, "jog": 4.5, "hurry": 0.65},   // yd/s; hurry: share of his top speed
+      // Each walk draws its pace by the play clock left (the band's odds:
+      // walk, jog, hurry); before the ready signal the clock counts as full.
+      "bands": [
+        {"above": 30, "odds": [0.80, 0.20, 0.00]},
+        {"above": 17, "odds": [0.20, 0.75, 0.05]},
+        {"above": 7,  "odds": [0.00, 0.60, 0.40]},
+        {"above": -1, "odds": [0.00, 0.05, 0.95]}
+      ],
+      "work_rate_tilt": 0.15,       // the draw + this x (Work Rate - 50) / 50
+      "need_margin": 1.1,           // a pace that gets him there with this to spare
+      "accel": 3.0,                 // yd/s^2
+      "due": {"huddle": 2, "line": 8},   // s to the huddle once the call is in; at the alignment by :08
+      "ball_spotted": 3             // s after the whistle (the 25-second clock waits for it)
+    }
   },
 
   "fatigue": {

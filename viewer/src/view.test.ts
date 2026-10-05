@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseTracking } from "./tracking";
-import { attacksRight, followX, viewTurns } from "./view";
+import { CAMERA_JUMP, attacksRight, easeToward, followPoint, followX, viewTurns } from "./view";
 
 // A one-player file: agent 0 is on `team` (the offense), with `details`.
 function rec(team: "home" | "away", details: object, ball: [number, number, number] | null = [30, 26, 0]) {
@@ -36,8 +36,28 @@ describe("view", () => {
     expect(viewTurns(rec("home", {}), "vertical", "offense")).toBe(1); // a drill: +x up
   });
 
+  it("goes behind the file's named offense over agent 0", () => {
+    // A kick (agent 0 is the receiving team) or between plays: `offense` says who has the ball.
+    const r = rec("away", { home_right: false, offense: "home" });
+    expect(viewTurns(r, "vertical", "offense")).toBe(3); // home attacks -x: +x down
+  });
+
   it("follows the ball, or the players without one", () => {
     expect(followX(rec("home", {}), 0.5)).toBeCloseTo(30.5);
     expect(followX(rec("home", {}, null), 0.5)).toBeCloseTo(11);
+  });
+
+  it("aims at the spot between plays before the ball is out", () => {
+    expect(followPoint(rec("home", { spot: [40, 20] }, null), 0)).toEqual([40, 20]);
+    expect(followX(rec("home", { spot: [40, 20] }, null), 0)).toBe(40);
+  });
+
+  it("eases the camera, and jumps when it's far off", () => {
+    const a = easeToward([0, 0], [5, 0], 0.1);
+    expect(a[0]).toBeGreaterThan(0);
+    expect(a[0]).toBeLessThan(2);
+    expect(easeToward([0, 0], [5, 0], 0)).toEqual([0, 0]); // a new file nearby: stays put
+    expect(easeToward([0, 0], [CAMERA_JUMP + 1, 0], 0.1)).toEqual([CAMERA_JUMP + 1, 0]);
+    expect(easeToward(null, [3, 4], 0)).toEqual([3, 4]);
   });
 });

@@ -12,6 +12,7 @@ import {
   isScore,
   penaltyName,
   periodText,
+  playClockLeft,
   promptTitle,
   StepQueue,
   type AdvanceResult,
@@ -55,6 +56,7 @@ interface LiveWindow {
   done: boolean; // the last part is in
   start: number; // the game tick its tick 0 is
   playClock: number;
+  waits: boolean; // the play clock starts at the "ready" event
   shown: boolean; // loaded in the viewer
   dirty: boolean; // new parts since
   hiddenTick?: number; // skip animations or dev mode: the clock we keep instead (file ticks)
@@ -124,6 +126,7 @@ export class Live {
   constructor(private host: Host) {
     $("game-stop").addEventListener("click", () => this.stop());
     $("game-timeout").addEventListener("click", () => this.timeout());
+    $("game-hurry").addEventListener("click", () => this.hurry());
     const auto = $<HTMLInputElement>("game-auto");
     auto.addEventListener("change", () => {
       this.setAuto(auto.checked);
@@ -302,6 +305,7 @@ export class Live {
   // The controls for the user's own side: Timeout, and Auto coach in the transport bar.
   private showMine(show: boolean): void {
     $("game-timeout").hidden = !show;
+    $("game-hurry").hidden = !show;
     $("tb-auto").hidden = !show;
   }
 
@@ -369,7 +373,7 @@ export class Live {
       const between = step.name.includes("_between");
       if (between && step.streaming !== undefined && this.mode === "live" && this.user.size > 0) {
         // A live window: it streams in while the play clock runs.
-        this.win = { name: step.name, text: step.data, done: !step.streaming, start: 0, playClock: 0, shown: false, dirty: true };
+        this.win = { name: step.name, text: step.data, done: !step.streaming, start: 0, playClock: 0, waits: false, shown: false, dirty: true };
         return;
       }
       if (between && (skip || this.host.devMode())) continue;
@@ -410,6 +414,7 @@ export class Live {
       const head = JSON.parse(w.text.slice(0, nl));
       w.start = Number(head.details?.start_tick ?? 0);
       w.playClock = Number(head.details?.play_clock ?? 0);
+      w.waits = head.details?.waits_for_ready === true;
     }
     let pb = this.host.playback();
     if (!hidden && w.dirty && w.text.includes('"type":"tick"')) {
@@ -432,7 +437,8 @@ export class Live {
       fileTick = pb.tick;
     } else if (w.playClock) {
       const pc = document.getElementById("sb-play-clock");
-      const left = w.playClock - (this.simTick - w.start) / 20;
+      const ready = /"tick":(\d+),"event":"ready"/.exec(w.text);
+      const left = playClockLeft(w.playClock, (this.simTick - w.start) / 20, w.waits, ready ? Number(ready[1]) / 20 : undefined);
       if (pc) pc.textContent = `:${Math.max(0, Math.ceil(left)).toString().padStart(2, "0")}`;
     }
 
@@ -489,7 +495,9 @@ export class Live {
     const pc = document.getElementById("sb-play-clock");
     const full = Number(pb.rec.header.details.play_clock ?? 0);
     if (!pc || !full) return;
-    const left = full - pb.seconds;
+    const ready = pb.rec.events.find((e) => e.event === "ready");
+    const readyAt = ready ? (ready.tick - pb.rec.ticks[0]!) / pb.rec.header.tickRate : undefined;
+    const left = playClockLeft(full, pb.seconds, pb.rec.header.details.waits_for_ready === true, readyAt);
     pc.textContent = `:${Math.max(0, Math.ceil(left)).toString().padStart(2, "0")}`;
     pc.classList.toggle("low", left < 5);
   }
@@ -751,6 +759,14 @@ export class Live {
     this.feed(`${team === "home" ? "Home" : "Away"} calls timeout`, "note");
   }
 
+  // Between plays: the side hurries to the line (until the snap).
+  private hurry(): void {
+    const team = this.mySide();
+    if (!team || !this.inWindow) return;
+    this.send({ type: "command", command: { type: "hurry", team } });
+    this.feed(`${team === "home" ? "Home" : "Away"} hurries to the line`, "note");
+  }
+
   private setAuto(on: boolean): void {
     for (const team of this.user) {
       if (on) this.auto.add(team);
@@ -766,6 +782,10 @@ export class Live {
   // Keyboard shortcuts while a prompt is up. Returns true if handled.
   key(e: KeyboardEvent): boolean {
     if (!this.mode && this.plays.key(e)) return true;
+    if (e.key === "u" && this.mode === "live" && this.inWindow && this.mySide()) {
+      this.hurry();
+      return true;
+    }
     if (!this.shownPrompt) return false;
     if ((e.key === "h" || e.key === "Enter") && this.shownPrompt.input === "hike") {
       this.sendHike();

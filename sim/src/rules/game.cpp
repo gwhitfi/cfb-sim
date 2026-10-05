@@ -59,7 +59,9 @@ Hash mirrored(Hash h) {
 // the calls, the check, and the hike each at their own tick; kicks are calls.
 // 3: between plays decided tick by tick (live): the hike is logged when it's
 // given, audibles and hot routes on their own, timeouts any time.
-constexpr int kLogFormat = 3;
+// 4: the walks between plays are real (step 5): the break, the set, and the
+// snap come from when players get there; the hurry input.
+constexpr int kLogFormat = 4;
 
 class ReplayError : public GameError {
   public:
@@ -87,7 +89,8 @@ class Game {
           teams_{&team(opt.home), &team(opt.away)},
           lineups_{Lineup(*teams_[0], roster(opt.home), tuning_), Lineup(*teams_[1], roster(opt.away), tuning_)},
           coaches_{AutoCoach(data, *teams_[0], 0, opt.seed ^ 0xA5A5A5A5A5A5A5A5ULL),
-                   AutoCoach(data, *teams_[1], 1, opt.seed ^ 0x5A5A5A5A5A5A5A5AULL)} {
+                   AutoCoach(data, *teams_[1], 1, opt.seed ^ 0x5A5A5A5A5A5A5A5AULL)},
+          walk_rng_(opt.seed ^ 0x3C3C3C3C3C3C3C3CULL) {
         box_.team_ids = {opt.home, opt.away};
     }
 
@@ -197,24 +200,32 @@ class Game {
     // A snap's tracking file name: "007_q1_1432_home_<label>".
     std::string snap_name(int team, const std::string& label) const;
 
-    // --- the between-plays animation (game-flow.md; visual only) -----------
-    // Only with tracking; nothing in the game reads it. A file opens at the
-    // start of a window (`window`: the play clock runs; else a kickoff or a
-    // try, walked straight on) with who's on the field (`fresh`: start them
-    // in the huddles), and closes at the snap with the play's own lineup.
+    // --- the walks between plays (game-flow.md, step 5) --------------------
+    // A window's walks run in every game (the break, the set, and the snap
+    // come from them); a file is written only with tracking. They open at the
+    // start of a window (`window`; else a kickoff or a try, walked straight
+    // on, only with tracking and outside game time) with who's on the field
+    // (`fresh`: start them in the huddles; `due`: the offense's planned call),
+    // and close at the snap with the play's own lineup.
     TeamSide side_of(int t) const { return t == 0 ? TeamSide::Home : TeamSide::Away; }
     void open_between(int number, const PlayFrame& frame, int offense, bool huddle, const std::vector<Spot>& on_field,
-                      bool fresh, std::int64_t ball_tick, bool window);
+                      bool fresh, std::int64_t ball_tick, bool window, std::optional<std::int64_t> due = std::nullopt,
+                      bool waits_for_ready = false);
     void finish_between(const std::vector<Spot>& exact, const std::string& last = "");
     // A kickoff or a try: everyone walks straight to `to`.
     void walk_on(const std::vector<Spot>& to, const PlayFrame& frame, int offense);
     // The players and spots for a kick (no seed drawn).
     KickOptions kick_options(int kicking, double yard_line, PlayType type, const std::string& kind, Hash hash);
-    void ended(const std::vector<Spot>& end) {
+    void ended(const std::vector<Spot>& end, bool kick = false) {
         last_end_ = end;
         last_end_quarter_ = g_.quarter;
+        last_offense_ = g_.offense;
+        last_kick_ = kick;
         fresh_ = false;
     }
+    // Who'd come on for a down after a kick or a change of possession, for
+    // the animation only: each side's base unit (no RNG, nothing decided).
+    std::vector<Spot> base_units(int off);
 
     // --- one snap's pieces -------------------------------------------------
     // The players for a snap, picked as each call comes in, then the rest.
@@ -267,6 +278,7 @@ class Game {
     std::array<const Team*, 2> teams_;
     std::array<Lineup, 2> lineups_;
     std::array<AutoCoach, 2> coaches_;
+    Rng walk_rng_;  // the walks between plays (their paces): never the game's or a coach's
 
     GameState g_;
     BoxScore box_;
@@ -281,11 +293,13 @@ class Game {
     double segment_clock_ = 40.0;          // its length
     double segment_used_ = -1.0;           // s of it used so far (under 0: not between plays)
     double recovered_ = 0.0;               // s of it the lineups have recovered for
-    // The between-plays animation's inputs (only used with tracking).
+    // Where the walks between plays start.
     std::vector<Spot> last_end_;           // where the last play left everyone
+    int last_offense_ = -1;                // who had the ball on it
+    bool last_kick_ = false;               // a kick (its units are on the field)
     int last_end_quarter_ = 0;             // (a new period starts everyone fresh)
     bool fresh_ = true;                    // start in the huddle (after a timeout, a new period)
-    std::unique_ptr<Between> between_;     // the file being written
+    std::unique_ptr<Between> between_;     // the walks (and the file, with tracking)
     std::int64_t between_start_ = 0;       // its tick 0 (game ticks)
     int between_snap_ = -1, between_count_ = 0;  // files for this snap number so far
 };
@@ -677,10 +691,11 @@ KickResult Game::kick_play(int kicking, double yard_line, PlayType type, const s
             } else {
                 k = run_kick(data_, o);
             }
-            ended(k.end);
         } else {
+            finish_between({});
             k = run_kick(data_, o);
         }
+        ended(k.end, true);
     } catch (const PlayError& e) {
         throw GameError(std::string("kick ") + kp->id + ": " + e.what());
     }
@@ -994,7 +1009,12 @@ std::string Game::snap_name(int team, const std::string& label) const {
 }
 
 PlayResult Game::run_tracked(const PlayOptions& o, const std::string& label) {
-    if (!opt_.tracking) return run_play(data_, o);
+    if (!opt_.tracking) {
+        finish_between({});
+        PlayResult r = run_play(data_, o);
+        ended(r.end);
+        return r;
+    }
     const std::vector<Spot> spots = play_start(data_, o);
     if (between_) {
         finish_between(spots);
@@ -1013,39 +1033,47 @@ PlayResult Game::run_tracked(const PlayOptions& o, const std::string& label) {
 }
 
 void Game::open_between(int number, const PlayFrame& frame, int offense, bool huddle,
-                        const std::vector<Spot>& on_field, bool fresh, std::int64_t ball_tick, bool window) {
+                        const std::vector<Spot>& on_field, bool fresh, std::int64_t ball_tick, bool window,
+                        std::optional<std::int64_t> due, bool waits_for_ready) {
     between_.reset();
-    if (!opt_.tracking) return;
-    if (number != between_snap_) {
-        between_snap_ = number;
-        between_count_ = 0;
-    }
-    char num[24];
-    std::snprintf(num, sizeof num, "%03d_%d", number, between_count_++);
-    std::string clock = clock_text(g_.clock);
-    std::erase(clock, ':');
-    // "007_0_q1_1432_between" sorts just before the snap's own "007_q1_...".
-    std::unique_ptr<std::ostream> out =
-        opt_.tracking(std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + clock + "_between");
-    if (!out) return;
+    if (!window && !opt_.tracking) return;
+    std::unique_ptr<std::ostream> out;
     TrackingInfo info;
-    info.kind = "interlude";
-    info.name = "between plays";
-    for (int t = 0; t < 2; ++t) {
-        const Team& tm = team_of(t);
-        (t == 0 ? info.home : info.away) = {tm.name, tm.abbr, tm.color_primary};
+    if (opt_.tracking) {
+        if (number != between_snap_) {
+            between_snap_ = number;
+            between_count_ = 0;
+        }
+        char num[24];
+        std::snprintf(num, sizeof num, "%03d_%d", number, between_count_++);
+        std::string clock = clock_text(g_.clock);
+        std::erase(clock, ':');
+        // "007_0_q1_1432_between" sorts just before the snap's own "007_q1_...".
+        out = opt_.tracking(std::string(num) + "_q" + std::to_string(g_.quarter) + "_" + clock + "_between");
+        if (!out && !window) return;
+        info.kind = "interlude";
+        info.name = "between plays";
+        for (int t = 0; t < 2; ++t) {
+            const Team& tm = team_of(t);
+            (t == 0 ? info.home : info.away) = {tm.name, tm.abbr, tm.color_primary};
+        }
+        // (Like a play's: the home team attacks +x in odd quarters.)
+        info.details = {{"situation", situation_text()}, {"clock", clock_text(g_.clock)}, {"start_tick", g_.tick},
+                        {"home_right", g_.quarter % 2 == 1}, {"offense", team_key(offense)}};
+        if (window) info.details["play_clock"] = segment_clock_;
+        // The play clock starts at the "ready" event, not the file's start.
+        if (waits_for_ready) info.details["waits_for_ready"] = true;
     }
-    info.details = {{"situation", situation_text()}, {"clock", clock_text(g_.clock)}, {"start_tick", g_.tick}};
-    if (window) info.details["play_clock"] = segment_clock_;
+    // A window's walks draw their paces; a walk-on (outside game time) doesn't.
     between_ = std::make_unique<Between>(std::move(out), info, frame, side_of(offense), huddle, data_.tuning.movement,
-                                         data_.tuning.play);
+                                         data_.tuning.play, tuning_, window ? &walk_rng_ : nullptr);
     between_start_ = g_.tick;
     std::vector<BetweenMan> men;
     for (const Spot& s : on_field) {
         men.push_back({&lineup(s.team == TeamSide::Home ? 0 : 1).player(s.id), s.team, s.label,
                        fresh ? std::nullopt : std::optional<Spot>(s)});
     }
-    between_->start(men, ball_tick);
+    between_->start(men, ball_tick, due);
 }
 
 void Game::finish_between(const std::vector<Spot>& exact, const std::string& last) {
@@ -1057,6 +1085,7 @@ void Game::finish_between(const std::vector<Spot>& exact, const std::string& las
 void Game::walk_on(const std::vector<Spot>& to, const PlayFrame& frame, int offense) {
     open_between(snaps_, frame, offense, false, last_end_, fresh_ || last_end_quarter_ != g_.quarter, 0, false);
     if (!between_) return;
+    // No game time passes (the clock is stopped): everyone jogs, as long as it takes.
     for (const TeamSide side : {TeamSide::Home, TeamSide::Away}) {
         std::vector<BetweenMan> men;
         std::vector<Spot> spots;
@@ -1065,13 +1094,47 @@ void Game::walk_on(const std::vector<Spot>& to, const PlayFrame& frame, int offe
             men.push_back({&lineup(side == TeamSide::Home ? 0 : 1).player(s.id), s.team, s.label, std::nullopt});
             spots.push_back(s);
         }
-        between_->lineup(0, side, men, spots, std::nullopt, std::nullopt);
+        between_->floor(0, side, Pace::Jog);
+        between_->lineup(0, side, men, spots, false, std::nullopt);
     }
-    // No game time passes (the clock is stopped): as long as the walk takes, up to 10 s.
-    const std::int64_t end = std::min<std::int64_t>(between_->arrived(), 10 * kTicksPerSecond) +
-                             ticks(data_.tuning.play.set_seconds);
-    between_->finish(end, to);
+    std::int64_t end = 0;
+    while (!between_->settled() && end < 60 * kTicksPerSecond) {
+        end = Between::next_step(end);
+        between_->run_to(end);
+    }
+    between_->finish(end + ticks(data_.tuning.play.set_seconds), to);
     between_.reset();
+}
+
+std::vector<Spot> Game::base_units(int off) {
+    std::vector<Spot> out;
+    const auto unit = [&](int team, bool offense) {
+        const Team& t = team_of(team);
+        const Playbook& book = data_.playbooks.at(offense ? t.offense_playbook : t.defense_playbook);
+        const std::string want = offense ? "11" : "base";
+        const auto& groups = offense ? t.depth_chart.offense_personnel : t.depth_chart.defense_packages;
+        const Formation* f = nullptr;
+        for (const bool exact : {true, false}) {
+            for (const Play& p : book.plays) {
+                const Formation& pf = data_.formations.at(p.formation);
+                const std::string& group = offense ? pf.personnel : pf.package;
+                if (groups.contains(group) && (!exact || group == want)) {
+                    f = &pf;
+                    break;
+                }
+            }
+            if (f) break;
+        }
+        if (!f) return;
+        std::vector<std::string> slots;
+        for (const FormationSlot& sl : f->slots) slots.push_back(sl.name);
+        for (const auto& [slot, id] : lineup(team).fill(groups.at(offense ? f->personnel : f->package), slots)) {
+            out.push_back({id, slot, side_of(team), {}, {}});
+        }
+    };
+    unit(off, true);
+    unit(1 - off, false);
+    return out;
 }
 
 void Game::fill_offense(PlayOptions& o, const Play& play) {
@@ -1442,13 +1505,10 @@ SnapResult Game::snap() {
             if (opt.window) opt.window(-1);
         }
     } closed{opt_};
-    const auto rounded_down = [](double x) { return std::floor(x * 100.0) / 100.0; };
 
     double play_clock = g_.clock_state.admin ? rules_.admin_play_clock : rules_.play_clock;
-    begin_segment(play_clock);
     BetweenPlays when = between_plays_schedule(play_clock, rules_.play_clock, tempo, 0.0, set_seconds, false, tuning_);
-    double huddle_left = when.broke - when.call;
-    const auto tick_of = [&](double u) { return segment_start_ + ticks(u); };
+    const std::int64_t huddle_ticks = ticks(tuning_.huddle_seconds);
 
     // What's been decided.
     bool have_call = false;
@@ -1457,7 +1517,6 @@ SnapResult Game::snap() {
     bool kicking = false, clock_play = false;
     const Play* oplay = nullptr;
     const Formation* formation = nullptr;
-    double walk = 0.0;
     PlayOptions o;
     std::string defense_play, called_play, called_defense;
     std::map<std::string, std::string> hot_routes;
@@ -1465,16 +1524,68 @@ SnapResult Game::snap() {
     // acts on them at its moment, a side coached live sees them as the hint.
     std::optional<Json> coach_call, coach_defense, coach_check;
     double coach_reading = 0.0;
-    std::optional<std::int64_t> set_tick;  // when the offense got set
+    // The walks (game ticks): the call, the offense in its huddle, the break,
+    // everyone at the line, the earliest snap.
+    std::int64_t call_tick = 0;
+    std::optional<std::int64_t> gathered_at, broke_at, set_tick;
+    std::int64_t earliest_tick = 0;
+    double earliest = 0.0;                // the play clock reading then
     std::int64_t hike_tick = 0;           // the coach's snap (or a user's "snap at :08")
     bool user_hike = false;
     bool coach_timeouts = true;           // the coach takes his at the start of the window
+    std::array<bool, 2> hurrying{false, false};
     bool snapped = false;
     double reading = 0.0;
 
-    // The animation (tracking only).
-    open_between(snaps_ + 1, frame(false), off, huddle, last_end_, fresh_ || last_end_quarter_ != g_.quarter,
-                 3 * kTicksPerSecond, true);
+    // The walks. After a kick or a change of possession the units on the
+    // field jog off and each side's base unit comes on (the calls swap in
+    // whoever else is in them).
+    const bool new_units = last_kick_ || last_offense_ != off;
+    const bool fresh = fresh_ || last_end_quarter_ != g_.quarter;
+    // A 25-second clock waits for the ready signal: the ball spotted, the new
+    // units on, the offense in its huddle (game-flow.md: before the ready signal).
+    const bool pre_ready = g_.clock_state.admin && !fresh;
+    segment_clock_ = play_clock;
+    const std::optional<std::int64_t> walk_back_due =
+        pre_ready ? std::nullopt : std::optional<std::int64_t>(ticks(when.call));
+    open_between(snaps_ + 1, frame(false), off, huddle, new_units && fresh ? base_units(off) : last_end_, fresh,
+                 ticks(tuning_.ball_spotted), true, walk_back_due, pre_ready);
+    const auto bt = [&](std::int64_t t) { return t - between_start_; };  // a game tick in the walks' own
+    if (new_units && !fresh) {
+        const std::vector<Spot> base = base_units(off);
+        for (const int team : {off, def}) {
+            std::vector<BetweenMan> men;
+            for (const Spot& s : base) {
+                if (s.team == side_of(team)) men.push_back({&lineup(team).player(s.id), s.team, s.label, std::nullopt});
+            }
+            between_->lineup(0, side_of(team), men, {}, true, std::nullopt);
+        }
+    }
+    // Each side's floor: its tempo, or the Hurry button.
+    const auto floors = [&](std::int64_t t) {
+        Pace p = tempo == Tempo::Hurry ? Pace::Hurry : tempo == Tempo::NoHuddle ? Pace::Jog : Pace::Walk;
+        if (hurrying[idx(off)]) p = Pace::Hurry;
+        between_->floor(bt(t), side_of(off), p);
+        between_->floor(bt(t), side_of(def), hurrying[idx(def)] ? Pace::Hurry : Pace::Walk);
+    };
+    floors(g_.tick);
+    if (pre_ready) {
+        for (std::int64_t t = g_.tick;;) {
+            g_.tick = t;
+            between_->run_to(bt(t));
+            if (bt(t) >= ticks(tuning_.ball_spotted) && between_->on_field() &&
+                (!huddle || between_->gathered(side_of(off)))) {
+                break;
+            }
+            if (opt_.window && (live(off) || live(def))) opt_.window(t);
+            t = replay_ || live(off) || live(def) ? t + 1 : between_start_ + Between::next_step(bt(t));
+        }
+        between_->event(bt(g_.tick), "ready");
+    }
+    begin_segment(play_clock);
+    between_->clock(play_clock, bt(segment_start_));
+    const auto tick_of = [&](double u) { return segment_start_ + ticks(u); };
+
     const auto lined_up = [&](bool with_defense) {
         PlayOptions look = o;
         finish_options(look, call, false);
@@ -1493,24 +1604,25 @@ SnapResult Game::snap() {
         }
         return out;
     };
-    // The animation for what's known: each side walks to its huddle, or to its spots by the set.
-    const auto animate_lineups = [&] {
-        if (!between_) return;
-        const std::int64_t now = g_.tick - between_start_;
-        const std::int64_t brk = tick_of(when.broke) - between_start_;
-        const std::int64_t set = tick_of(when.set) - between_start_;
-        const std::optional<std::int64_t> wait = huddle ? std::optional<std::int64_t>(brk) : std::nullopt;
+    // The walks for what's known: the offense to its huddle until the break
+    // (or straight to the line with no huddle), the defense to its spots.
+    const auto walk_lineups = [&](std::int64_t t) {
+        const bool hold = huddle && !broke_at;
+        const std::optional<std::int64_t> ring_due = bt(t) + ticks(tuning_.huddle_due);
         if (kicking) {
             const KickOptions k = kick_options(off, g_.s.yard_line, kick == KickChoice::Punt ? PlayType::Punt
                                                                                              : PlayType::FieldGoal, "", g_.hash);
             const std::vector<Spot> spots = kick_start(data_, k);
-            between_->lineup(now, side_of(off), side_men(k.kicking_players, off), spots_of_team(spots, off), wait, set);
-            between_->lineup(now, side_of(def), side_men(k.receiving_players, def), spots_of_team(spots, def), wait, set);
+            between_->lineup(bt(t), side_of(off), side_men(k.kicking_players, off), spots_of_team(spots, off), hold, ring_due);
+            between_->lineup(bt(t), side_of(def), side_men(k.receiving_players, def), spots_of_team(spots, def), false,
+                             std::nullopt);
         } else if (oplay) {
             const std::vector<Spot> spots = lined_up(!defense_play.empty());
-            between_->lineup(now, side_of(off), side_men(o.offense_players, off), spots_of_team(spots, off), wait, set);
+            between_->lineup(bt(t), side_of(off), side_men(o.offense_players, off), spots_of_team(spots, off), hold,
+                             ring_due);
             if (!defense_play.empty()) {
-                between_->lineup(now, side_of(def), side_men(o.defense_players, def), spots_of_team(spots, def), wait, set);
+                between_->lineup(bt(t), side_of(def), side_men(o.defense_players, def), spots_of_team(spots, def), false,
+                                 std::nullopt);
             }
         }
     };
@@ -1522,21 +1634,28 @@ SnapResult Game::snap() {
         charge_timeout(team);
         play_clock = rules_.admin_play_clock;
         begin_segment(play_clock);
-        when = between_plays_schedule(play_clock, rules_.play_clock, tempo, walk, set_seconds, have_call, tuning_);
-        huddle_left = when.broke - when.call;
-        if (have_call) when.call = when.defense_call = 0.0;
+        when = between_plays_schedule(play_clock, rules_.play_clock, tempo, 0.0, set_seconds, have_call, tuning_);
+        if (have_call) {
+            when.call = when.defense_call = 0.0;
+            call_tick = g_.tick;
+        }
+        gathered_at.reset();
+        broke_at.reset();
         set_tick.reset();
         user_hike = false;
         coach_timeouts = false;
         // Out of the timeout, everyone starts in the huddles.
-        std::vector<Spot> on = last_end_;
+        std::vector<Spot> on = new_units ? base_units(off) : last_end_;
         if (oplay) {
             on.clear();
             for (const auto& [slot, id] : o.offense_players) on.push_back({id, slot, side_of(off), {}, {}});
             for (const auto& [slot, id] : o.defense_players) on.push_back({id, slot, side_of(def), {}, {}});
         }
+        segment_clock_ = play_clock;
         open_between(snaps_ + 1, frame(false), off, huddle, on, true, 0, true);
-        animate_lineups();
+        between_->clock(play_clock, 0);
+        floors(g_.tick);
+        walk_lineups(g_.tick);
         return true;
     };
 
@@ -1544,7 +1663,7 @@ SnapResult Game::snap() {
         g_.tick = t;
         segment_used_ = static_cast<double>(t - segment_start_) * kTickSeconds;
         const double used = segment_used_;
-        if (between_) between_->run_to(t - between_start_ - 1);
+        between_->run_to(bt(t));
 
         // Timeouts (the defense's first).
         bool timed_out = false;
@@ -1562,6 +1681,16 @@ SnapResult Game::snap() {
         }
         coach_timeouts = false;
         if (timed_out) continue;  // the window starts over at this tick
+
+        // Hurry (a side coached live; the coach's tempo sets its floor).
+        for (const int team : {off, def}) {
+            if (hurrying[idx(team)] || (!live(team) && !replay_)) continue;
+            if (ask_optional("hurry", team, [] { return std::optional<Json>(); }, [] { return Json::object(); }, true)) {
+                hurrying[idx(team)] = true;
+                floors(t);
+                between_->event(bt(t), "hurry");
+            }
+        }
 
         // The offense's call.
         if (!have_call) {
@@ -1603,26 +1732,18 @@ SnapResult Game::snap() {
                                                                                                 : PlayType::FieldGoal, "")
                                                 ->formation)
                                       : nullptr;
-                if (formation && huddle) {
-                    try {
-                        walk = walk_up_seconds(*formation, frame(call.flip), data_.tuning.play);
-                    } catch (const GeometryError& e) {
-                        throw GameError("formation " + formation->id + ": " + e.what());
-                    }
-                }
                 // The rest of the window runs from the call.
+                call_tick = t;
                 when.call = used;
                 when.defense_call = used + tuning_.defense_call_after;
-                when.broke = used + huddle_left;
-                when.set = std::max(when.defense_call, when.broke + (huddle ? walk : tuning_.line_up));
-                when.earliest = when.set + set_seconds;
-                if (between_) between_->event(t - between_start_, "play_called");
-                animate_lineups();
+                if (!huddle) broke_at = t;
+                between_->event(bt(t), "play_called");
+                walk_lineups(t);
             }
         }
 
-        // The defense's call, once the offense's personnel is on; at the set
-        // at the latest (the coach's, if its user hasn't called).
+        // The defense's call, once the offense's personnel is on; when the
+        // offense is at the line at the latest (the coach's, if its user hasn't called).
         if (have_call && oplay && defense_play.empty() && t >= tick_of(when.defense_call)) {
             if (!coach_defense) coach_defense = Json{{"play", coach(def).defense_call(g_, oplay)}};
             const bool due = !live(def);
@@ -1633,30 +1754,45 @@ SnapResult Game::snap() {
                     return std::nullopt;
                 }, [&] { return call_options(def, false, false, {}, oplay); }, true, *coach_defense);
             }
-            if (!d && t >= tick_of(when.set)) d = ask_forced("call_play", def, *coach_defense);
+            if (!d && between_->arrived(side_of(off))) d = ask_forced("call_play", def, *coach_defense);
             if (d) {
                 defense_play = d->value("play", "");
                 called_defense = defense_play;
                 recover_to(used);
                 fill_defense(o, defense_play);
-                if (between_) between_->event(t - between_start_, "defense_called");
-                animate_lineups();
+                between_->event(bt(t), "defense_called");
+                walk_lineups(t);
             }
         }
 
-        // At the line.
-        const bool lined = have_call && t >= tick_of(when.set) && (!oplay || !defense_play.empty());
-        const double earliest = rounded_down(play_clock - when.earliest);
-        if (lined && !set_tick) {
+        // The break: the huddle has been together long enough.
+        if (have_call && !broke_at && !clock_play) {
+            if (!gathered_at && between_->gathered(side_of(off))) gathered_at = t;
+            if (gathered_at && t >= *gathered_at + huddle_ticks) {
+                broke_at = t;
+                between_->release(bt(t), side_of(off));
+                between_->event(bt(t), "break");
+            }
+        }
+
+        // At the line: everyone there (a kneel or a spike: once they've lined up).
+        const bool defense_in = kicking || clock_play || !defense_play.empty();
+        if (have_call && defense_in && !set_tick &&
+            (clock_play ? t >= call_tick + ticks(tuning_.line_up)
+                        : between_->arrived(side_of(off)) && between_->arrived(side_of(def)))) {
             set_tick = t;
-            if (between_) between_->event(t - between_start_, "set");
+            earliest_tick = t + ticks(set_seconds);
+            // (On a tick, so rounded: rounding down could fall a hundredth short.)
+            earliest = r2(play_clock - static_cast<double>(earliest_tick - segment_start_) * kTickSeconds);
+            between_->event(bt(t), "set");
             if (oplay) {
                 const FormationLook look = look_of(*formation, frame(call.flip), data_.tuning.coach.check_box);
                 coach_check = Json{{"play", coach(def).defense_check(g_, oplay, look, defense_play)}};
             }
             coach_reading = std::min(r2(coach(off).hike(g_, play_clock)), earliest);
-            hike_tick = std::max(tick_of(play_clock - coach_reading), tick_of(when.earliest));
+            hike_tick = std::max(tick_of(play_clock - coach_reading), earliest_tick);
         }
+        const bool lined = set_tick.has_value();
         if (lined && oplay) {
             const bool due = !live(def) && t == *set_tick && coach_check->value("play", "") != defense_play;
             std::optional<Json> c;
@@ -1669,18 +1805,18 @@ SnapResult Game::snap() {
             if (c && c->value("play", defense_play) != defense_play) {
                 defense_play = c->value("play", defense_play);
                 fill_defense(o, defense_play);
-                if (between_) {
-                    between_->event(t - between_start_, "check");
-                    between_->respot(t - between_start_, spots_of_team(lined_up(true), def), t - between_start_ + 30);
-                }
+                between_->event(bt(t), "check");
+                between_->respot(bt(t), spots_of_team(lined_up(true), def));
             }
         }
+        // (Step 5: the snap also waits for a defense still moving after a check.)
+        const bool defense_set = clock_play || between_->arrived(side_of(def));
         const double now = r2(play_clock - used);
-        if (lined && user_hike && t >= hike_tick) {
+        if (lined && defense_set && user_hike && t >= hike_tick) {
             // A user's "snap at :08" (logged when he said it): now.
             snapped = true;
             reading = now;
-        } else if (lined && t >= tick_of(when.earliest)) {
+        } else if (lined && defense_set && t >= earliest_tick) {
             const bool due = !live(off) && t >= hike_tick;
             std::optional<Json> h;
             if (live(off) || due || replay_) {
@@ -1697,7 +1833,7 @@ SnapResult Game::snap() {
             if (h && h->contains("audible")) {
                 call.play = (*h)["audible"].get<std::string>();  // same formation: same players
                 hot_routes.clear();  // (they were for the old play)
-                if (between_) between_->event(t - between_start_, "audible");
+                between_->event(bt(t), "audible");
             }
             if (h && h->contains("hot_routes")) hot_routes = (*h)["hot_routes"].get<std::map<std::string, std::string>>();
             if (h && h->value("snap", false)) {
@@ -1724,12 +1860,17 @@ SnapResult Game::snap() {
             ++t;
             continue;
         }
-        // Nobody coaching live: straight on to the next moment something happens.
+        // Nobody coaching live: straight on to the next moment something
+        // happens (step by step while the walks decide it).
         std::int64_t next = tick_of(play_clock);
         if (!have_call) next = std::min(next, tick_of(when.call));
         if (have_call && oplay && defense_play.empty()) next = std::min(next, tick_of(when.defense_call));
-        if (have_call && !set_tick) next = std::min(next, tick_of(when.set));
-        if (set_tick) next = std::min(next, std::max(hike_tick, tick_of(when.earliest)));
+        if (have_call && !clock_play && (!set_tick || !defense_set)) {
+            next = std::min(next, between_start_ + Between::next_step(bt(t)));
+        }
+        if (gathered_at && !broke_at) next = std::min(next, *gathered_at + huddle_ticks);
+        if (have_call && clock_play && !set_tick) next = std::min(next, call_tick + ticks(tuning_.line_up));
+        if (set_tick) next = std::min(next, std::max(hike_tick, earliest_tick));
         t = std::max(t + 1, next);
     }
 
@@ -1741,7 +1882,10 @@ SnapResult Game::snap() {
     ++snaps_;
 
     if (!have_call || (reading <= 0.0 && (kicking || clock_play))) {
+        // The next snap's walks start where everyone is.
+        const std::vector<Spot> here = between_->where();
         finish_between({}, "delay_of_game");
+        ended(here);
         enforce_presnap(Foul{"delay_of_game", true, "", "", 0.0, 0.0, 0.0});
         return {};
     }
@@ -1752,19 +1896,20 @@ SnapResult Game::snap() {
         finish_options(o, call);
         o.hot_routes = hot_routes;
         if (const std::optional<Foul> f = presnap_foul(o, reading)) {
-            // The animation up to the flag; the next snap starts from the line.
-            if (between_) {
-                const std::vector<Spot> spots = play_start(data_, o);
-                finish_between(spots, f->type);
-                ended(spots);
-            }
+            // The walks up to the flag; the next snap starts from the line.
+            const std::vector<Spot> spots = play_start(data_, o);
+            finish_between(spots, f->type);
+            ended(spots);
             enforce_presnap(*f);
             return {};
         }
     }
     PlayResult r;
     try {
-        if (clock_play) finish_between({});  // (no tracking file for a kneel or a spike)
+        if (clock_play) {
+            finish_between({});  // (no tracking file for a kneel or a spike:
+            fresh_ = true;       // the next walks start in the huddles)
+        }
         r = clock_play ? kneel_or_spike(call.play) : run_tracked(o, call.play);
     } catch (const PlayError& e) {
         throw GameError(std::string("play ") + call.play + " at " + situation_text() + ": " + e.what());
@@ -2118,6 +2263,8 @@ std::optional<std::string> check_answer(const Prompt& p, Json& a) {
         out = {{"take", *take}};
     } else if (p.input == "timeout") {
         if (o.value("left", 0) <= 0) return "no timeouts left";
+    } else if (p.input == "hurry") {
+        // (Nothing to say: the side hurries for the rest of the window.)
     } else {
         return "unknown input " + p.input;
     }

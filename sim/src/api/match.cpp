@@ -133,6 +133,13 @@ std::optional<Json> Match::decide_live(const Prompt& p) {
         --timeout_requests_[t];
         return Json::object();
     }
+    if (p.input == "hurry") {
+        // (Like a timeout: a button any time, never a decision the game stops for.)
+        if (!hurry_requests_[t]) return std::nullopt;
+        hurry_requests_[t] = false;
+        hurried_[t] = true;
+        return Json::object();
+    }
     // The user's answer, if one is waiting; otherwise the decision stays open.
     const Key key{p.input, p.team};
     live_next_[key] = p;  // (open this tick either way: answered, it stays answered while open)
@@ -162,6 +169,8 @@ void Match::window_tick(std::int64_t tick) {
         live_next_.clear();
         answered_live_.clear();
         queue_.clear();
+        hurry_requests_ = {false, false};  // (a hurry is for one window)
+        hurried_ = {false, false};
         paused_for_.reset();
         in_window_ = false;
         return;
@@ -187,7 +196,10 @@ void Match::window_tick(std::int64_t tick) {
     for (bool stop = fresh.has_value();; stop = false) {
         // A side handed to the coach stops waiting for its user.
         std::erase_if(live_, [&](const auto& kv) { return !opt_.user[static_cast<std::size_t>(kv.first.second)]; });
-        if (!queue_.empty() || timeout_requests_[0] > 0 || timeout_requests_[1] > 0) return;  // on to the next tick
+        if (!queue_.empty() || timeout_requests_[0] > 0 || timeout_requests_[1] > 0 || hurry_requests_[0] ||
+            hurry_requests_[1]) {
+            return;  // on to the next tick
+        }
         const bool hold = clocked_ ? tick >= to_tick_ : unanswered();
         if (!stop && !hold) return;
         yield_to_caller(lock);
@@ -213,11 +225,15 @@ void Match::observe(const Json& line, const Json& state) {
 void Match::tracked(const std::string& name, std::string text) {
     std::lock_guard lock(m_);
     if (live_stream_ && name == live_name_) {
-        // The rest of a streamed file.
-        outbox_.push_back({{"type", "tracking"}, {"name", name}, {"data", text.substr(std::min(live_sent_, text.size()))},
-                           {"partial", false}});
         live_stream_ = nullptr;
-        return;
+        if (live_sent_ > 0) {
+            // The rest of a streamed file.
+            outbox_.push_back({{"type", "tracking"}, {"name", name},
+                               {"data", text.substr(std::min(live_sent_, text.size()))}, {"partial", false}});
+            return;
+        }
+        // (None of it went out as it was written, e.g. the walk-on before a
+        // kick: it's sent whole, like any other file.)
     }
     outbox_.push_back({{"type", "tracking"}, {"name", name}, {"data", std::move(text)}});
 }
@@ -333,6 +349,13 @@ std::optional<std::string> Match::command(const Json& cmd) {
                            {"timeout", true}};
             answered_ = true;
         }
+        return std::nullopt;
+    }
+    if (type == "hurry") {
+        if (t < 0) return "team must be home or away";
+        if (!opt_.user[static_cast<std::size_t>(t)]) return "the coach is running that team";
+        if (!in_window_) return "only between plays";
+        if (!hurried_[static_cast<std::size_t>(t)]) hurry_requests_[static_cast<std::size_t>(t)] = true;
         return std::nullopt;
     }
     return "unknown command '" + type + "'";

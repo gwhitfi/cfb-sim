@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byFormation, describeLine, downText, periodText, StepQueue, type GameState } from "./game";
+import { byFormation, describeLine, downText, periodText, playClockLeft, StepQueue, type GameState } from "./game";
 
 const state: GameState = {
   tick: 0,
@@ -66,6 +66,12 @@ describe("prompts", () => {
     expect(q.length).toBe(1);
     expect(q.shift()).toEqual({ kind: "tracking", name: "007_0_between", data: "abc", streaming: false });
   });
+
+  it("marks only a streamed file as streamed (a walk-on comes whole)", () => {
+    const q = new StepQueue();
+    q.push({ messages: [{ type: "tracking", name: "001_0_between", data: "x" }], prompt: null, done: false });
+    expect(q.shift()).toEqual({ kind: "tracking", name: "001_0_between", data: "x" });
+  });
 });
 
 describe("StepQueue", () => {
@@ -83,5 +89,16 @@ describe("StepQueue", () => {
     expect(q.shift()!.kind).toBe("tracking");
     expect(q.shift()!.kind).toBe("line");
     expect(q.empty).toBe(true);
+  });
+});
+
+describe("playClockLeft", () => {
+  it("runs from the file's start", () => {
+    expect(playClockLeft(40, 12.5, false)).toBe(27.5);
+  });
+  it("waits for the ready signal after a change of possession", () => {
+    expect(playClockLeft(25, 6, true)).toBe(25); // not ready yet
+    expect(playClockLeft(25, 6, true, 8.4)).toBe(25); // ready later in the file
+    expect(playClockLeft(25, 18.4, true, 8.4)).toBeCloseTo(15);
   });
 });

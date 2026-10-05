@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <sstream>
@@ -124,13 +125,15 @@ TEST(Match, AudiblesAndHotRoutesBeforeTheSnap) {
         if (prompt["input"] != "hike") return take_suggestion(prompt);
         const Json& o = prompt["options"];
         ++n;
+        // Snap at :10, or once set if the offense is still walking up then.
+        const double at = std::min(10.0, o["set"].get<double>());
         if (n % 3 == 0 && !o["audibles"].empty()) {
             ++audibles;
-            return {{"type", "answer"}, {"play_clock", 10.0}, {"audible", o["audibles"].front()}};
+            return {{"type", "answer"}, {"play_clock", at}, {"audible", o["audibles"].front()}};
         }
         if (n % 3 == 1 && !o["hot_slots"].empty()) {
             ++hot;
-            return {{"type", "answer"}, {"play_clock", 10.0}, {"hot_routes", {{o["hot_slots"].front(), "go"}}}};
+            return {{"type", "answer"}, {"play_clock", at}, {"hot_routes", {{o["hot_slots"].front(), "go"}}}};
         }
         return take_suggestion(prompt);
     });
@@ -204,6 +207,40 @@ TEST(Match, TimeoutsAndTheAutoToggle) {
     }
     EXPECT_GE(home_timeouts, 2);
     EXPECT_TRUE(handed_over);
+    EXPECT_TRUE(replays(m.log()));
+}
+
+TEST(Match, HurryIsADecisionThatReplays) {
+    // The user's side hurries to the line (a button between plays): it's
+    // logged at its tick, and the game replays.
+    Match m(data(), options(12, true));
+    int sent = 0;
+    std::int64_t last_window = -1;
+    for (int k = 0; k < 20000 && sent < 10; ++k) {
+        const Json r = m.advance();
+        ASSERT_FALSE(r.contains("error")) << r["error"];
+        if (r["done"]) break;
+        if (r["window"] == true && r["tick"].get<std::int64_t>() != last_window) {
+            last_window = r["tick"];
+            if (!m.command({{"type", "hurry"}, {"team", "home"}}).has_value()) ++sent;
+        }
+        if (!r["prompt"].is_null()) m.command({{"type", "answer"}, {"auto", true}});
+    }
+    EXPECT_EQ(m.command({{"type", "hurry"}, {"team", "away"}}), "the coach is running that team");
+    // Let the coach finish the game.
+    m.command({{"type", "auto"}, {"team", "home"}, {"on", true}});
+    const Played p = play(m, take_suggestion);
+    EXPECT_TRUE(p.error.empty()) << p.error;
+    std::istringstream in(m.log());
+    int hurries = 0;
+    for (std::string text; std::getline(in, text);) {
+        const Json j = Json::parse(text);
+        if (j.value("input", "") == "hurry") {
+            ++hurries;
+            EXPECT_EQ(j["team"], "home");
+        }
+    }
+    EXPECT_GE(hurries, 3);
     EXPECT_TRUE(replays(m.log()));
 }
 

@@ -470,7 +470,8 @@ void PlaySim::write_header() {
                     {"hash", std::string(to_name(kHashNames, opt_.hash))},
                     {"direction", opt_.offense_right ? "right" : "left"},
                     // Whether the home team attacks +x (the viewer's vertical view uses it).
-                    {"home_right", opt_.offense_right == opt_.offense_home}};
+                    {"home_right", opt_.offense_right == opt_.offense_home},
+                    {"offense", opt_.offense_home ? "home" : "away"}};
     // The line of scrimmage, across the whole field.
     const double x = state_.frame.ball().x;
     info.overlays.push_back(shapes::line("lines", {{x, 0.0}, {x, kFieldWidth}}, "#4fc3f7"));

@@ -56,6 +56,8 @@ class Match {
     //                                   take the coach's suggestion)
     //   {"type": "auto", "team": "home", "on": true}  let the coach take over a side (or give it back)
     //   {"type": "timeout", "team": "home"}           call a timeout (between plays: at once)
+    //   {"type": "hurry", "team": "home"}             between plays, the side hurries to the line
+    //                                                  (on the game's next tick; until the snap)
     //   {"type": "run_to", "tick": 1234}              between plays, run the clock this far, no
     //                                                  further (a live viewer's pace; without it,
     //                                                  each open decision waits for its answer)
@@ -98,6 +100,8 @@ class Match {
     bool answered_ = false;
     std::optional<Json> answer_;      // nullopt with answered_: take the suggestion
     std::array<int, 2> timeout_requests_{};
+    std::array<bool, 2> hurry_requests_{};
+    std::array<bool, 2> hurried_{};  // taken this window (another press does nothing)
     Json outbox_ = Json::array();
 
     // Between plays (live).

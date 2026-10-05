@@ -1,6 +1,7 @@
 // The rules table (data/rules/*.json), the game flow tuning
 // (data/tuning/game.json), and the auto coach (tuning/coach.json, tactics/situations.json).
 
+#include <cmath>
 #include <stdexcept>
 
 #include "cfbsim/data/load.h"
@@ -102,7 +103,7 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.ready_delay = te.number("ready_delay");
 
     const Reader bp = root.at("between_plays");
-    bp.allow_only({"call", "huddle", "defense_call", "line_up"});
+    bp.allow_only({"call", "huddle", "defense_call", "line_up", "walks"});
     const Reader call = bp.at("call");
     call.allow_only({"huddle", "no_huddle", "hurry"});
     t.call_huddle = call.number("huddle");
@@ -111,6 +112,42 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.huddle_seconds = bp.number("huddle");
     t.defense_call_after = bp.number("defense_call");
     t.line_up = bp.number("line_up");
+    const Reader w = bp.at("walks");
+    w.allow_only({"pace", "bands", "work_rate_tilt", "need_margin", "accel", "due", "ball_spotted"});
+    const Reader pace = w.at("pace");
+    pace.allow_only({"walk", "jog", "hurry"});
+    t.walk_pace = pace.number("walk");
+    t.jog_pace = pace.number("jog");
+    t.hurry_share = pace.number("hurry");
+    if (t.walk_pace <= 0.0 || t.jog_pace <= t.walk_pace) pace.fail("paces must be above 0 and rise: walk < jog");
+    if (t.hurry_share <= 0.0 || t.hurry_share > 1.0) pace.fail("hurry is a share of top speed, in (0, 1]");
+    const Reader bands = w.at("bands");
+    bands.for_each([&](const Reader& b) {
+        b.allow_only({"above", "odds"});
+        GameTuning::PaceBand band;
+        band.above = b.number("above");
+        const Reader odds = b.at("odds");
+        if (odds.size() != 3) odds.fail("odds are [walk, jog, hurry]");
+        double sum = 0.0;
+        for (std::size_t k = 0; k < 3; ++k) {
+            const Reader x = odds.at(k);
+            if (!x.is_number() || x.json().get<double>() < 0.0) x.fail("expected a number at or above 0");
+            band.odds[k] = x.json().get<double>();
+            sum += band.odds[k];
+        }
+        if (std::abs(sum - 1.0) > 1e-6) odds.fail("odds must add up to 1");
+        if (!t.pace_bands.empty() && band.above >= t.pace_bands.back().above) b.fail("bands go from the most time left down");
+        t.pace_bands.push_back(band);
+    });
+    if (t.pace_bands.empty()) bands.fail("at least one band");
+    t.work_rate_tilt = w.number("work_rate_tilt");
+    t.need_margin = w.number("need_margin");
+    t.walk_accel = w.number("accel");
+    const Reader due = w.at("due");
+    due.allow_only({"huddle", "line"});
+    t.huddle_due = due.number("huddle");
+    t.line_due = due.number("line");
+    t.ball_spotted = w.number("ball_spotted");
 
     const Reader f = root.at("fatigue");
     f.allow_only({"drain_base", "drain_per_yard", "drain_per_engaged", "drain_per_contact", "stamina",

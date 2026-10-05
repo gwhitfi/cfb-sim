@@ -1,7 +1,8 @@
-// The between-plays animation (see cfbsim/play/interlude.h): kinematic walks
-// between a few stops, eased in and out. No ratings, no randomness: the
-// stops and the times come from the game, and where the next play lines
-// everyone up comes from the play's own setup (play_start, kick_start).
+// Between plays (see cfbsim/play/interlude.h): kinematic walks, stepped every
+// 4 ticks. Each walk has a pace (walk, jog, hurry) and nobody ever goes
+// faster than his; the stops and the times come from the game, and where the
+// next play lines everyone up comes from the play's own setup (play_start,
+// kick_start).
 
 #include "cfbsim/play/interlude.h"
 
@@ -13,82 +14,90 @@ namespace cfbsim {
 
 namespace {
 
-constexpr std::int64_t kFrameTicks = 4;
-
-// One walk: from `a` at t0 to `b` at t1 (s), then standing, facing `face`.
-struct Leg {
-    double t0 = 0.0, t1 = 0.0;
-    Vec2 a, b;
-    Vec2 face{1.0, 0.0};
-};
+constexpr std::int64_t kStepTicks = 4;
+constexpr double kStep = static_cast<double>(kStepTicks) * kTickSeconds;
 
 std::size_t side_index(TeamSide s) { return s == TeamSide::Home ? 0 : 1; }
 Vec2 toward_field(TeamSide side) { return {0.0, side == TeamSide::Home ? 1.0 : -1.0}; }
 double secs(std::int64_t tick) { return static_cast<double>(tick) * kTickSeconds; }
+Pace faster(Pace a, Pace b) { return a > b ? a : b; }
 
 }  // namespace
 
-struct Between::Path {
-    Vec2 start;
-    Vec2 start_face{1.0, 0.0};
-    std::vector<Leg> legs;
+// ---------------------------------------------------------------------------
+// The pace
+// ---------------------------------------------------------------------------
 
-    // Where he is at `t` (s), how fast he's going, and which way he faces.
-    void at(double t, Vec2& pos, Vec2& vel, Vec2& facing) const {
-        pos = start;
-        vel = {};
-        facing = start_face;
-        for (const Leg& l : legs) {
-            if (t <= l.t0) return;
-            if (t >= l.t1) {
-                pos = l.b;
-                facing = l.face;
-                continue;
-            }
-            // Smoothstep: 0 to 1 with no speed at either end.
-            const double u = (t - l.t0) / (l.t1 - l.t0);
-            const Vec2 d = l.b - l.a;
-            pos = l.a + d * (u * u * (3.0 - 2.0 * u));
-            vel = d * (6.0 * u * (1.0 - u) / (l.t1 - l.t0));
-            if (d.length() > 0.2) facing = d.normalized();
-            return;
+Pace drawn_pace(double u, double work_rate, double clock_left, const GameTuning& t) {
+    const GameTuning::PaceBand* band = &t.pace_bands.back();
+    for (const GameTuning::PaceBand& b : t.pace_bands) {
+        if (clock_left > b.above) {
+            band = &b;
+            break;
         }
     }
-
-    // Drops the plan after `t`: a walk under way stops where he is then.
-    void cut(double t) {
-        Vec2 pos, vel, facing;
-        at(t, pos, vel, facing);
-        std::erase_if(legs, [&](const Leg& l) { return l.t0 >= t; });
-        if (!legs.empty() && legs.back().t1 > t) {
-            legs.back().b = pos;
-            legs.back().t1 = t;
-        }
+    // A hard worker's draw sits higher, toward the faster paces.
+    const double x = std::clamp(u + t.work_rate_tilt * (work_rate - 50.0) / 50.0, 0.0, 1.0 - 1e-12);
+    double sum = 0.0;
+    for (std::size_t k = 0; k < 3; ++k) {
+        sum += band->odds[k];
+        if (x < sum) return static_cast<Pace>(k);
     }
+    return Pace::Hurry;
+}
 
-    // From wherever he is at `at`, walks to `to` at `speed`, there by `latest` when he can be.
-    void walk(double when, Vec2 to, Vec2 face, double speed, std::optional<double> latest) {
-        cut(when);
-        Vec2 from, vel, facing;
-        at(when, from, vel, facing);
-        double take = std::max(0.6, (to - from).length() / speed);
-        if (latest && when + take > *latest) take = std::max(0.4, *latest - when);
-        legs.push_back({when, when + take, from, to, face});
+Pace needed_pace(double distance, double seconds, double top_speed, const GameTuning& t) {
+    const double need = distance * t.need_margin / std::max(seconds, 0.2);
+    for (const Pace p : {Pace::Walk, Pace::Jog}) {
+        if (pace_speed(p, top_speed, t) >= need) return p;
     }
+    return Pace::Hurry;
+}
 
-    double done() const { return legs.empty() ? 0.0 : legs.back().t1; }
-};
+double pace_speed(Pace p, double top_speed, const GameTuning& t) {
+    switch (p) {
+        case Pace::Walk:
+            return t.walk_pace;
+        case Pace::Jog:
+            return t.jog_pace;
+        case Pace::Hurry:
+            break;
+    }
+    return std::max(t.jog_pace, t.hurry_share * top_speed);
+}
+
+// ---------------------------------------------------------------------------
+// The walks
+// ---------------------------------------------------------------------------
 
 struct Between::Man {
     std::string id;
     TeamSide team = TeamSide::Home;
     std::size_t agent = 0;  // index in the world (and in each frame's rows)
-    Path path;
-    bool on = true;         // in his side's lineup (off: walking to the sideline)
+    double top_speed = 9.0;
+    double work_rate = 50.0;
+
+    Vec2 pos, facing{1.0, 0.0};
+    double speed = 0.0;
+    bool on = true;      // in his side's lineup (off: walking to the sideline)
+    bool coming = false; // coming on, not yet inside the sideline
+
+    // Where he's going.
+    bool walking = false;
+    Vec2 to, face;
+    std::optional<double> due;  // s
+    Pace pace = Pace::Walk;
+    double u = 0.0;             // this walk's draw
+    std::size_t band = 0;       // the clock band the pace was drawn in
+
+    // His stops: the huddle, then (once his side is in) his spot.
+    bool in_ring = false;  // the huddle is where he's going (or standing)
+    std::optional<Spot> spot;
 };
 
 Between::Between(std::unique_ptr<std::ostream> out, TrackingInfo info, const PlayFrame& frame, TeamSide offense,
-                 bool huddle, const MovementTuning& movement, const PlayTuning& t)
+                 bool huddle, const MovementTuning& movement, const PlayTuning& play, const GameTuning& game,
+                 Rng* rng)
     : stream_(std::move(out)),
       out_(stream_ ? std::make_unique<TrackingWriter>(*stream_) : nullptr),
       info_(std::move(info)),
@@ -96,9 +105,13 @@ Between::Between(std::unique_ptr<std::ostream> out, TrackingInfo info, const Pla
       offense_(offense),
       huddle_(huddle),
       movement_(movement),
-      t_(t),
+      t_(play),
+      g_(game),
+      rng_(rng),
       world_(movement, 0) {
-    info_.frame_ticks = static_cast<int>(kFrameTicks);
+    info_.frame_ticks = static_cast<int>(kStepTicks);
+    // Where the ball will be spotted: the camera's aim before it is.
+    info_.details["spot"] = {frame_.ball().x, frame_.ball().y};
 }
 
 Between::~Between() = default;
@@ -115,9 +128,11 @@ Between::Man& Between::add(const BetweenMan& m, Vec2 pos, Vec2 facing, bool anno
     man->id = m.player->id;
     man->team = m.team;
     man->agent = static_cast<std::size_t>(world_.add_agent(make_agent(*m.player, m.team, m.label, {}, movement_)));
-    man->path.start = pos;
-    man->path.start_face = facing;
     Agent& a = world_.agents()[man->agent];
+    man->top_speed = a.move.top_speed;
+    man->work_rate = a.ratings[Attr::WorkRate];
+    man->pos = pos;
+    man->facing = facing;
     a.pos = pos;
     a.facing = facing;
     if (announce && out_) out_->player(a);
@@ -142,80 +157,157 @@ Vec2 Between::bench(TeamSide side) {
     return {frame_.ball().x + (static_cast<double>(k % 12) - 5.5) * 1.5, y};
 }
 
-void Between::start(const std::vector<BetweenMan>& men, std::int64_t ball_tick) {
+double Between::clock_left(std::int64_t tick) const {
+    if (!clock_start_ || tick < *clock_start_) return play_clock_;
+    return play_clock_ - secs(tick - *clock_start_);
+}
+
+void Between::walk(Man& m, std::int64_t tick, Vec2 to, Vec2 face, std::optional<double> due) {
+    m.to = to;
+    m.face = face;
+    m.due = due;
+    m.walking = true;
+    m.u = rng_ ? rng_->uniform() : 0.0;
+    const double left = clock_left(tick);
+    m.band = 0;
+    while (m.band + 1 < g_.pace_bands.size() && left <= g_.pace_bands[m.band].above) ++m.band;
+    m.pace = rng_ ? drawn_pace(m.u, m.work_rate, left, g_) : Pace::Walk;
+}
+
+void Between::start(const std::vector<BetweenMan>& men, std::int64_t ball_tick, std::optional<std::int64_t> due) {
     ball_tick_ = ball_tick;
     std::size_t n[2] = {0, 0}, k[2] = {0, 0};
     for (const BetweenMan& m : men) ++n[side_index(m.team)];
-    std::vector<std::pair<Man*, Vec2>> walks;
-    std::vector<Vec2> faces;
     for (const BetweenMan& m : men) {
         const std::size_t s = side_index(m.team);
         Vec2 face;
         const Vec2 r = ring(m.team, k[s]++, n[s], &face);
         Man& man = add(m, m.at ? m.at->pos : r, m.at ? m.at->facing : face, false);
-        if (m.at) {
-            walks.emplace_back(&man, r);
-            faces.push_back(face);
-        }
+        man.in_ring = true;
+        const std::optional<double> by = due && m.team == offense_ ? std::optional<double>(secs(*due)) : std::nullopt;
+        walk(man, 0, r, face, by);
     }
-    if (out_) out_->header(info_, world_);
+    if (out_) {
+        out_->header(info_, world_);
+        frame(0);
+    }
     started_ = true;
-    for (std::size_t i = 0; i < walks.size(); ++i) {
-        walks[i].first->path.walk(0.0, walks[i].second, faces[i], t_.walk_back, std::nullopt);
-    }
+}
+
+void Between::clock(double play_clock, std::optional<std::int64_t> start) {
+    play_clock_ = play_clock;
+    clock_start_ = start;
+}
+
+void Between::floor(std::int64_t tick, TeamSide side, Pace p) {
+    run_to(tick);
+    floor_[side_index(side)] = p;
 }
 
 void Between::lineup(std::int64_t tick, TeamSide side, const std::vector<BetweenMan>& men,
-                     const std::vector<Spot>& spots, std::optional<std::int64_t> break_tick,
-                     std::optional<std::int64_t> set_tick) {
-    const double t = secs(tick);
+                     const std::vector<Spot>& spots, bool hold, std::optional<std::int64_t> ring_due) {
+    run_to(tick);
     std::set<std::string> in;
     for (const BetweenMan& m : men) in.insert(m.player->id);
     for (auto& m : men_) {
         if (m->team != side || !m->on || in.contains(m->id)) continue;
         m->on = false;  // going off
-        m->path.walk(t, bench(side), toward_field(side), t_.sideline_jog, std::nullopt);
+        m->in_ring = false;
+        m->spot.reset();
+        walk(*m, tick, bench(side), toward_field(side), std::nullopt);
     }
+    spots_in_[side_index(side)] = !spots.empty();
     std::size_t k = 0;
     for (const BetweenMan& bm : men) {
         Man* m = find(bm.player->id);
-        const bool coming_on = !m || !m->on;
-        if (!m) m = &add(bm, bench(side), toward_field(side), true);
+        if (!m) {
+            m = &add(bm, bench(side), toward_field(side), true);
+            m->coming = true;
+        } else if (!m->on) {
+            m->coming = m->pos.y < 0.0 || m->pos.y > kFieldWidth;
+        }
         m->on = true;
         const auto s = std::find_if(spots.begin(), spots.end(), [&](const Spot& x) { return x.id == m->id; });
+        m->spot = s != spots.end() ? std::optional<Spot>(*s) : std::nullopt;
         Vec2 face;
         const Vec2 r = ring(side, k++, men.size(), &face);
-        const double speed = coming_on ? t_.sideline_jog : t_.walk_back;
-        const auto by = [&](std::int64_t earliest) -> std::optional<double> {
-            if (!set_tick) return std::nullopt;
-            return secs(std::max(*set_tick, earliest));
-        };
-        if (break_tick && *break_tick > tick) {
-            m->path.walk(t, r, face, speed, std::max(t + 0.5, secs(*break_tick) - 0.3));
-            if (s != spots.end()) m->path.walk(secs(*break_tick), s->pos, s->facing, t_.jog_speed, by(*break_tick + 20));
-        } else if (s != spots.end()) {
-            m->path.walk(t, s->pos, s->facing, std::max(speed, t_.jog_speed), by(tick + 40));
+        if (hold || !m->spot) {
+            m->in_ring = true;
+            walk(*m, tick, r, face, ring_due ? std::optional<double>(secs(*ring_due)) : std::nullopt);
         } else {
-            m->path.walk(t, r, face, speed, std::nullopt);
+            m->in_ring = false;
+            walk(*m, tick, m->spot->pos, m->spot->facing, std::nullopt);
         }
     }
 }
 
-void Between::respot(std::int64_t tick, const std::vector<Spot>& spots, std::int64_t by) {
+void Between::release(std::int64_t tick, TeamSide side) {
+    run_to(tick);
+    for (auto& m : men_) {
+        if (m->team != side || !m->on || !m->in_ring || !m->spot) continue;
+        m->in_ring = false;
+        walk(*m, tick, m->spot->pos, m->spot->facing, std::nullopt);
+    }
+}
+
+void Between::respot(std::int64_t tick, const std::vector<Spot>& spots) {
+    run_to(tick);
     for (const Spot& s : spots) {
-        if (Man* m = find(s.id)) {
-            m->path.walk(secs(tick), s.pos, s.facing, t_.jog_speed, secs(std::max(by, tick + 20)));
-        }
+        Man* m = find(s.id);
+        if (!m || !m->on) continue;
+        m->spot = s;
+        if (!m->in_ring) walk(*m, tick, s.pos, s.facing, std::nullopt);
     }
 }
 
 void Between::event(std::int64_t tick, const std::string& name) { events_.emplace_back(tick, name); }
 
-void Between::frame(std::int64_t tick, const std::map<std::string, Spot>* exact) {
-    if (!out_) {
-        written_ = tick;
-        return;
+void Between::step(std::int64_t tick) {
+    const double now = secs(tick);
+    const double left = clock_left(tick);
+    // The line's due time: the play clock at :08 (none until it runs).
+    std::optional<double> line_due;
+    if (clock_start_) line_due = secs(*clock_start_) + play_clock_ - g_.line_due;
+    for (auto& mp : men_) {
+        Man& m = *mp;
+        if (!m.walking) continue;
+        const Vec2 d = m.to - m.pos;
+        const double dist = d.length();
+        // His pace: drawn again as the clock crosses into a new band; raised
+        // to what he needs to get there in time, and to his side's floor. It
+        // only goes up during a walk.
+        std::size_t band = 0;
+        while (band + 1 < g_.pace_bands.size() && left <= g_.pace_bands[band].above) ++band;
+        if (band != m.band) {
+            m.band = band;
+            if (rng_) m.pace = faster(m.pace, drawn_pace(m.u, m.work_rate, left, g_));
+        }
+        std::optional<double> due = m.due;
+        if (!due && m.on && !m.in_ring && m.spot) due = line_due;
+        if (due) m.pace = faster(m.pace, needed_pace(dist, *due - now, m.top_speed, g_));
+        m.pace = faster(m.pace, floor_[side_index(m.team)]);
+        // Substitutes run on and off.
+        if (m.coming || !m.on) m.pace = faster(m.pace, Pace::Jog);
+
+        const double v = pace_speed(m.pace, m.top_speed, g_);
+        m.speed = std::min({v, m.speed + g_.walk_accel * kStep, std::sqrt(2.0 * t_.arrive_decel * dist) + 0.3});
+        const double go = m.speed * kStep;
+        if (go >= dist) {
+            m.pos = m.to;
+            m.facing = m.face;
+            m.speed = 0.0;
+            m.walking = false;
+        } else {
+            const Vec2 dir = d * (1.0 / dist);
+            m.pos = m.pos + dir * go;
+            m.facing = dir;
+        }
+        if (m.coming && m.pos.y >= 0.0 && m.pos.y <= kFieldWidth) m.coming = false;
     }
+}
+
+void Between::frame(std::int64_t tick, const std::map<std::string, Spot>* exact) {
+    if (!out_) return;
     std::stable_sort(events_.begin(), events_.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     while (!events_.empty() && events_.front().first <= tick) {
         world_.set_tick(std::max<std::int64_t>(0, events_.front().first));
@@ -224,7 +316,9 @@ void Between::frame(std::int64_t tick, const std::map<std::string, Spot>* exact)
     }
     for (const auto& m : men_) {
         Agent& a = world_.agents()[m->agent];
-        m->path.at(secs(tick), a.pos, a.vel, a.facing);
+        a.pos = m->pos;
+        a.facing = m->facing;
+        a.vel = m->walking ? m->facing * m->speed : Vec2{};
         if (exact) {
             if (const auto it = exact->find(m->id); it != exact->end()) {
                 a.pos = it->second.pos;
@@ -243,27 +337,65 @@ void Between::frame(std::int64_t tick, const std::map<std::string, Spot>* exact)
 
 void Between::run_to(std::int64_t tick) {
     if (!started_) return;
-    for (std::int64_t f = written_ < 0 ? 0 : (written_ / kFrameTicks + 1) * kFrameTicks; f <= tick; f += kFrameTicks) {
-        frame(f);
+    for (std::int64_t s = next_step(stepped_); s <= tick; s += kStepTicks) {
+        step(s);
+        stepped_ = s;
+        frame(s);
     }
 }
 
-std::int64_t Between::arrived() const {
-    double end = 0.0;
+std::int64_t Between::next_step(std::int64_t tick) { return (tick / kStepTicks + 1) * kStepTicks; }
+
+bool Between::gathered(TeamSide side) const {
+    bool any = false;
     for (const auto& m : men_) {
-        if (m->on) end = std::max(end, m->path.done());
+        if (m->team != side || !m->on) continue;
+        if (!m->in_ring || m->walking) return false;
+        any = true;
     }
-    return static_cast<std::int64_t>(std::ceil(end * kTicksPerSecond));
+    return any;
+}
+
+bool Between::arrived(TeamSide side) const {
+    if (!spots_in_[side_index(side)]) return false;
+    for (const auto& m : men_) {
+        if (m->team != side || !m->on) continue;
+        if (m->in_ring || !m->spot || m->walking) return false;
+    }
+    return true;
+}
+
+bool Between::on_field() const {
+    return std::none_of(men_.begin(), men_.end(), [](const auto& m) { return m->on && m->coming; });
+}
+
+bool Between::settled() const {
+    return std::none_of(men_.begin(), men_.end(), [](const auto& m) { return m->walking; });
+}
+
+std::vector<Spot> Between::where() const {
+    std::vector<Spot> out;
+    for (const auto& m : men_) {
+        if (!m->on) continue;
+        const Agent& a = world_.agents()[m->agent];
+        out.push_back({m->id, a.label, m->team, m->pos, m->facing});
+    }
+    return out;
 }
 
 void Between::finish(std::int64_t tick, const std::vector<Spot>& exact, const std::string& last) {
     if (!started_) return;
-    run_to(tick - 1);
-    tick = std::max(tick, written_ + 1);
-    std::map<std::string, Spot> spots;
-    for (const Spot& s : exact) spots[s.id] = s;
-    frame(tick, &spots);
+    // The steps before the last tick, then the last frame with the play's own spots.
+    for (std::int64_t s = next_step(stepped_); s <= tick; s += kStepTicks) {
+        step(s);
+        stepped_ = s;
+        if (s < tick) frame(s);
+    }
     if (out_) {
+        tick = std::max(tick, written_ + 1);
+        std::map<std::string, Spot> spots;
+        for (const Spot& s : exact) spots[s.id] = s;
+        frame(tick, &spots);
         world_.set_tick(tick);
         for (const auto& e : events_) out_->event(world_, e.second);
         events_.clear();

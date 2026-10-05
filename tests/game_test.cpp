@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <map>
 #include <memory>
 #include <set>
@@ -275,7 +276,8 @@ std::map<std::string, std::pair<double, double>> frame_spots(const std::string& 
 }  // namespace
 
 TEST(Game, BetweenPlaysIsOnlyToWatch) {
-    // The animation is visual only: a game with tracking is the same game.
+    // The walks run in every game; tracking only writes them down, so a game
+    // with tracking is the same game.
     Tracked tracked;
     GameOptions o = options(4);
     o.tracking = [&](const std::string& name) -> std::unique_ptr<std::ostream> {
@@ -306,4 +308,50 @@ TEST(Game, BetweenPlaysIsOnlyToWatch) {
     }
     EXPECT_GT(pairs, 150);
     EXPECT_GT(scrimmage, 100);
+
+    // Nobody warps (game-flow.md, step 5): between two frames, nobody moves
+    // faster than a hurry (65% of top speed: under 8 yd/s), the last frame too.
+    // After a change of possession the play clock waits for the ready signal.
+    int waited = 0;
+    for (const auto& [name, text] : tracked.files) {
+        if (name.find("_between") == std::string::npos) continue;
+        std::istringstream in(text);
+        std::vector<std::string> ids;
+        std::map<std::string, std::pair<double, double>> last;
+        std::int64_t last_tick = -1, ready = -1, called = -1;
+        bool waits = false;
+        for (std::string line; std::getline(in, line);) {
+            const Json j = Json::parse(line);
+            if (j["type"] == "header") {
+                waits = j["details"].value("waits_for_ready", false);
+                for (const Json& p : j["players"]) ids.push_back(p["id"]);
+            } else if (j["type"] == "player") {
+                ids.push_back(j["id"]);
+            } else if (j["type"] == "event" && j["event"] == "ready") {
+                ready = j["tick"];
+            } else if (j["type"] == "event" && j["event"] == "play_called" && called < 0) {
+                called = j["tick"];
+            } else if (j["type"] == "tick") {
+                const std::int64_t tick = j["tick"];
+                for (std::size_t k = 0; k < ids.size() && k < j["p"].size(); ++k) {
+                    const std::pair<double, double> at = {j["p"][k][0], j["p"][k][1]};
+                    if (const auto it = last.find(ids[k]); it != last.end() && tick > last_tick) {
+                        const double moved = std::hypot(at.first - it->second.first, at.second - it->second.second);
+                        EXPECT_LE(moved / (static_cast<double>(tick - last_tick) * kTickSeconds), 8.0)
+                            << ids[k] << " in " << name << " at tick " << tick;
+                    }
+                    last[ids[k]] = at;
+                }
+                last_tick = tick;
+            }
+        }
+        if (waits) {
+            ++waited;
+            EXPECT_GE(ready, 3 * kTicksPerSecond) << name << ": the ball is spotted first";
+            if (called >= 0) {
+                EXPECT_GE(called, ready) << name << ": nothing is decided before the ready signal";
+            }
+        }
+    }
+    EXPECT_GT(waited, 5);
 }

@@ -6,6 +6,7 @@
 #include "cfbsim/core/vec.h"
 #include "cfbsim/data/enums.h"
 
+#include <array>
 #include <map>
 #include <string>
 #include <string_view>
@@ -50,7 +51,6 @@ struct PlayTuning {
     double arrive_decel = 3.0;
     double set_seconds = 1.0;
     double presnap_max_seconds = 20.0;
-    double walk_back = 3.0, sideline_jog = 4.5;  // between plays (the animation)
 
     // Reaction delays: the offense's get-off at the snap, and noticing a throw
     // or handoff. delay = curve(blend of ratings) + normal noise.
@@ -550,6 +550,24 @@ struct GameTuning {
     double huddle_seconds = 6.0;
     double defense_call_after = 2.0;
     double line_up = 3.0;
+
+    // The walks between plays (game-flow.md, step 5): each player's pace,
+    // walk, jog, or hurry, drawn by play clock band (`odds` above `above`
+    // s left), tilted by Work Rate, raised to what he needs to get there by
+    // his walk's due time.
+    struct PaceBand {
+        double above = 0.0;
+        std::array<double, 3> odds{};  // walk, jog, hurry
+    };
+    double walk_pace = 1.8, jog_pace = 4.5;  // yd/s
+    double hurry_share = 0.65;               // of his top speed
+    std::vector<PaceBand> pace_bands;        // highest first
+    double work_rate_tilt = 0.15;
+    double need_margin = 1.1;
+    double walk_accel = 3.0;                 // yd/s^2
+    double huddle_due = 2.0;                 // s: to the huddle once the call is in
+    double line_due = 8.0;                   // play clock reading: at the alignment by then
+    double ball_spotted = 3.0;               // s after the whistle
 
     // Fatigue.
     double drain_base = 0.012, drain_per_yard = 0.0006, drain_per_engaged = 0.008,

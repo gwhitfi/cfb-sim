@@ -10,7 +10,7 @@ import { parseTracking, TrackingError, X, Y, STRIDE, type Recording } from "./tr
 import { Live } from "./live";
 import { TopBar } from "./topbar";
 import type { Defaults } from "./settings";
-import { DEFAULT_YARDS, VERTICAL_LEAD, followPoint, followX, viewTurns, type Behind, type ViewMode } from "./view";
+import { DEFAULT_YARDS, VERTICAL_LEAD, easeToward, followPoint, viewTurns, type Behind, type ViewMode } from "./view";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -30,6 +30,9 @@ const zoomSelect = $<HTMLSelectElement>("zoom");
 // user has dragged the view off the ball on this play (not saved).
 const zoomYards: Record<ViewMode, number> = { ...DEFAULT_YARDS };
 let panOffset: [number, number] = [0, 0];
+// The point the camera follows, eased (see easeToward); null: none yet.
+let follow: [number, number] | null = null;
+let followFrame = -1; // the frame it was last moved at
 
 const PLAY_ICON = `<svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 2v12l10-6z" fill="currentColor"/></svg>`;
 const PAUSE_ICON = `<svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 2h4v12H3zM9 2h4v12H9z" fill="currentColor"/></svg>`;
@@ -70,6 +73,7 @@ function load(text: string, name: string, repoPath?: string): boolean {
   applyDevMode();
   pb.seek(keepFrame);
   if (!sameFile) panOffset = [0, 0];
+  updateFollow(0); // (eases on from the last file when it's nearby: between plays into the snap)
   if (!sameFile) {
     opts.selected = null;
     opts.hiddenLayers.clear();
@@ -640,7 +644,7 @@ function fitView(): void {
 // The point the camera centers on: the ball (or the players), and in the
 // vertical view VERTICAL_LEAD yards up the screen from it.
 function anchor(): [number, number] {
-  const [x, y] = (pb && followPoint(pb.rec, pb.frame)) ?? [cam.cx, cam.cy];
+  const [x, y] = follow ?? [cam.cx, cam.cy];
   if (viewMode() !== "vertical") return [x, y];
   const [dx, dy] = cam.upBy(VERTICAL_LEAD);
   return [x + dx, y + dy];
@@ -648,8 +652,17 @@ function anchor(): [number, number] {
 
 // The unzoomed vertical view's center along the field.
 function verticalX(): number {
-  const x = pb && followX(pb.rec, pb.frame);
-  return x == null ? 60 : x + cam.upBy(VERTICAL_LEAD)[0];
+  return follow == null ? 60 : follow[0] + cam.upBy(VERTICAL_LEAD)[0];
+}
+
+// Moves the followed point on by `dt` s of real time: eased while playing;
+// paused, it holds, and a scrub or a step goes straight there.
+function updateFollow(dt: number): void {
+  const to = pb && followPoint(pb.rec, pb.frame);
+  if (!to) return;
+  if (pb!.playing || dt === 0) follow = easeToward(follow, to, dt * pb!.speed);
+  else if (pb!.frame !== followFrame) follow = to;
+  followFrame = pb!.frame;
 }
 
 function fixedZoom(): boolean {
@@ -728,6 +741,7 @@ function loop(now: number): void {
   lastTime = now;
   if (pb) {
     pb.advance(dt);
+    updateFollow(dt);
     // Fixed zoom follows the ball; so does the vertical camera, yard for yard.
     if (fixedZoom()) frameFixed();
     else if (viewMode() === "vertical") cam.cx = pb.rec.header.players.length ? verticalX() : cam.cx;
