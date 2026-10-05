@@ -191,6 +191,7 @@ struct SlotInfo {
     Vec2 aligned;                            // play frame
     double scheme_pk = 50.0;                 // Playbook Knowledge in this playbook's scheme
     double familiarity = 100.0;              // Position Familiarity at the slot's position
+    bool late = false;                       // a defender who started the play away from `aligned`
 };
 
 enum class PlayPhase : std::uint8_t { PreSnap, Live, Dead };
@@ -371,6 +372,14 @@ class PlayState {
     // The way player i's team is going.
     Vec2 downfield_for(int i) const { return is_offense(i) ? downfield() : downfield() * -1.0; }
     Vec2 play_pos(int i) const { return frame.to_play(agent(i).pos); }
+    // Where he lines up, as the play reads it at the snap: his slot's spot if
+    // he was still on his way there (a late defender: a lineman walking up
+    // is still a lineman), else where he stands.
+    Vec2 set_pos(int i) const {
+        const SlotInfo& s = slots[static_cast<std::size_t>(i)];
+        return s.late ? s.aligned : play_pos(i);
+    }
+    bool late(int i) const { return slots[static_cast<std::size_t>(i)].late; }
 
     double openness(int i) const {
         return open.empty() ? 1.0 : open[static_cast<std::size_t>(i)];

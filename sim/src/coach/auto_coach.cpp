@@ -226,8 +226,17 @@ PlayCall AutoCoach::offense_call(const GameState& g, bool try_play) {
     return {p->id, flip};
 }
 
-std::string AutoCoach::defense_call(const GameState& g, const Play* offense_play) {
-    const Play* p = draw(defense_weights(g, offense_play));
+std::string AutoCoach::defense_call(const GameState& g, const Play* offense_play, const std::string& stay_in) {
+    Weighted w = defense_weights(g, offense_play);
+    if (!stay_in.empty()) {
+        Weighted in;
+        for (const auto& [p, x] : w) {
+            const auto f = data_.formations.find(p->formation);
+            if (f != data_.formations.end() && f->second.package == stay_in) in.emplace_back(p, x);
+        }
+        if (!in.empty()) w = std::move(in);
+    }
+    const Play* p = draw(w);
     recent_defense_.push_back(p->id);
     while (static_cast<int>(recent_defense_.size()) > t_.repeat_window) recent_defense_.pop_front();
     return p->id;
@@ -279,9 +288,20 @@ Tempo AutoCoach::tempo(const GameState& g) const {
 
 double AutoCoach::hike(const GameState& g, double play_clock) {
     const GameTuning& t = data_.tuning.game;
-    std::pair<double, double> range = tactics_.offense.tempo == Tempo::Hurry      ? t.tempo_hurry
-                                      : tactics_.offense.tempo == Tempo::NoHuddle ? t.tempo_no_huddle
-                                                                                  : t.tempo_normal;
+    std::pair<double, double> range = t.tempo_normal;
+    switch (tactics_.offense.tempo) {
+        case Tempo::Huddle:
+            break;
+        case Tempo::Sugar:
+            range = t.tempo_sugar;
+            break;
+        case Tempo::NoHuddle:
+            range = t.tempo_no_huddle;
+            break;
+        case Tempo::Hurry:
+            range = t.tempo_hurry;
+            break;
+    }
     if (two_minute(g, side_)) {
         range = t.tempo_hurry;
     } else if (milking(g)) {

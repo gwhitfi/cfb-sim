@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -64,6 +65,8 @@ void print_usage() {
            "      --seed N              --target SLOT  make the QB throw to SLOT\n"
            "      --no-huddle           start set and snap at once\n"
            "      --hold                the QB never throws (time the protection)\n"
+           "      --late-defense S      every defender starts S s short of his spot, walking up\n"
+           "                            to it from deeper (implies --no-huddle)\n"
            "      --runs N              run N seeds (seed, seed+1, ...) and summarize\n"
            "      --out FILE.jsonl      write a tracking file (first run)   --data DIR\n"
            "  matrix                  every pass play against every defensive play\n"
@@ -448,6 +451,33 @@ int cmd_run_play(const Options& opt) {
     const auto runs = number_option(opt, "runs", 1);
     if (!yard_line || !seed || !runs) return 1;
     o.yard_line = *yard_line;
+    if (opt.has("late-defense")) {
+        // A defense caught still lining up (game-flow.md, step 6): each
+        // defender is S seconds short of his spot, walking straight up to it
+        // from deeper (as from the shell), easing in as the walks between
+        // plays do.
+        const auto late = number_option(opt, "late-defense", 0.0);
+        if (!late) return 1;
+        if (o.defense.empty()) {
+            std::cerr << "cfbsim run-play: --late-defense needs --defense\n";
+            return 1;
+        }
+        o.huddle = false;
+        const double jog = report.data.tuning.game.jog_pace;
+        const double ease = report.data.tuning.play.arrive_decel;
+        const cfbsim::PlayFrame frame(o.yard_line, o.hash, o.offense_right, false);
+        const cfbsim::Vec2 up = frame.dir_to_field({0.0, -1.0});  // toward the line, for the defense
+        const cfbsim::TeamSide defense = o.offense_home ? cfbsim::TeamSide::Away : cfbsim::TeamSide::Home;
+        for (const cfbsim::Spot& spot : cfbsim::play_start(report.data, o)) {
+            if (spot.team != defense) continue;
+            const double short_by = *late * jog;
+            cfbsim::Spot start = spot;
+            start.pos = spot.pos - up * short_by;
+            start.vel = up * std::min(jog, std::sqrt(2.0 * ease * short_by) + 0.3);
+            start.facing = up;
+            o.defense_start[spot.id] = start;
+        }
+    }
 
     std::ofstream file;
     std::unique_ptr<cfbsim::TrackingWriter> tracking;

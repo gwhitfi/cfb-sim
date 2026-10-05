@@ -1,40 +1,62 @@
-# GoogleTest suites. Each *_test.cpp file holds related tests; all go into one
-# executable, and gtest_discover_tests registers each TEST() with CTest.
-add_executable(cfbsim_tests
+# GoogleTest suites, in three executables by how long they take, so the
+# quick ones can run on their own and a stuck test can't hold up the rest:
+#
+#   cfbsim_unit_tests  data, rules, geometry, the walks: seconds in all
+#   cfbsim_play_tests  the play sim, many plays per test
+#   cfbsim_game_tests  full games, the Match, the coach, special teams
+#
+# gtest_discover_tests registers each TEST() with CTest, with a per-test
+# TIMEOUT (seconds) and a LABEL (unit, play, game): `ctest --preset debug -L
+# unit` runs one group, and a test that hangs fails at its timeout instead of
+# running forever. The timeouts are about 3x the slowest test of each group
+# in the debug build (about 10x slower than release): unit tests under 12 s,
+# Blocking.QbNeverThrowsToABackWhoIsBlocking 38 s, Game.BetweenPlaysIsOnlyToWatch
+# 60 s. Raise a group's timeout if a new test needs more.
+
+# One test executable: its sources, linked to the core, with the data path,
+# each test registered with CTest under `label` with `timeout` s.
+function(cfbsim_test_suite name label timeout)
+    add_executable(${name} ${ARGN})
+    target_link_libraries(${name} PRIVATE
+        cfbsim_core
+        cfbsim_options
+        GTest::gtest_main)   # provides main() for the test executable
+    # White-box tests may include the core's internal headers (sim/src).
+    target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR}/sim/src)
+    # Tests that load the real starter data find it through this path.
+    target_compile_definitions(${name} PRIVATE CFBSIM_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
+    gtest_discover_tests(${name} PROPERTIES TIMEOUT ${timeout} LABELS ${label})
+endfunction()
+
+include(GoogleTest)
+
+cfbsim_test_suite(cfbsim_unit_tests unit 30
     attributes_test.cpp
     ball_flight_test.cpp
     between_test.cpp
-    blocking_test.cpp
-    catch_test.cpp
-    tackling_test.cpp
     curve_test.cpp
-    defense_test.cpp
     data_dir_test.cpp
     determinism_test.cpp
     generator_test.cpp
     geometry_test.cpp
+    huddle_test.cpp
     movement_test.cpp
     parse_test.cpp
-    play_test.cpp
     rng_test.cpp
     route_test.cpp
     rules_test.cpp
+    version_test.cpp)
+
+cfbsim_test_suite(cfbsim_play_tests play 120
+    blocking_test.cpp
+    catch_test.cpp
+    tackling_test.cpp
+    defense_test.cpp
+    play_test.cpp
+    shell_test.cpp)
+
+cfbsim_test_suite(cfbsim_game_tests game 180
     game_test.cpp
     coach_test.cpp
     match_test.cpp
-    special_teams_test.cpp
-    version_test.cpp)
-
-target_link_libraries(cfbsim_tests PRIVATE
-    cfbsim_core
-    cfbsim_options
-    GTest::gtest_main)   # provides main() for the test executable
-
-# White-box tests may include the core's internal headers (sim/src).
-target_include_directories(cfbsim_tests PRIVATE ${PROJECT_SOURCE_DIR}/sim/src)
-
-# Tests that load the real starter data find it through this path.
-target_compile_definitions(cfbsim_tests PRIVATE CFBSIM_DATA_DIR="${PROJECT_SOURCE_DIR}/data")
-
-include(GoogleTest)
-gtest_discover_tests(cfbsim_tests)
+    special_teams_test.cpp)

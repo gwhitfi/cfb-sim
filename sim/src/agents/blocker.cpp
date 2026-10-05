@@ -46,7 +46,10 @@ bool PassBlocker::rushing(const PlayState& play, int d, Vec2& pos, Vec2& vel) co
     vel = play.frame.dir_to_play(seen.vel);
     const Vec2 to_qb = qb_play_pos(play) - pos;
     const double closing = to_qb.length() > 0.1 ? vel.dot(to_qb.normalized()) : 0.0;
-    return pos.y <= t.rushing_line || (closing > t.rushing_speed && pos.y <= t.rushing_depth);
+    // A lineman still walking up to his spot at the snap counts as if he were
+    // there, until he's seen dropping off (game-flow.md, step 6).
+    const bool walking_up = play.late(d) && play.set_pos(d).y <= t.rushing_line && vel.y < t.late_drop_speed;
+    return pos.y <= t.rushing_line || walking_up || (closing > t.rushing_speed && pos.y <= t.rushing_depth);
 }
 
 double PassBlocker::claim(const PlayState& play, int d) const {

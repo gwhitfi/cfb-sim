@@ -155,6 +155,10 @@ class Validator {
     std::vector<std::string> run() {
         for (const auto& [id, book] : data_.playbooks) check_playbook(book);
         for (const auto& [id, team] : data_.teams) check_team(team);
+        const std::string& shell = data_.tuning.game.shell_formation;
+        if (const auto f = data_.formations.find(shell); f == data_.formations.end() || f->second.unit != Unit::Offense) {
+            error("tuning/game.json", "between_plays.shell.formation: '" + shell + "' is not an offensive formation");
+        }
         return std::move(errors_);
     }
 
@@ -364,6 +368,14 @@ class Validator {
                 if (std::find(fs.begin(), fs.end(), fid) == fs.end()) {
                     error(where, "tactics: formation '" + fid + "' is not in playbook '" + team.offense_playbook + "'");
                 }
+            }
+        }
+
+        // The base call is a play in the defensive playbook.
+        if (const std::string& bc = team.tactics.defense.base_call; !bc.empty()) {
+            const auto book = data_.playbooks.find(team.defense_playbook);
+            if (book != data_.playbooks.end() && !book->second.find(bc)) {
+                error(where, "tactics: base_call '" + bc + "' is not in playbook '" + team.defense_playbook + "'");
             }
         }
 

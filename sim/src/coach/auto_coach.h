@@ -45,7 +45,10 @@ class AutoCoach {
 
     PlayCall offense_call(const GameState& g, bool try_play);
     // `offense_play`: the offense's call (its formation shows the personnel); may be null.
-    std::string defense_call(const GameState& g, const Play* offense_play);
+    // `stay_in`: a package the defense must stay in (the offense is at the
+    // line and didn't substitute: a package change would be caught with
+    // 12 on the field; game-flow.md, step 6); empty: any.
+    std::string defense_call(const GameState& g, const Play* offense_play, const std::string& stay_in = "");
     // The pre-snap check once the formation shows: a play in `called`'s
     // package (most often `called` itself).
     std::string defense_check(const GameState& g, const Play* offense_play, const FormationLook& look,

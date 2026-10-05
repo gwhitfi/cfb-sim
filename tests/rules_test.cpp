@@ -100,25 +100,20 @@ TEST(Clock, TimeBetweenPlays) {
 
 TEST(Clock, BetweenPlaysSchedule) {
     const GameTuning& t = data().tuning.game;
-    // A huddle on a 40-second clock: the call, the defense's call, the break, the walk up, set.
-    const BetweenPlays h = between_plays_schedule(40.0, 40.0, Tempo::Huddle, 4.0, 1.0, false, t);
+    // On a 40-second clock: the offense's call by its tempo, the defense's after it.
+    const BetweenPlays h = between_plays_schedule(40.0, 40.0, Tempo::Huddle, false, t);
     EXPECT_DOUBLE_EQ(h.call, t.call_huddle);
     EXPECT_DOUBLE_EQ(h.defense_call, t.call_huddle + t.defense_call_after);
-    EXPECT_DOUBLE_EQ(h.set, t.call_huddle + t.huddle_seconds + 4.0);
-    EXPECT_DOUBLE_EQ(h.earliest, h.set + 1.0);
-    // No huddle: the call comes sooner and the offense lines up at once.
-    const BetweenPlays n = between_plays_schedule(40.0, 40.0, Tempo::NoHuddle, 4.0, 1.0, false, t);
-    EXPECT_DOUBLE_EQ(n.set, std::max(n.defense_call, t.call_no_huddle + t.line_up));
-    EXPECT_LT(n.set, h.set);
-    // A 25-second clock starts after a stoppage the teams spent huddling: 15 s further along.
-    const BetweenPlays a = between_plays_schedule(25.0, 40.0, Tempo::Huddle, 4.0, 1.0, false, t);
+    EXPECT_DOUBLE_EQ(between_plays_schedule(40.0, 40.0, Tempo::Sugar, false, t).call, t.call_sugar);
+    EXPECT_DOUBLE_EQ(between_plays_schedule(40.0, 40.0, Tempo::NoHuddle, false, t).call, t.call_no_huddle);
+    EXPECT_DOUBLE_EQ(between_plays_schedule(40.0, 40.0, Tempo::Hurry, false, t).call, t.call_hurry);
+    // A 25-second clock starts after a stoppage the teams spent gathering: 15 s further along.
+    const BetweenPlays a = between_plays_schedule(25.0, 40.0, Tempo::Huddle, false, t);
     EXPECT_DOUBLE_EQ(a.call, std::max(0.0, t.call_huddle - 15.0));
-    EXPECT_DOUBLE_EQ(a.set, std::max(a.defense_call, std::max(a.call, t.call_huddle + t.huddle_seconds - 15.0) + 4.0));
-    EXPECT_LT(a.earliest, 25.0);
-    // After a timeout at the line the play is in: the offense only lines up again.
-    const BetweenPlays r = between_plays_schedule(25.0, 40.0, Tempo::Huddle, 4.0, 1.0, true, t);
-    EXPECT_DOUBLE_EQ(r.set, 4.0);
-    EXPECT_DOUBLE_EQ(between_plays_schedule(25.0, 40.0, Tempo::Hurry, 4.0, 1.0, true, t).set, t.line_up);
+    // After a timeout at the line the play is in.
+    const BetweenPlays r = between_plays_schedule(25.0, 40.0, Tempo::Huddle, true, t);
+    EXPECT_DOUBLE_EQ(r.call, 0.0);
+    EXPECT_DOUBLE_EQ(r.defense_call, 0.0);
 }
 
 // --- Downs and spots ---------------------------------------------------------
@@ -175,6 +170,13 @@ TEST(Downs, FumbleOutOfTheOpponentsEndZoneIsATouchback) {
 TEST(Penalties, FalseStartAndDelayOfGame) {
     expect_situation(apply({30.0, 2, 6.0}, "false_start", true), 25.0, 2, 11.0);
     expect_situation(apply({30.0, 3, 1.0}, "delay_of_game", true), 25.0, 3, 6.0);
+}
+
+TEST(Penalties, TwelveMenIsFiveOnTheDefense) {
+    // Illegal substitution (a defender going off still on the field at the
+    // snap): 5 yards, dead ball, like offside.
+    expect_situation(apply({30.0, 2, 8.0}, "illegal_substitution", false), 35.0, 2, 3.0);
+    EXPECT_TRUE(apply({30.0, 3, 2.0}, "illegal_substitution", false).first_down);
 }
 
 TEST(Penalties, OffsideCanGiveAFirstDown) {

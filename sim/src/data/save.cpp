@@ -31,7 +31,7 @@ Json slot_maps_to_json(const std::map<std::string, SlotMap, std::less<>>& maps) 
 }
 
 Json tactics_to_json(const Tactics& t) {
-    static constexpr const char* kTempo[] = {"huddle", "no_huddle", "hurry"};
+    static constexpr const char* kTempo[] = {"huddle", "sugar", "no_huddle", "hurry"};
     Json formations = Json::object();
     for (const auto& [id, w] : t.offense.formations) formations[id] = number(w);
     Json offense = {{"run_pass", number(t.offense.run_pass)},
@@ -41,12 +41,13 @@ Json tactics_to_json(const Tactics& t) {
                     {"featured", t.offense.featured},
                     {"fourth_down", number(t.offense.fourth_down)},
                     {"clock", number(t.offense.clock)}};
+    Json defense = {{"blitz", number(t.defense.blitz)},
+                    {"man_zone", number(t.defense.man_zone)},
+                    {"aggression", number(t.defense.aggression)},
+                    {"tendency", number(t.defense.tendency)}};
+    if (!t.defense.base_call.empty()) defense["base_call"] = t.defense.base_call;
     return Json{{"offense", std::move(offense)},
-                {"defense",
-                 {{"blitz", number(t.defense.blitz)},
-                  {"man_zone", number(t.defense.man_zone)},
-                  {"aggression", number(t.defense.aggression)},
-                  {"tendency", number(t.defense.tendency)}}},
+                {"defense", std::move(defense)},
                 {"special",
                  {{"return_aggression", number(t.special.return_aggression)}, {"kickoff", t.special.kickoff}}}};
 }

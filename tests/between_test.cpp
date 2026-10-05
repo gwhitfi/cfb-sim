@@ -39,7 +39,7 @@ std::vector<BetweenMan> men(std::size_t n, TeamSide side, std::size_t from = 0) 
 std::vector<Spot> row(const std::vector<BetweenMan>& ms, double x) {
     std::vector<Spot> out;
     for (std::size_t k = 0; k < ms.size(); ++k) {
-        out.push_back({ms[k].player->id, ms[k].label, ms[k].team, {x, 20.0 + 1.5 * static_cast<double>(k)}, {1.0, 0.0}});
+        out.push_back({ms[k].player->id, ms[k].label, ms[k].team, {x, 20.0 + 1.5 * static_cast<double>(k)}, {1.0, 0.0}, {}});
     }
     return out;
 }
@@ -47,7 +47,7 @@ std::vector<Spot> row(const std::vector<BetweenMan>& ms, double x) {
 // A headless stretch between plays (no file), the ball at the offense's 25.
 std::unique_ptr<Between> stretch(Rng& rng) {
     return std::make_unique<Between>(nullptr, TrackingInfo{}, PlayFrame(25.0, Hash::Middle, true, false),
-                                     TeamSide::Home, true, data().tuning.movement, data().tuning.play, tuning(), &rng);
+                                     TeamSide::Home, Tempo::Huddle, data().tuning.movement, data().tuning.play, tuning(), &rng);
 }
 
 // Steps until `side` has arrived; returns the tick (and checks every step's speed).
@@ -58,8 +58,8 @@ std::int64_t walk_until_arrived(Between& b, TeamSide side) {
         b.run_to(t);
         for (const Spot& s : b.where()) {
             if (const auto it = last.find(s.id); it != last.end()) {
-                // Hurry is 65% of top speed: under 8 yd/s for anyone.
-                EXPECT_LE((s.pos - it->second).length(), 8.0 * 4 * kTickSeconds + 1e-9) << s.id << " at tick " << t;
+                // Hurry is a share of top speed: under 9 yd/s for anyone.
+                EXPECT_LE((s.pos - it->second).length(), 9.0 * 4 * kTickSeconds + 1e-9) << s.id << " at tick " << t;
             }
             last[s.id] = s.pos;
         }
@@ -72,26 +72,28 @@ std::int64_t walk_until_arrived(Between& b, TeamSide side) {
 }  // namespace
 
 TEST(Pace, TheClockBandsSetTheOdds) {
-    // Above :30 most walk; :30 to :17 most jog; under :07 almost all hurry.
-    EXPECT_EQ(drawn_pace(0.1, 50.0, 35.0, tuning()), Pace::Walk);
+    // Nobody walks: above :17 almost everyone jogs; under :07 almost all hurry.
+    EXPECT_EQ(drawn_pace(0.1, 50.0, 35.0, tuning()), Pace::Jog);
     EXPECT_EQ(drawn_pace(0.9, 50.0, 35.0, tuning()), Pace::Jog);
-    EXPECT_EQ(drawn_pace(0.1, 50.0, 20.0, tuning()), Pace::Walk);
+    EXPECT_EQ(drawn_pace(0.99, 50.0, 20.0, tuning()), Pace::Hurry);
     EXPECT_EQ(drawn_pace(0.5, 50.0, 20.0, tuning()), Pace::Jog);
     EXPECT_EQ(drawn_pace(0.1, 50.0, 10.0, tuning()), Pace::Jog);
     EXPECT_EQ(drawn_pace(0.9, 50.0, 10.0, tuning()), Pace::Hurry);
     EXPECT_EQ(drawn_pace(0.1, 50.0, 3.0, tuning()), Pace::Hurry);
+    // A walk, if one is drawn, goes at the jog.
+    EXPECT_EQ(pace_speed(Pace::Walk, 9.0, tuning()), pace_speed(Pace::Jog, 9.0, tuning()));
 }
 
 TEST(Pace, WorkRateTiltsTheDraw) {
-    // The same draw: a hard worker jogs where a dawdler walks.
-    EXPECT_EQ(drawn_pace(0.75, 100.0, 35.0, tuning()), Pace::Jog);
-    EXPECT_EQ(drawn_pace(0.75, 50.0, 35.0, tuning()), Pace::Walk);
-    EXPECT_EQ(drawn_pace(0.75, 1.0, 35.0, tuning()), Pace::Walk);
+    // The same draw: a hard worker hurries where a dawdler jogs.
+    EXPECT_EQ(drawn_pace(0.5, 100.0, 10.0, tuning()), Pace::Hurry);
+    EXPECT_EQ(drawn_pace(0.5, 50.0, 10.0, tuning()), Pace::Jog);
+    EXPECT_EQ(drawn_pace(0.5, 1.0, 10.0, tuning()), Pace::Jog);
 }
 
 TEST(Pace, NeedBeatsMood) {
-    EXPECT_EQ(needed_pace(10.0, 10.0, 9.0, tuning()), Pace::Walk);
-    EXPECT_EQ(needed_pace(10.0, 3.0, 9.0, tuning()), Pace::Jog);
+    // The slowest pace that gets him there in time (a walk is a jog).
+    EXPECT_EQ(pace_speed(needed_pace(10.0, 10.0, 9.0, tuning()), 9.0, tuning()), tuning().jog_pace);
     EXPECT_EQ(needed_pace(30.0, 3.0, 9.0, tuning()), Pace::Hurry);
     EXPECT_EQ(needed_pace(5.0, 0.0, 9.0, tuning()), Pace::Hurry);  // already late
     // Hurry is a share of his own top speed, never slower than a jog.
@@ -100,24 +102,27 @@ TEST(Pace, NeedBeatsMood) {
 }
 
 TEST(Between, ArrivingTakesAsLongAsTheWalk) {
-    // The same players, lined up at the 30 (field x 40): from the huddle, and
-    // from 40 yards downfield. Nobody warps; the far ones get there later.
-    const std::vector<BetweenMan> near = men(11, TeamSide::Home);
+    // The same players, lined up at the 30 (field x 40): from 10 yards
+    // short of it, and from 40 yards downfield. Nobody warps; the far ones
+    // get there later.
+    std::vector<BetweenMan> near = men(11, TeamSide::Home);
     std::vector<BetweenMan> far = near;
-    for (const Spot& s : row(far, 80.0)) {
-        for (BetweenMan& m : far) {
-            if (m.player->id == s.id) m.at = s;
+    for (const auto& [x, ms] : {std::pair<double, std::vector<BetweenMan>*>{30.0, &near}, {80.0, &far}}) {
+        for (const Spot& s : row(*ms, x)) {
+            for (BetweenMan& m : *ms) {
+                if (m.player->id == s.id) m.at = s;
+            }
         }
     }
     Rng a(7), b(7);
-    std::unique_ptr<Between> from_huddle = stretch(a), from_downfield = stretch(b);
-    from_huddle->start(near, 0, std::nullopt);
+    std::unique_ptr<Between> from_near = stretch(a), from_downfield = stretch(b);
+    from_near->start(near, 0, std::nullopt);
     from_downfield->start(far, 0, std::nullopt);
-    for (Between* w : {from_huddle.get(), from_downfield.get()}) {
+    for (Between* w : {from_near.get(), from_downfield.get()}) {
         w->clock(40.0, 0);
         w->lineup(0, TeamSide::Home, near, row(near, 40.0), false, std::nullopt);
     }
-    const std::int64_t quick = walk_until_arrived(*from_huddle, TeamSide::Home);
+    const std::int64_t quick = walk_until_arrived(*from_near, TeamSide::Home);
     const std::int64_t slow = walk_until_arrived(*from_downfield, TeamSide::Home);
     EXPECT_GT(slow, quick + 4 * kTicksPerSecond);
     // 40 yards at a hurry at the most: at least about 6 s.
@@ -151,12 +156,20 @@ TEST(Between, SubstitutesRunOnFromTheSideline) {
     w->start(first, 0, std::nullopt);
     w->clock(25.0, std::nullopt);
     EXPECT_TRUE(w->on_field());
+    EXPECT_FALSE(w->subbed(TeamSide::Home));
     w->lineup(0, TeamSide::Home, second, {}, true, std::nullopt);
     EXPECT_FALSE(w->on_field());
+    // It substituted; the five going off are still on the field, so it hasn't matched.
+    EXPECT_TRUE(w->subbed(TeamSide::Home));
+    EXPECT_FALSE(w->subbed(TeamSide::Away));
+    EXPECT_EQ(w->still_leaving(TeamSide::Home).size(), 5u);
+    EXPECT_FALSE(w->matched(TeamSide::Home));
     std::int64_t t = 0;
-    while (!w->gathered(TeamSide::Home) && t < 60 * kTicksPerSecond) w->run_to(t = Between::next_step(t));
+    while (!w->assembled(TeamSide::Home) && t < 60 * kTicksPerSecond) w->run_to(t = Between::next_step(t));
     EXPECT_TRUE(w->on_field());
-    EXPECT_TRUE(w->gathered(TeamSide::Home));
+    EXPECT_TRUE(w->assembled(TeamSide::Home));
+    while (!w->matched(TeamSide::Home) && t < 60 * kTicksPerSecond) w->run_to(t = Between::next_step(t));
+    EXPECT_TRUE(w->still_leaving(TeamSide::Home).empty());
     std::set<std::string> on;
     for (const Spot& s : w->where()) on.insert(s.id);
     for (const BetweenMan& m : second) EXPECT_TRUE(on.contains(m.player->id));

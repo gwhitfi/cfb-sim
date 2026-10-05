@@ -35,6 +35,7 @@
     "false_start":       {"name": "False start", "yards": 5, "spot": "dead_ball", "flag": 1.0},
     "offside":           {"name": "Offside", "yards": 5, "spot": "dead_ball", "flag": 1.0},
     "delay_of_game":     {"name": "Delay of game", "yards": 5, "spot": "dead_ball", "flag": 1.0},
+    "illegal_substitution": {"name": "Illegal substitution", "yards": 5, "spot": "dead_ball", "flag": 1.0},  // 12 men: a defender going off still on the field at the snap
     "offensive_holding": {"name": "Holding", "yards": 10, "spot": "previous_or_foul_beyond", "safety_in_end_zone": true, "flag": 0.12},
     "defensive_holding": {"name": "Defensive holding", "yards": 10, "spot": "previous", "first_down": true, "flag": 0.6},
     "defensive_pass_interference": {"name": "Pass interference", "yards": 15, "spot": "spot_capped", "first_down": true, "flag": 0.75},

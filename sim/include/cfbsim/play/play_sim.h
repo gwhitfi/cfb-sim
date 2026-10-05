@@ -15,6 +15,18 @@
 
 namespace cfbsim {
 
+// Where a player stands and faces (field frame), for the between-plays
+// animation (docs/design/game-flow.md): it starts where everyone ended the
+// last play and ends where the next one lines them up.
+struct Spot {
+    std::string id;
+    std::string label;  // his slot
+    TeamSide team = TeamSide::Home;
+    Vec2 pos;
+    Vec2 facing{1.0, 0.0};
+    Vec2 vel;  // yd/s
+};
+
 struct PlayOptions {
     std::string team;  // offense team id
     std::string play;  // play id in the team's offense playbook
@@ -41,6 +53,12 @@ struct PlayOptions {
     // Pre-snap hot routes (phase 11): slot -> a route id from the route
     // library. Replaces the slot's first route job (and its coverage options).
     std::map<std::string, std::string> hot_routes;
+    // Defenders who weren't at their spots at the snap (game-flow.md, step 6),
+    // by player id: where each one really is (field frame: position, velocity,
+    // facing). He starts the play from there, and his job takes him on.
+    // Only with `huddle` false; `play_start()` ignores it (it returns the spots
+    // the call means).
+    std::map<std::string, Spot> defense_start;
 };
 
 // A foul that happened on the play. The rules layer decides whether it's
@@ -54,16 +72,13 @@ struct Foul {
     double seconds = 0.0;     // after the snap
 };
 
-// Where a player stands and faces (field frame), for the between-plays
-// animation (docs/design/game-flow.md): it starts where everyone ended the
-// last play and ends where the next one lines them up.
-struct Spot {
-    std::string id;
-    std::string label;  // his slot
-    TeamSide team = TeamSide::Home;
-    Vec2 pos;
-    Vec2 facing{1.0, 0.0};
-};
+// Where team `defense`'s play `defense_play` lines up against offensive
+// formation `offense_formation` set at `frame` (the offense's view, not
+// flipped), by the play's own alignment code (game-flow.md, step 6: the
+// shell). Field frame, in the defensive formation's slot order, facing the
+// offense; `label` is the slot, and `id` and `team` are left to the caller.
+std::vector<Spot> align_defense(const DataSet& data, const std::string& defense, const std::string& defense_play,
+                                const std::string& offense_formation, const PlayFrame& frame);
 
 // Every agent's spot, in agent order.
 std::vector<Spot> spots_of(const World& world);
@@ -154,11 +169,6 @@ Play with_hot_routes(const DataSet& data, const Play& play, const std::map<std::
 // Where slot `k` of `count` stands in the huddle (play frame: the ball at
 // the origin, downfield +y; `depth` is the ring's center behind the ball).
 Vec2 huddle_spot(std::size_t k, std::size_t count, double depth, const PlayTuning& t);
-
-// Seconds from breaking the huddle to set for `formation` (the farthest walk
-// at the jog speed, easing in): the game's between-plays schedule uses it.
-// Throws GeometryError for a formation that can't be aligned.
-double walk_up_seconds(const Formation& formation, const PlayFrame& frame, const PlayTuning& t);
 
 // Runs one play. Writes a tracking file when `out` is given.
 PlayResult run_play(const DataSet& data, const PlayOptions& options, TrackingWriter* out = nullptr);

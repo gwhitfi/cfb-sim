@@ -166,12 +166,14 @@ Tactics parse_tactics(const Reader& r) {
         const std::string tempo = o->string_or("tempo", "huddle");
         if (tempo == "huddle") {
             to.tempo = Tempo::Huddle;
+        } else if (tempo == "sugar") {
+            to.tempo = Tempo::Sugar;
         } else if (tempo == "no_huddle") {
             to.tempo = Tempo::NoHuddle;
         } else if (tempo == "hurry") {
             to.tempo = Tempo::Hurry;
         } else {
-            o->at("tempo").fail("expected huddle, no_huddle, or hurry");
+            o->at("tempo").fail("expected huddle, sugar, no_huddle, or hurry");
         }
         if (auto f = o->find("formations")) {
             f->for_each_member([&](const std::string& id, const Reader& w) {
@@ -182,12 +184,13 @@ Tactics parse_tactics(const Reader& r) {
         to.featured = o->string_or("featured", "");
     }
     if (auto d = r.find("defense")) {
-        d->allow_only({"blitz", "man_zone", "aggression", "tendency"});
+        d->allow_only({"blitz", "man_zone", "aggression", "tendency", "base_call"});
         Tactics::Defense& td = t.defense;
         td.blitz = setting(*d, "blitz", td.blitz);
         td.man_zone = setting(*d, "man_zone", td.man_zone);
         td.aggression = setting(*d, "aggression", td.aggression);
         td.tendency = setting(*d, "tendency", td.tendency);
+        td.base_call = d->string_or("base_call", "");
     }
     if (auto sp = r.find("special")) {
         sp->allow_only({"return_aggression", "kickoff"});

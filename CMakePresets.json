@@ -32,8 +32,8 @@
     { "name": "clang-debug", "configurePreset": "clang-debug" }
   ],
   "testPresets": [
-    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
-    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
-    { "name": "clang-debug", "configurePreset": "clang-debug", "output": { "outputOnFailure": true } }
+    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true }, "execution": { "jobs": 8 } },
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true }, "execution": { "jobs": 8 } },
+    { "name": "clang-debug", "configurePreset": "clang-debug", "output": { "outputOnFailure": true }, "execution": { "jobs": 8 } }
   ]
 }

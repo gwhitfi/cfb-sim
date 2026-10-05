@@ -312,6 +312,7 @@ struct BlockingTuning {
     double rushing_line = 1.5;      // yd: a defender this close to the line (or past it) is rushing
     double rushing_speed = 2.0;     // yd/s toward the QB ...
     double rushing_depth = 6.0;     // ... within this far off the line
+    double late_drop_speed = 0.5;   // yd/s away from the line: a late lineman is seen dropping
     double project_seconds = 0.4;
     double area_half = 0.8;         // yd either side of an area's center
     double reach_outside = 2.5;     // yd outside his area he can still take a rusher
@@ -536,18 +537,17 @@ struct TacklingTuning {
 // (docs/design/rules-and-flow.md#first-build-phase-8).
 struct GameTuning {
     // Tempo: play clock reading (s) at the snap.
-    std::pair<double, double> tempo_normal{12.0, 22.0}, tempo_no_huddle{20.0, 28.0}, tempo_hurry{26.0, 33.0},
-        tempo_milk{0.5, 3.0};
+    std::pair<double, double> tempo_normal{12.0, 22.0}, tempo_sugar{10.0, 19.0}, tempo_no_huddle{20.0, 28.0},
+        tempo_hurry{26.0, 33.0}, tempo_milk{0.5, 3.0};
     double ready_delay = 7.0;
 
     // Between plays (docs/design/game-flow.md): play clock seconds used (on a
     // 40-second clock; on a 25-second clock 15 s earlier) when the offense's call
-    // comes in, by tempo; how long the huddle lasts after it; when the
-    // defense calls (its look at the offense's personnel); and the time to
-    // get set at the line with no huddle (with a huddle, the walk-up comes
-    // from the formation).
-    double call_huddle = 10.0, call_no_huddle = 7.0, call_hurry = 3.0;
-    double huddle_seconds = 6.0;
+    // comes in, by tempo; how long the huddle lasts once everyone is in the
+    // ring; when the defense calls (its look at the offense's personnel); and
+    // the time to get set at the line with a kneel or a spike.
+    double call_huddle = 10.0, call_sugar = 8.0, call_no_huddle = 7.0, call_hurry = 3.0;
+    double huddle_seconds = 3.5;
     double defense_call_after = 2.0;
     double line_up = 3.0;
 
@@ -559,8 +559,8 @@ struct GameTuning {
         double above = 0.0;
         std::array<double, 3> odds{};  // walk, jog, hurry
     };
-    double walk_pace = 1.8, jog_pace = 4.5;  // yd/s
-    double hurry_share = 0.65;               // of his top speed
+    double walk_pace = 5.625, jog_pace = 5.625;  // yd/s (no walk in the data: a walk is a jog)
+    double hurry_share = 0.8125;             // of his top speed
     std::vector<PaceBand> pace_bands;        // highest first
     double work_rate_tilt = 0.15;
     double need_margin = 1.1;
@@ -568,6 +568,22 @@ struct GameTuning {
     double huddle_due = 2.0;                 // s: to the huddle once the call is in
     double line_due = 8.0;                   // play clock reading: at the alignment by then
     double ball_spotted = 3.0;               // s after the whistle
+    // The defense's shell (step 6): before it knows the formation, its call
+    // lined up against this stock offensive formation, everyone this far
+    // deeper (yd).
+    std::string shell_formation = "gun_2x2";
+    double shell_off_ball = 1.0;
+    Curve shell_read;           // Anticipation -> s from the break until he heads for his spot
+    double shell_signal = 1.0;  // s he looks to his sideline when the call comes in
+    // The offense before its call (step 7): gathered loosely behind the ball
+    // (yd: the linemen, the rest between two depths); a sugar huddle's ring
+    // depth; the break's stagger (s after the line) for the receivers and for
+    // the QB and backs; with no huddle, s from the call to the shift.
+    double gather_line = 4.5;
+    std::pair<double, double> gather_others{6.0, 9.0};
+    double sugar_depth = 4.0;
+    double stagger_receivers = 0.3, stagger_backs = 0.6;
+    double no_huddle_signal = 1.0;
 
     // Fatigue.
     double drain_base = 0.012, drain_per_yard = 0.0006, drain_per_engaged = 0.008,

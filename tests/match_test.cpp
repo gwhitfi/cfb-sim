@@ -108,7 +108,8 @@ TEST(Match, AUserCallsEveryPlayAndTheGameReplays) {
         }
         if (input == "hike") {
             ++hikes;
-            return {{"type", "answer"}, {"play_clock", 8.0}};
+            // Snap at :08, or once set if the offense is still walking up then.
+            return {{"type", "answer"}, {"play_clock", std::min(8.0, o["set"].get<double>())}};
         }
         return take_suggestion(prompt);
     });

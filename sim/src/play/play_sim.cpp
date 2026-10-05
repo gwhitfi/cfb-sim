@@ -41,6 +41,25 @@ bool is_qb_stance(Stance s) {
     return s == Stance::UnderCenter || s == Stance::Gun || s == Stance::Pistol;
 }
 
+// Where defensive play `play` (formation `f`) lines up against the offense
+// as `read` sees it (play frame, `f`'s slot order): the formation's spots,
+// with each assignment's `align` replacing its slot's x and/or y.
+std::vector<Vec2> align_defense(const Formation& f, const Play& play, const OffenseRead& read,
+                                const PlayFrame& defense_frame, const DefenseTuning& t) {
+    Formation lined_up = f;
+    for (FormationSlot& slot : lined_up.slots) {
+        const auto a = play.assignments.find(slot.name);
+        if (a == play.assignments.end()) continue;
+        if (a->second.align_x) slot.x = *a->second.align_x;
+        if (a->second.align_y) slot.y = *a->second.align_y;
+    }
+    try {
+        return align_formation(lined_up, defense_frame, &read, {t.shade, t.ghost_te_split});
+    } catch (const GeometryError& e) {
+        throw PlayError("formation " + f.id + ": " + e.what());
+    }
+}
+
 // Closest approach of a ball moving from p0 to p1 this tick to a player at r.
 struct Closest {
     double u = 0.0;  // 0..1 along the segment
@@ -393,23 +412,9 @@ void PlaySim::setup_defense() {
     if (package == team.depth_chart.defense_packages.end()) {
         throw PlayError("team " + team.id + " has no '" + f.package + "' package");
     }
-    // The defense lines up on the offense's set, where the call says (an
-    // assignment's `align` replaces its formation slot's x and/or y).
-    const OffenseRead read = read_offense_set(false);
-    Formation lined_up = f;
-    for (FormationSlot& slot : lined_up.slots) {
-        const auto a = defense_.play->assignments.find(slot.name);
-        if (a == defense_.play->assignments.end()) continue;
-        if (a->second.align_x) slot.x = *a->second.align_x;
-        if (a->second.align_y) slot.y = *a->second.align_y;
-    }
-    std::vector<Vec2> aligned;
-    try {
-        aligned = align_formation(lined_up, state_.defense_frame, &read,
-                                  {defense().shade, defense().ghost_te_split});
-    } catch (const GeometryError& e) {
-        throw PlayError("formation " + f.id + ": " + e.what());
-    }
+    // The defense lines up on the offense's set, where the call says.
+    const std::vector<Vec2> aligned =
+        align_defense(f, *defense_.play, read_offense_set(false), state_.defense_frame, defense());
 
     const Vec2 huddle{0.0, tuning().huddle_depth + 1.0};
     for (std::size_t k = 0; k < f.slots.size(); ++k) {
@@ -434,6 +439,12 @@ void PlaySim::setup_defense() {
             const Vec2 spot = huddle_spot(k, f.slots.size(), huddle.y, tuning());
             a.pos = state_.frame.to_field(spot);
             a.facing = (state_.frame.to_field(huddle) - a.pos).normalized();
+        } else if (const auto late = opt_.defense_start.find(player.id); late != opt_.defense_start.end()) {
+            // Still on his way to his spot: he starts the play where he is.
+            a.pos = late->second.pos;
+            a.vel = late->second.vel;
+            a.facing = late->second.facing;
+            state_.slots.back().late = true;
         } else {
             a.pos = state_.frame.to_field(aligned[k]);
             a.facing = state_.downfield() * -1.0;
@@ -867,7 +878,7 @@ std::vector<int> PlaySim::front(bool down_linemen) const {
     const double cx = state_.play_pos(state_.center).x;
     std::vector<int> out;
     for (int d = state_.offense_count; d < state_.count(); ++d) {
-        const Vec2 p = state_.play_pos(d);
+        const Vec2 p = state_.set_pos(d);
         if (std::abs(p.x - cx) > t.box_width) continue;
         const bool down = p.y <= t.down_lineman_depth;
         if (down_linemen ? down : (!down && p.y <= t.lb_depth_max)) out.push_back(d);
@@ -878,7 +889,7 @@ std::vector<int> PlaySim::front(bool down_linemen) const {
 bool PlaySim::block_condition(int i, const std::string& condition, double side) const {
     const double x = state_.play_pos(i).x;
     for (const int d : front(true)) {
-        const double dx = state_.play_pos(d).x - x;
+        const double dx = state_.set_pos(d).x - x;
         const double ps = dx * side;  // + toward the play side
         if (condition == "covered" && std::abs(dx) <= 0.9) return true;
         if (condition == "covered_playside" && ps >= -0.5 && ps <= 1.0) return true;
@@ -894,7 +905,7 @@ int PlaySim::block_target_for(int i, const std::string& target, double side) con
         int best = -1;
         double best_d = 1e9;
         for (const int d : from) {
-            const double dx = state_.play_pos(d).x - me.x;
+            const double dx = state_.set_pos(d).x - me.x;
             if (!ok(dx * side, dx)) continue;
             // Ties go to the play side.
             const double score = std::abs(dx) - 0.1 * dx * side;
@@ -932,8 +943,8 @@ int PlaySim::block_target_for(int i, const std::string& target, double side) con
         }
         int best = -1;
         for (const int d : lbs) {
-            const double ps = (state_.play_pos(d).x - me.x) * side;
-            if (ps >= -0.3 && (best < 0 || ps < (state_.play_pos(best).x - me.x) * side)) best = d;
+            const double ps = (state_.set_pos(d).x - me.x) * side;
+            if (ps >= -0.3 && (best < 0 || ps < (state_.set_pos(best).x - me.x) * side)) best = d;
         }
         return best >= 0 ? best : nearest(lbs, [](double, double) { return true; });
     }
@@ -951,12 +962,12 @@ int PlaySim::block_target_for(int i, const std::string& target, double side) con
         }
         int best = -1;
         for (const int d : front(true)) {
-            const double ps = (state_.play_pos(d).x - end) * side;
-            if (ps >= 0.0 && (best < 0 || ps < (state_.play_pos(best).x - end) * side)) best = d;
+            const double ps = (state_.set_pos(d).x - end) * side;
+            if (ps >= 0.0 && (best < 0 || ps < (state_.set_pos(best).x - end) * side)) best = d;
         }
         for (const int d : front(false)) {
-            const double ps = (state_.play_pos(d).x - end) * side;
-            if (ps >= 0.0 && (best < 0 || ps < (state_.play_pos(best).x - end) * side)) best = d;
+            const double ps = (state_.set_pos(d).x - end) * side;
+            if (ps >= 0.0 && (best < 0 || ps < (state_.set_pos(best).x - end) * side)) best = d;
         }
         return best;
     }
@@ -966,13 +977,13 @@ int PlaySim::block_target_for(int i, const std::string& target, double side) con
         // outside him.
         int best = -1;
         for (const int d : down) {
-            if (best < 0 || state_.play_pos(d).x * side > state_.play_pos(best).x * side) best = d;
+            if (best < 0 || state_.set_pos(d).x * side > state_.set_pos(best).x * side) best = d;
         }
-        if (best >= 0 && (state_.play_pos(best).x - me.x) * side >= 0.5) return best;
+        if (best >= 0 && (state_.set_pos(best).x - me.x) * side >= 0.5) return best;
         int outside = -1;
         for (const int d : front(false)) {
-            const double ps = (state_.play_pos(d).x - me.x) * side;
-            if (ps >= 0.0 && (outside < 0 || ps < (state_.play_pos(outside).x - me.x) * side)) outside = d;
+            const double ps = (state_.set_pos(d).x - me.x) * side;
+            if (ps >= 0.0 && (outside < 0 || ps < (state_.set_pos(outside).x - me.x) * side)) outside = d;
         }
         return outside >= 0 ? outside : best;
     }
@@ -980,7 +991,7 @@ int PlaySim::block_target_for(int i, const std::string& target, double side) con
         int best = -1;
         double best_d = 10.0;
         for (int d = state_.offense_count; d < state_.count(); ++d) {
-            const Vec2 p = state_.play_pos(d);
+            const Vec2 p = state_.set_pos(d);
             if (p.y <= 2.0) continue;
             const double dist = (p - me).length();
             if (dist < best_d) {
@@ -1406,7 +1417,7 @@ std::unique_ptr<Behavior> PlaySim::defense_behavior(int i) {
 
     // A linebacker (a gap fit off the ball) whose pass job is coverage waits
     // before playing a run; one called to blitz or rush attacks at once.
-    const bool off_ball_fit = rj.kind == JobKind::Gap && state_.play_pos(i).y > blocking().down_lineman_depth;
+    const bool off_ball_fit = rj.kind == JobKind::Gap && state_.set_pos(i).y > blocking().down_lineman_depth;
     const bool attacking = pj.kind == JobKind::Blitz || pj.kind == JobKind::Rush || pj.kind == JobKind::Stunt;
     const double run_hold = off_ball_fit && !attacking ? tackling().lb_run_delay : 0.0;
 
@@ -1493,10 +1504,11 @@ std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job*
             GapFit::Setup g;
             g.gap_x = gap_x(side, job.gap);
             g.lag = pursuit(i, false).lag;
-            if (at.y <= blocking().down_lineman_depth) {
+            const Vec2 set = state_.set_pos(i);
+            if (set.y <= blocking().down_lineman_depth) {
                 g.depth = blocking().dl_gap_depth;
             } else {
-                g.depth = std::max(tt.fit_depth, at.y - tt.fit_step);
+                g.depth = std::max(tt.fit_depth, set.y - tt.fit_step);
                 g.flow_share = tt.flow_share;
                 g.flow_max = tt.flow_max;
             }
@@ -2508,18 +2520,58 @@ Vec2 huddle_spot(std::size_t k, std::size_t count, double depth, const PlayTunin
     return Vec2{0.0, depth} + Vec2{std::cos(angle), std::sin(angle)} * radius;
 }
 
-double walk_up_seconds(const Formation& formation, const PlayFrame& frame, const PlayTuning& t) {
-    const std::vector<Vec2> aligned = align_formation(formation, frame);
-    double far = 0.0;
-    for (std::size_t k = 0; k < aligned.size(); ++k) {
-        far = std::max(far, (aligned[k] - huddle_spot(k, aligned.size(), -t.huddle_depth, t)).length());
+std::vector<Spot> align_defense(const DataSet& data, const std::string& defense, const std::string& defense_play,
+                                const std::string& offense_formation, const PlayFrame& frame) {
+    const auto team = data.teams.find(defense);
+    if (team == data.teams.end()) throw PlayError("unknown team '" + defense + "'");
+    const auto book = data.playbooks.find(team->second.defense_playbook);
+    if (book == data.playbooks.end()) throw PlayError("unknown playbook '" + team->second.defense_playbook + "'");
+    const Play* play = book->second.find(defense_play);
+    if (!play) throw PlayError("playbook " + book->first + " has no play '" + defense_play + "'");
+    const Formation& dform = data.formations.at(play->formation);
+    const auto oform = data.formations.find(offense_formation);
+    if (oform == data.formations.end()) throw PlayError("unknown formation '" + offense_formation + "'");
+
+    // The offense set as its formation lines it up, read as the play reads it.
+    const Formation& of = oform->second;
+    std::vector<Vec2> pos;
+    try {
+        pos = align_formation(of, frame);
+    } catch (const GeometryError& e) {
+        throw PlayError("formation " + of.id + ": " + e.what());
     }
-    return far / t.jog_speed + t.jog_speed / (2.0 * t.arrive_decel);
+    std::vector<bool> on_line;
+    int center = -1, qb = -1;
+    for (std::size_t k = 0; k < of.slots.size(); ++k) {
+        on_line.push_back(of.slots[k].on_line);
+        if (of.slots[k].stance == Stance::Snap && center < 0) center = static_cast<int>(k);
+        if (is_qb_stance(of.slots[k].stance) && qb < 0) qb = static_cast<int>(k);
+    }
+    if (center < 0 || qb < 0) throw PlayError("formation " + of.id + " has no snapper or no QB");
+    const PlayFrame defense_frame = frame.unflipped();
+    OffenseRead read;
+    try {
+        read = read_offense(pos, on_line, center, qb);
+        read.strong = strength_from_call(read, book->second.strength_call, defense_frame);
+    } catch (const GeometryError& e) {
+        throw PlayError(std::string("reading the offense: ") + e.what());
+    }
+
+    const std::vector<Vec2> aligned = align_defense(dform, *play, read, defense_frame, data.tuning.defense);
+    std::vector<Spot> out;
+    for (std::size_t k = 0; k < dform.slots.size(); ++k) {
+        Spot s;
+        s.label = dform.slots[k].name;
+        s.pos = frame.to_field(aligned[k]);
+        s.facing = frame.dir_to_field({0.0, -1.0});
+        out.push_back(std::move(s));
+    }
+    return out;
 }
 
 std::vector<Spot> spots_of(const World& world) {
     std::vector<Spot> out;
-    for (const Agent& a : world.agents()) out.push_back({a.id, a.label, a.team, a.pos, a.facing});
+    for (const Agent& a : world.agents()) out.push_back({a.id, a.label, a.team, a.pos, a.facing, a.vel});
     return out;
 }
 
@@ -2594,8 +2646,14 @@ PlayResult run_or_start(const DataSet& data, const PlayOptions& options, Trackin
         defense = {&dteam->second, &droster->second, &dbook->second, dplay, &dform->second};
     }
 
-    PlaySim sim(data, options, team->second, roster->second, book->second, *play, formation->second,
-                defense, out);
+    // The start is where the call lines everyone up, wherever the defense is.
+    PlayOptions lined_up;
+    if (start_only && !options.defense_start.empty()) {
+        lined_up = options;
+        lined_up.defense_start.clear();
+    }
+    PlaySim sim(data, start_only && !options.defense_start.empty() ? lined_up : options, team->second,
+                roster->second, book->second, *play, formation->second, defense, out);
     if (start_only) {
         PlayResult r;
         r.start = sim.start();

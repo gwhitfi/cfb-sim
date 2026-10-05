@@ -95,18 +95,20 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     GameTuning t;
 
     const Reader te = root.at("tempo");
-    te.allow_only({"normal", "no_huddle", "hurry", "milk", "ready_delay"});
+    te.allow_only({"normal", "sugar", "no_huddle", "hurry", "milk", "ready_delay"});
     t.tempo_normal = pair_of(te.at("normal"));
+    t.tempo_sugar = pair_of(te.at("sugar"));
     t.tempo_no_huddle = pair_of(te.at("no_huddle"));
     t.tempo_hurry = pair_of(te.at("hurry"));
     t.tempo_milk = pair_of(te.at("milk"));
     t.ready_delay = te.number("ready_delay");
 
     const Reader bp = root.at("between_plays");
-    bp.allow_only({"call", "huddle", "defense_call", "line_up", "walks"});
+    bp.allow_only({"call", "huddle", "defense_call", "line_up", "walks", "shell", "offense"});
     const Reader call = bp.at("call");
-    call.allow_only({"huddle", "no_huddle", "hurry"});
+    call.allow_only({"huddle", "sugar", "no_huddle", "hurry"});
     t.call_huddle = call.number("huddle");
+    t.call_sugar = call.number("sugar");
     t.call_no_huddle = call.number("no_huddle");
     t.call_hurry = call.number("hurry");
     t.huddle_seconds = bp.number("huddle");
@@ -116,10 +118,11 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     w.allow_only({"pace", "bands", "work_rate_tilt", "need_margin", "accel", "due", "ball_spotted"});
     const Reader pace = w.at("pace");
     pace.allow_only({"walk", "jog", "hurry"});
-    t.walk_pace = pace.number("walk");
     t.jog_pace = pace.number("jog");
+    // No walk: nobody walks between plays (a walk goes at the jog).
+    t.walk_pace = pace.number_or("walk", t.jog_pace);
     t.hurry_share = pace.number("hurry");
-    if (t.walk_pace <= 0.0 || t.jog_pace <= t.walk_pace) pace.fail("paces must be above 0 and rise: walk < jog");
+    if (t.walk_pace <= 0.0 || t.jog_pace < t.walk_pace) pace.fail("paces must be above 0 and rise: walk <= jog");
     if (t.hurry_share <= 0.0 || t.hurry_share > 1.0) pace.fail("hurry is a share of top speed, in (0, 1]");
     const Reader bands = w.at("bands");
     bands.for_each([&](const Reader& b) {
@@ -148,6 +151,25 @@ GameTuning parse_game_tuning(const Json& json, const std::string& source) {
     t.huddle_due = due.number("huddle");
     t.line_due = due.number("line");
     t.ball_spotted = w.number("ball_spotted");
+    const Reader shell = bp.at("shell");
+    shell.allow_only({"formation", "off_ball", "read", "signal"});
+    t.shell_formation = shell.string("formation");
+    t.shell_off_ball = shell.number("off_ball");
+    t.shell_read = parse_curve(shell.at("read"));
+    t.shell_signal = shell.number("signal");
+    const Reader offense = bp.at("offense");
+    offense.allow_only({"gather", "sugar_depth", "break_stagger", "no_huddle_signal"});
+    const Reader gather = offense.at("gather");
+    gather.allow_only({"line", "others"});
+    t.gather_line = gather.number("line");
+    t.gather_others = pair_of(gather.at("others"));
+    if (t.gather_others.second < t.gather_others.first) gather.at("others").fail("[nearest, deepest]");
+    t.sugar_depth = offense.number("sugar_depth");
+    const Reader stagger = offense.at("break_stagger");
+    stagger.allow_only({"receivers", "backs"});
+    t.stagger_receivers = stagger.number("receivers");
+    t.stagger_backs = stagger.number("backs");
+    t.no_huddle_signal = offense.number("no_huddle_signal");
 
     const Reader f = root.at("fatigue");
     f.allow_only({"drain_base", "drain_per_yard", "drain_per_engaged", "drain_per_contact", "stamina",

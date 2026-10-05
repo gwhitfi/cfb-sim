@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <memory>
@@ -310,7 +311,7 @@ TEST(Game, BetweenPlaysIsOnlyToWatch) {
     EXPECT_GT(scrimmage, 100);
 
     // Nobody warps (game-flow.md, step 5): between two frames, nobody moves
-    // faster than a hurry (65% of top speed: under 8 yd/s), the last frame too.
+    // faster than a hurry (81% of top speed: under 9 yd/s), the last frame too.
     // After a change of possession the play clock waits for the ready signal.
     int waited = 0;
     for (const auto& [name, text] : tracked.files) {
@@ -337,7 +338,7 @@ TEST(Game, BetweenPlaysIsOnlyToWatch) {
                     const std::pair<double, double> at = {j["p"][k][0], j["p"][k][1]};
                     if (const auto it = last.find(ids[k]); it != last.end() && tick > last_tick) {
                         const double moved = std::hypot(at.first - it->second.first, at.second - it->second.second);
-                        EXPECT_LE(moved / (static_cast<double>(tick - last_tick) * kTickSeconds), 8.0)
+                        EXPECT_LE(moved / (static_cast<double>(tick - last_tick) * kTickSeconds), 9.0)
                             << ids[k] << " in " << name << " at tick " << tick;
                     }
                     last[ids[k]] = at;
@@ -354,4 +355,85 @@ TEST(Game, BetweenPlaysIsOnlyToWatch) {
         }
     }
     EXPECT_GT(waited, 5);
+}
+
+TEST(Game, TwelveMenAndTheMatchingRule) {
+    // Both offenses hurry (no huddle, the snap as soon as they're set), and
+    // an outside decider changes the defense's package on every call, so its
+    // players are still running off when the offense is ready
+    // (game-flow.md, step 6). When the offense didn't substitute, a defender
+    // still on the field at the snap is 12 men: illegal substitution. When
+    // the offense did, the umpire holds the snap until the defense has
+    // matched, and there's no flag. A hurt defender being helped off is never
+    // 12 men: the umpire waits for him.
+    DataSet d = data();
+    for (auto& [id, team] : d.teams) team.tactics.offense.tempo = Tempo::Hurry;
+    d.tuning.game.injury_snap = 0.004;  // about one per team per quarter
+    Tracked tracked;
+    GameOptions o = options(3);
+    o.tracking = [&](const std::string& name) -> std::unique_ptr<std::ostream> {
+        return std::make_unique<Capture>(tracked, name);
+    };
+    std::map<int, std::string> package;  // each defense's last package
+    o.decide = [&](const Prompt& p) -> std::optional<Json> {
+        if (p.suggestion.is_null()) return std::nullopt;
+        if (p.input != "call_play" || p.options.value("side", "") != "defense" || p.options.contains("try")) {
+            return p.suggestion;
+        }
+        for (const Json& play : p.options["plays"]) {
+            const std::string pkg = play.value("package", "");
+            if (pkg != package[p.team]) {
+                package[p.team] = pkg;
+                return Json{{"play", play["id"]}};
+            }
+        }
+        return p.suggestion;
+    };
+    std::ostringstream log;
+    play_game(d, o, &log);
+    EXPECT_GT(count(log.str(), R"("foul":"illegal_substitution")"), 0);
+    std::set<std::string> hurt;
+    int injuries = 0;
+    std::istringstream lines(log.str());
+    for (std::string text; std::getline(lines, text);) {
+        const Json j = Json::parse(text);
+        if (j.value("event", "") == "injury") {
+            hurt.insert(j.value("player", ""));
+            ++injuries;
+        }
+        if (j.value("foul", "") == "illegal_substitution") {
+            EXPECT_FALSE(hurt.contains(j.value("player", ""))) << text;
+        }
+    }
+    EXPECT_GT(injuries, 3);
+
+    // A between-plays file's events, in order.
+    const auto events = [](const std::string& file) {
+        std::vector<std::string> out;
+        std::istringstream in(file);
+        for (std::string text; std::getline(in, text);) {
+            const Json j = Json::parse(text);
+            if (j["type"] == "event") out.push_back(j["event"]);
+        }
+        return out;
+    };
+    int held = 0, flagged = 0;
+    for (const auto& [name, text] : tracked.files) {
+        if (name.find("_between") == std::string::npos) continue;
+        const std::vector<std::string> e = events(text);
+        const bool holds = std::find(e.begin(), e.end(), "umpire_holds") != e.end();
+        const bool twelve = !e.empty() && e.back() == "illegal_substitution";
+        held += holds ? 1 : 0;
+        flagged += twelve ? 1 : 0;
+        // The umpire held the snap: the offense substituted (or a hurt
+        // defender went off), so no 12 men, and it was released before the snap.
+        if (holds) {
+            EXPECT_FALSE(twelve) << name;
+            if (e.back() != "timeout" && e.back() != "delay_of_game") {
+                EXPECT_NE(std::find(e.begin(), e.end(), "umpire_releases"), e.end()) << name;
+            }
+        }
+    }
+    EXPECT_GT(held, 0);
+    EXPECT_GT(flagged, 0);
 }

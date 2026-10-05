@@ -511,7 +511,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
 
     const Reader p = root.at("protection");
     p.allow_only({"skill", "pk_weight", "lag", "pickup_skill", "pickup_pk_weight", "pickup_lag",
-                  "rushing_line", "rushing_speed", "rushing_depth", "project_seconds",
+                  "rushing_line", "rushing_speed", "rushing_depth", "late_drop_speed", "project_seconds",
                   "area_half", "reach_outside", "taken_penalty", "depth_penalty",
                   "switch_margin", "back_range", "on_him", "help_range", "set_lead", "set_front",
                   "set_give", "back_front", "back_step_up", "back_block_release", "set_depth"});
@@ -524,6 +524,7 @@ BlockingTuning parse_blocking_tuning(const Json& json, const std::string& source
     t.rushing_line = p.number("rushing_line");
     t.rushing_speed = p.number("rushing_speed");
     t.rushing_depth = p.number("rushing_depth");
+    t.late_drop_speed = p.number("late_drop_speed");
     t.project_seconds = p.number("project_seconds");
     t.area_half = p.number("area_half");
     t.reach_outside = p.number("reach_outside");

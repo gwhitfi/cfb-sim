@@ -138,6 +138,22 @@ TEST(Coach, DefenseReadsPersonnelAndTendencies) {
     EXPECT_GT(share(c.defense_weights(runs, eleven), vs_run), share(c.defense_weights(passes, eleven), vs_run) + 0.05);
 }
 
+TEST(Coach, StaysInItsPackageAgainstAnOffenseAtTheLine) {
+    // An offense at the line that didn't substitute: the defense calls only
+    // plays of the package it has on the field (game-flow.md, step 6).
+    AutoCoach c(data(), data().teams.at("clemson_2025"), 1, 3);
+    const Play* eleven = data().playbooks.at("spread_base").find("smash");
+    ASSERT_NE(eleven, nullptr);
+    for (const std::string package : {"base", "nickel"}) {
+        for (int i = 0; i < 30; ++i) {
+            const std::string id = c.defense_call(state(1, 10, 30), eleven, package);
+            const Play* p = data().playbooks.at(data().teams.at("clemson_2025").defense_playbook).find(id);
+            ASSERT_NE(p, nullptr);
+            EXPECT_EQ(data().formations.at(p->formation).package, package) << id;
+        }
+    }
+}
+
 TEST(Coach, AntiRepeatSpreadsTheCalls) {
     AutoCoach c(data(), data().teams.at("clemson_2018"), 0, 7);
     std::set<std::string> seen;
@@ -232,7 +248,9 @@ TEST(Coach, TacticsRoundTripThroughTheTeamFile) {
     t.tactics.offense.tempo = Tempo::Hurry;
     t.tactics.offense.featured = "RB";
     t.tactics.defense.man_zone = 20.0;
+    t.tactics.defense.base_call = "43_over_cover3";
     const Team back = parse_team(to_json(t), "roundtrip");
+    EXPECT_EQ(back.tactics.defense.base_call, "43_over_cover3");
     EXPECT_EQ(back.tactics.offense.tempo, Tempo::Hurry);
     EXPECT_EQ(back.tactics.offense.featured, "RB");
     EXPECT_DOUBLE_EQ(back.tactics.defense.man_zone, 20.0);

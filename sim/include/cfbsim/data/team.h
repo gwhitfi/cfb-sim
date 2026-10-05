@@ -36,7 +36,8 @@ struct DepthChart {
 
 // The auto coach's settings (rules-and-flow.md#tactics-team-file-tactics).
 // 0-100 unless noted; 50 is neutral.
-enum class Tempo : std::uint8_t { Huddle, NoHuddle, Hurry };
+// Sugar: a huddle a few yards off the ball (game-flow.md, step 7).
+enum class Tempo : std::uint8_t { Huddle, Sugar, NoHuddle, Hurry };
 
 struct Tactics {
     struct Offense {
@@ -53,6 +54,9 @@ struct Tactics {
         double man_zone = 50.0;  // 0 all man, 100 all zone
         double aggression = 50.0;
         double tendency = 50.0;  // response to the offense's run/pass share
+        // The call it shows between plays before it calls (game-flow.md,
+        // step 6: the shell). Empty: the first play of its base package.
+        std::string base_call;
     } defense;
     struct Special {
         double return_aggression = 50.0;
