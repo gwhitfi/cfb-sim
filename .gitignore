@@ -26,3 +26,7 @@ out/
 
 # Earlier design docs, kept locally for reference
 _old_docs/
+
+# Personal notes and walkthroughs for the user, kept locally
+/test_discrepancies.md
+user_docs/
