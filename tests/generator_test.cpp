@@ -174,3 +174,18 @@ TEST(TeamRating, RatesTheRealTeams) {
         EXPECT_LT(r.overall, 100.0) << id;
     }
 }
+
+TEST(ParseTeam, RejectsAMalformedColor) {
+    const Json real = read_json_file(std::string(CFBSIM_DATA_DIR) + "/teams/furman.json", "furman");
+    EXPECT_NO_THROW(parse_team(real, "furman"));
+    for (const char* bad : {"##54585A", "54585A", "#54585", "#GGGGGG", "purple", ""}) {
+        Json j = real;
+        j["colors"]["secondary"] = bad;
+        try {
+            parse_team(j, "furman");
+            ADD_FAILURE() << "accepted '" << bad << "'";
+        } catch (const DataError& e) {
+            EXPECT_NE(std::string(e.what()).find("colors.secondary"), std::string::npos) << e.what();
+        }
+    }
+}

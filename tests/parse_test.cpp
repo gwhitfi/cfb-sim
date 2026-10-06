@@ -208,3 +208,52 @@ TEST(ParseZones, RejectsMixedShapes) {
     EXPECT_NE(bad(R"({"drop": {"x": 0, "y": 10}, "ends": [{"x": 0, "y": 3}], "radius": 5})").find("[point, point]"),
               std::string::npos);
 }
+
+TEST(ParseTargets, ParsesAndRejectsBadEntries) {
+    const Json good = Json::parse(R"({"format_version": 1, "targets": [
+        {"metric": "ypp", "kind": "both", "value": 5.8, "span": 3},
+        {"metric": "ypp", "kind": "run", "value": 5.0, "span": 3, "note": "designed"}]})");
+    const Targets t = parse_targets(good, "targets");
+    ASSERT_EQ(t.list.size(), 2u);
+    EXPECT_EQ(t.list[1].kind, "run");
+    EXPECT_EQ(t.list[1].note, "designed");
+    EXPECT_EQ(to_json(t).size(), 2u);
+
+    const auto bad = [](const char* entry) {
+        return error_of([&] {
+            parse_targets(Json::parse(std::string(R"({"format_version": 1, "targets": [)") + entry + "]}"), "targets");
+        });
+    };
+    EXPECT_NE(bad(R"({"metric": "ypp", "kind": "kicks", "value": 1, "span": 1})").find("kickoff, punt, or field_goal"), std::string::npos);
+    EXPECT_NE(bad(R"({"metric": "ypp", "kind": "run", "value": 1, "span": 0})").find("span"), std::string::npos);
+    EXPECT_NE(bad(R"({"metric": "ypp", "kind": "run", "value": 1, "span": 1, "spam": 2})").find("spam"), std::string::npos);
+    EXPECT_NE(bad(R"({"metric": "a", "kind": "run", "value": 1, "span": 1}, {"metric": "a", "kind": "run", "value": 2, "span": 1})")
+                   .find("second target"), std::string::npos);
+}
+
+TEST(ParseTargets, GameTargetsTakeAValueOrBorrowOneFromAPerPlayTarget) {
+    const Json json = Json::parse(R"({"format_version": 1,
+        "targets": [{"metric": "completion", "kind": "pass", "value": 0.61, "span": 0.2}],
+        "game": [
+          {"row": "points", "value": 28},
+          {"row": "completion %", "from": {"metric": "completion", "kind": "pass", "scale": 100}},
+          {"row": "sacks", "value": 0.065, "text": "~6-7"}]})");
+    const Targets t = parse_targets(json, "targets");
+    ASSERT_EQ(t.game.size(), 3u);
+    EXPECT_EQ(t.find_game("points")->text, "~28");
+    EXPECT_NEAR(t.find_game("completion %")->value, 61.0, 1e-9);
+    EXPECT_EQ(t.find_game("completion %")->text, "~61");  // not ~61.00000000000001
+    EXPECT_EQ(t.find_game("sacks")->text, "~6-7");        // the text wins over the number
+    EXPECT_EQ(t.find_game("nothing"), nullptr);
+    EXPECT_EQ(to_json(t).size(), 1u);                     // the Builder gets the per-play list only
+
+    const auto bad = [](const char* game) {
+        return error_of([&] {
+            parse_targets(Json::parse(std::string(R"({"format_version": 1, "targets": [], "game": [)") + game + "]}"), "targets");
+        });
+    };
+    EXPECT_NE(bad(R"({"row": "a", "from": {"metric": "x", "kind": "run"}})").find("no per-play target"), std::string::npos);
+    EXPECT_NE(bad(R"({"row": "a"})").find("either"), std::string::npos);
+    EXPECT_NE(bad(R"({"row": "a", "value": 1, "from": {"metric": "x", "kind": "run"}})").find("either"), std::string::npos);
+    EXPECT_NE(bad(R"({"row": "a", "value": 1}, {"row": "a", "value": 2})").find("second target"), std::string::npos);
+}

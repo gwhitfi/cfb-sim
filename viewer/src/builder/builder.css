@@ -1,0 +1,580 @@
+/* The Builder page (/generate). Same palette as the viewer (src/style.css),
+   its own layout: a bar, a job strip, and one tab at a time. */
+
+:root {
+  --bg: #15181c;
+  --panel: #1e2228;
+  --border: #30363f;
+  --text: #e6e8eb;
+  --muted: #8b939e;
+  --accent: #ffd400;
+  --bad: #ff6b6b;
+  --pass: #5aa9ff;
+  --run: #7bd88f;
+  font: 13px/1.4 system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+button,
+select,
+input,
+.button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font: inherit;
+}
+button,
+select,
+.button {
+  cursor: pointer;
+  text-decoration: none;
+}
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  padding: 0;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button:hover:not(:disabled),
+.button:hover {
+  border-color: var(--muted);
+}
+button.primary {
+  background: var(--accent);
+  color: #15181c;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+button[hidden],
+[hidden] {
+  display: none !important;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  color: var(--accent);
+}
+.spacer {
+  flex: 1;
+}
+.muted {
+  color: var(--muted);
+}
+.bad {
+  color: var(--bad);
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+.tabs button {
+  background: transparent;
+  border-color: transparent;
+}
+.tabs button.active {
+  border-bottom: 2px solid var(--accent);
+  border-radius: 4px 4px 0 0;
+  color: var(--accent);
+}
+
+.job {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.job progress {
+  width: 220px;
+  accent-color: var(--accent);
+}
+
+main {
+  padding: 14px;
+  min-width: 0;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  min-width: 0;
+}
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* Matchup */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.card select {
+  width: 100%;
+}
+.quick {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0;
+}
+.quick button {
+  padding: 2px 8px;
+}
+.playlist {
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.formation + .formation {
+  margin-top: 8px;
+}
+.group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+  color: var(--muted);
+}
+.play {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 1px 0 1px 18px;
+}
+.badge {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  margin-left: auto;
+}
+.badge.pass {
+  color: var(--pass);
+}
+.badge.run {
+  color: var(--run);
+}
+.runs .fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.field > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.field input[type="number"] {
+  width: 90px;
+}
+.pair {
+  display: flex;
+  gap: 6px;
+}
+.pair select {
+  width: auto;
+}
+.summary {
+  margin: 12px 0;
+}
+label.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Results */
+.results-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.results-head select {
+  max-width: 330px;
+}
+.results-layout {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.results-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.ramp {
+  width: 150px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(72, 150, 255, 0.62), rgba(72, 150, 255, 0), rgba(255, 176, 32, 0), rgba(255, 176, 32, 0.62));
+  border: 1px solid var(--border);
+}
+.matrix th,
+.matrix td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+.matrix thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  font-weight: 500;
+  white-space: normal;
+  min-width: 78px;
+  max-width: 120px;
+  vertical-align: bottom;
+}
+.matrix .rowhead {
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  text-align: left;
+  font-weight: 500;
+}
+.matrix .rowhead .badge {
+  margin-left: 8px;
+}
+.matrix .sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.matrix .sortable:hover {
+  color: var(--accent);
+}
+.matrix .hide {
+  visibility: hidden;
+  margin-left: 6px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.matrix th:hover .hide {
+  visibility: visible;
+}
+.matrix .hide:hover {
+  color: var(--bad);
+}
+.matrix .total {
+  font-weight: 600;
+  background: #232830;
+}
+.matrix .pending {
+  color: var(--muted);
+}
+.matrix td.pick {
+  cursor: pointer;
+}
+.matrix td.pick:hover {
+  outline: 1px solid var(--muted);
+}
+.matrix td.selected {
+  outline: 2px solid var(--accent);
+}
+.matrix .hint {
+  display: block;
+  font-size: 9px;
+  opacity: 0.75;
+}
+.matrix tr.totals td,
+.matrix tr.totals th {
+  border-top: 2px solid var(--muted);
+}
+.detail {
+  width: 400px;
+  flex: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.detail h3 {
+  margin: 14px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.watch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+table.kv td {
+  padding: 2px 0;
+  vertical-align: top;
+}
+table.kv td:last-child {
+  text-align: right;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  .results-layout {
+    flex-direction: column;
+  }
+  .detail {
+    width: 100%;
+    position: static;
+  }
+}
+table.list th,
+table.list td {
+  text-align: left;
+  padding: 3px 14px 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Teams */
+.teams-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .teams-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  width: 100%;
+}
+.team-row.active {
+  border-color: var(--accent);
+}
+.team-row .team-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-row .badge {
+  margin-left: 0;
+}
+.swatch {
+  width: 22px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  flex: none;
+}
+.badge.scratch {
+  color: var(--accent);
+}
+.badge.locked {
+  color: var(--muted);
+}
+.team-form h3 {
+  margin: 16px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px 16px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.form-field > span:first-child {
+  color: var(--muted);
+  font-size: 11px;
+}
+.form-field input[type="text"],
+.form-field select {
+  width: 100%;
+}
+.field-error {
+  font-size: 11px;
+  min-height: 1em;
+}
+.color-pair {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.picker {
+  width: 44px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+}
+.hex {
+  width: 96px !important;
+  font-family: ui-monospace, monospace;
+}
+.num {
+  width: 80px;
+}
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 14px 0;
+}
+.chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.chip {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.notice {
+  background: #2a2618;
+  border: 1px solid #5c5224;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+.modes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.roster-fields {
+  margin-top: 8px;
+}
+.errors {
+  margin: 10px 0 0;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+button.danger:hover:not(:disabled) {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Kick matrix cells that don't apply */
+.matrix td.na {
+  color: var(--muted);
+  text-align: center;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.025) 5px 10px);
+}
+
+/* Plays | Kicks switch on the Matchup tab */
+.modebar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.modebar button.active {
+  background: var(--accent);
+  color: #15181c;
+  border-color: var(--accent);
+  font-weight: 600;
+}

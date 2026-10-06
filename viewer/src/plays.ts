@@ -22,6 +22,9 @@ export interface TeamInfo {
   id: string;
   name: string;
   abbr: string;
+  nickname?: string; // the Builder's team list (the server sends these with every team)
+  scratch?: boolean;
+  colors?: { primary: string; secondary: string };
   offense?: PlayInfo[];
   defense?: PlayInfo[];
   kicking?: PlayInfo[];

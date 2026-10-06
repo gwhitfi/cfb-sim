@@ -71,7 +71,29 @@ async function listFiles(): Promise<string[]> {
   return found;
 }
 
+// The Builder is its own page, generate/index.html. Vite's dev server would
+// answer /generate with the viewer's index.html, so send it to the folder.
+function builderPage(): Plugin {
+  return {
+    name: "cfbsim-builder-page",
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        if (req.url && /^\/generate(\?|$)/.test(req.url)) req.url = req.url.replace("/generate", "/generate/");
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [trackingFiles()],
+  plugins: [trackingFiles(), builderPage()],
   server: { port: 5173 },
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("index.html", import.meta.url)),
+        generate: fileURLToPath(new URL("generate/index.html", import.meta.url)),
+      },
+    },
+  },
 });

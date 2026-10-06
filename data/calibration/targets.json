@@ -1,0 +1,51 @@
+{
+  // Calibration targets for single plays, read by the Builder's results grid
+  // (cfbsim_design.md#calibration-targets-and-current-numbers has the table
+  // these come from). A cell is colored by how far its value is from the
+  // target, and a deviation of `span` is the full color.
+  //   metric: the Builder's metric id; value: a rate as a fraction (0.61 = 61%) or yards
+  //   kind:   pass or run rows (both: any row; a pass or run target wins over both); for the kick matrix,
+  //           kickoff, punt, or field_goal rows (from the kicking team's side)
+  "format_version": 1,
+  "targets": [
+    {"metric": "ypp",        "kind": "both", "value": 5.8,    "span": 3.0,  "note": "yards per play, all plays"},
+    {"metric": "ypp",        "kind": "run",  "value": 5.0,    "span": 3.0,  "note": "designed runs, yards per carry"},
+    {"metric": "success",    "kind": "run",  "value": 0.42,   "span": 0.25, "note": "designed runs gaining 4+"},
+    {"metric": "nonpos",     "kind": "run",  "value": 0.18,   "span": 0.25, "note": "designed runs gaining 0 or less"},
+    {"metric": "ten",        "kind": "run",  "value": 0.12,   "span": 0.2,  "note": "designed runs gaining 10+"},
+    {"metric": "twenty",     "kind": "run",  "value": 0.04,   "span": 0.1,  "note": "designed runs gaining 20+"},
+    {"metric": "completion", "kind": "pass", "value": 0.61,   "span": 0.2,  "note": "of attempts"},
+    {"metric": "ypc",        "kind": "pass", "value": 12.0,   "span": 8.0,  "note": "yards per completion"},
+    {"metric": "yac",        "kind": "pass", "value": 5.5,    "span": 4.0,  "note": "yards after the catch per completion (5-6)"},
+    {"metric": "int",        "kind": "pass", "value": 0.023,  "span": 0.04, "note": "of attempts"},
+    {"metric": "sack",       "kind": "pass", "value": 0.065,  "span": 0.08, "note": "of dropbacks (6-7%)"},
+    {"metric": "fumbles",    "kind": "both", "value": 0.0086, "span": 0.02, "note": "0.6 lost per team game over 70 plays"},
+    {"metric": "distance",   "kind": "punt",    "value": 43.0, "span": 10.0, "note": "gross punt yards"},
+    {"metric": "faircatch",  "kind": "punt",    "value": 0.40, "span": 0.3,  "note": "punts fair caught"},
+    {"metric": "return",     "kind": "punt",    "value": 8.0,  "span": 8.0,  "note": "yards per punt return"},
+    {"metric": "return",     "kind": "kickoff", "value": 21.0, "span": 10.0, "note": "yards per kickoff return"},
+    {"metric": "returntd",   "kind": "kickoff", "value": 0.01, "span": 0.04, "note": "kickoffs returned for a touchdown (about 1%)"}
+  ],
+
+  // The full-game targets `cfbsim batch` prints beside each row, by the row's label. A row takes a value
+  // of its own, or one from a per-play target above ("from", times "scale": 0.61 is 61 in the table).
+  // "text" is what's printed; leave it out and it is "~" and the value. Targets are in
+  // cfbsim_design.md#calibration-targets-and-current-numbers.
+  "game": [
+    {"row": "points per team per game", "value": 28},
+    {"row": "yards per play",           "from": {"metric": "ypp", "kind": "both"}},
+    {"row": "yards per carry",          "value": 4.5},
+    {"row": "completion %",             "from": {"metric": "completion", "kind": "pass", "scale": 100}},
+    {"row": "yards per completion",     "from": {"metric": "ypc", "kind": "pass"}},
+    {"row": "sack % of dropbacks",      "from": {"metric": "sack", "kind": "pass", "scale": 100}, "text": "~6-7"},
+    {"row": "interception % of att",    "from": {"metric": "int", "kind": "pass", "scale": 100}},
+    {"row": "fumbles lost per game",    "value": 0.6},
+    {"row": "plays per team per game",  "value": 70},
+    {"row": "run share of plays %",     "value": 47.5, "text": "~45-50"},
+    {"row": "designed run yd/carry",    "from": {"metric": "ypp", "kind": "run"}},
+    {"row": "runs at or under 0 %",     "from": {"metric": "nonpos", "kind": "run", "scale": 100}},
+    {"row": "runs of 4+ yd %",          "from": {"metric": "success", "kind": "run", "scale": 100}},
+    {"row": "runs of 10+ yd %",         "from": {"metric": "ten", "kind": "run", "scale": 100}},
+    {"row": "runs of 20+ yd %",         "from": {"metric": "twenty", "kind": "run", "scale": 100}}
+  ]
+}

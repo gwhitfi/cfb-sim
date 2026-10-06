@@ -106,6 +106,12 @@ LoadReport load_data_dir(const fs::path& root) {
         data.rules = std::move(*r);
     }
 
+    if (const fs::path targets = root / "calibration" / "targets.json"; !fs::exists(targets)) {
+        report.errors.push_back("calibration/targets.json: file not found");
+    } else if (auto t = load(targets, parse_targets)) {
+        data.targets = std::move(*t);
+    }
+
     for (const fs::path& file : json_files(root / "formations", /*recursive=*/true)) {
         if (auto f = load(file, parse_formation)) {
             const std::string id = f->id;

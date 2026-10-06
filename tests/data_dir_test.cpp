@@ -40,6 +40,12 @@ TEST(StarterData, HasTheExpectedContent) {
     EXPECT_NE(d.playbooks.at("spread_base").find("trips_stick"), nullptr);
     EXPECT_TRUE(d.teams.contains("clemson_2018"));
     EXPECT_TRUE(d.teams.contains("clemson_2025"));
+    EXPECT_FALSE(d.targets.list.empty());  // data/calibration/targets.json
+    // `cfbsim batch` prints these beside its rows, and the per-play ones borrow from the same file.
+    ASSERT_NE(d.targets.find_game("completion %"), nullptr);
+    EXPECT_EQ(d.targets.find_game("completion %")->text, "~61");
+    EXPECT_EQ(d.targets.find_game("sack % of dropbacks")->text, "~6-7");
+    EXPECT_EQ(d.targets.find_game("designed run yd/carry")->text, "~5");
 
     const Play* stick = d.playbooks.at("spread_base").find("trips_stick");
     ASSERT_TRUE(stick->pass.has_value());

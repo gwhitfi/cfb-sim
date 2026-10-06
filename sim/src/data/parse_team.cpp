@@ -1,7 +1,9 @@
 // Parsers for rosters/*.json, teams/*.json, and games/*.json.
 
+#include <algorithm>
 #include <cctype>
 #include <set>
+#include <string_view>
 
 #include "data/json_reader.h"
 
@@ -221,6 +223,13 @@ Team parse_team(const Json& json, const std::string& source) {
         colors->allow_only({"primary", "secondary"});
         t.color_primary = colors->string_or("primary", t.color_primary);
         t.color_secondary = colors->string_or("secondary", t.color_secondary);
+        // The viewer paints with these, and a malformed one makes the browser drop the whole style.
+        for (const char* which : {"primary", "secondary"}) {
+            const std::string& c = std::string_view(which) == "primary" ? t.color_primary : t.color_secondary;
+            const bool hex = c.size() == 7 && c[0] == '#' &&
+                             std::all_of(c.begin() + 1, c.end(), [](unsigned char ch) { return std::isxdigit(ch) != 0; });
+            if (!hex) colors->at(which).fail("expected a color like #RRGGBB, got '" + c + "'");
+        }
     }
     t.roster_file = root.string("roster");
 

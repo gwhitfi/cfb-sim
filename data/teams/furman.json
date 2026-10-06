@@ -7,7 +7,7 @@
     "scratch": true,
     "colors": {
         "primary": "#582c83",
-        "secondary": "##54585A"
+        "secondary": "#54585A"
     },
     "roster": "rosters/furman.json",
     "playbooks": {

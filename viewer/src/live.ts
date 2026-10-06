@@ -25,6 +25,7 @@ import {
   type TeamKey,
 } from "./game";
 import { PlayRunner, type PlayReply, type TeamInfo } from "./plays";
+import { DEFAULT_SERVER, rememberServer, serverUrl } from "./server";
 import { StatsPanel } from "./stats";
 
 // What the live mode needs from the page.
@@ -70,16 +71,7 @@ interface LiveWindow {
 }
 
 const key = (p: { input: string; team: string }) => `${p.input}/${p.team}`;
-const SERVER_KEY = "cfbsim.server";
-export const DEFAULT_SERVER = "ws://localhost:8765";
-
-export function serverUrl(): string {
-  try {
-    return localStorage.getItem(SERVER_KEY) || DEFAULT_SERVER;
-  } catch {
-    return DEFAULT_SERVER;
-  }
-}
+export { DEFAULT_SERVER, serverUrl };
 
 // A new element with properties (textContent, className, ...) and children.
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -169,11 +161,7 @@ export class Live {
 
   // Connects to `url` (and remembers it), or to the saved server.
   connect(url = serverUrl()): void {
-    try {
-      localStorage.setItem(SERVER_KEY, url);
-    } catch {
-      // Not remembered.
-    }
+    rememberServer(url);
     this.ws?.close();
     this.status(`Connecting to ${url}…`);
     const ws = new WebSocket(url);

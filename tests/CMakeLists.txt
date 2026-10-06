@@ -20,6 +20,7 @@ function(cfbsim_test_suite name label timeout)
     target_link_libraries(${name} PRIVATE
         cfbsim_core
         cfbsim_options
+        Threads::Threads
         GTest::gtest_main)   # provides main() for the test executable
     # White-box tests may include the core's internal headers (sim/src).
     target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR}/sim/src)
@@ -30,6 +31,9 @@ endfunction()
 
 include(GoogleTest)
 
+# The matrix test runs cells on std::thread (pthreads on Linux).
+find_package(Threads REQUIRED)
+
 cfbsim_test_suite(cfbsim_unit_tests unit 30
     attributes_test.cpp
     ball_flight_test.cpp
@@ -38,6 +42,7 @@ cfbsim_test_suite(cfbsim_unit_tests unit 30
     data_dir_test.cpp
     determinism_test.cpp
     generator_test.cpp
+    play_stats_test.cpp
     geometry_test.cpp
     huddle_test.cpp
     movement_test.cpp
@@ -52,8 +57,11 @@ cfbsim_test_suite(cfbsim_play_tests play 120
     catch_test.cpp
     tackling_test.cpp
     defense_test.cpp
+    kick_matrix_test.cpp
+    matrix_test.cpp
     play_test.cpp
-    shell_test.cpp)
+    shell_test.cpp
+    team_builder_test.cpp)
 
 cfbsim_test_suite(cfbsim_game_tests game 180
     game_test.cpp

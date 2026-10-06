@@ -14,6 +14,7 @@
 #include "cfbsim/data/play.h"
 #include "cfbsim/data/player.h"
 #include "cfbsim/data/rules.h"
+#include "cfbsim/data/targets.h"
 #include "cfbsim/data/team.h"
 #include "cfbsim/data/tuning.h"
 
@@ -65,6 +66,7 @@ CoachTuning parse_coach_tuning(const Json& json, const std::string& source);
 // data/tactics/situations.json: the offense's and the defense's tables.
 std::pair<SituationTable, SituationTable> parse_situations(const Json& json, const std::string& source);
 RulesTable parse_rules(const Json& json, const std::string& source);
+Targets parse_targets(const Json& json, const std::string& source);
 
 // ---------------------------------------------------------------------------
 // Everything in a data directory.
@@ -83,6 +85,7 @@ struct DataSet {
     ById<Roster> rosters;  // keyed by team id
     Tuning tuning;
     RulesTable rules;  // data/rules/ncaa_fbs.json
+    Targets targets;   // data/calibration/targets.json
 };
 
 struct LoadReport {
@@ -105,6 +108,7 @@ std::vector<std::string> validate_references(const DataSet& data);
 // ---------------------------------------------------------------------------
 Json to_json(const Roster& roster);
 Json to_json(const Team& team);
+Json to_json(const Targets& targets);
 
 // Writes `json` to `file` with 2-space indentation. Throws std::runtime_error.
 void write_json_file(const std::filesystem::path& file, const Json& json);

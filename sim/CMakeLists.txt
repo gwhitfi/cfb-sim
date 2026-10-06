@@ -18,10 +18,12 @@ add_library(cfbsim_core STATIC
     src/data/parse_team.cpp
     src/data/parse_tuning.cpp
     src/data/parse_rules.cpp
+    src/data/parse_targets.cpp
     src/data/save.cpp
     src/drills/drills.cpp
     src/field/geometry.cpp
     src/gen/roster_gen.cpp
+    src/gen/team_builder.cpp
     src/gen/team_rating.cpp
     src/interaction/catch.cpp
     src/log/tracking.cpp
@@ -44,6 +46,10 @@ add_library(cfbsim_core STATIC
     src/api/sim_api.cpp
     src/play/openness.cpp
     src/play/play_sim.cpp
+    src/play/kick_matrix.cpp
+    src/play/kick_stats.cpp
+    src/play/matrix.cpp
+    src/play/play_stats.cpp
     src/play/routes.cpp
     src/world/agent.cpp
     src/world/world.cpp)

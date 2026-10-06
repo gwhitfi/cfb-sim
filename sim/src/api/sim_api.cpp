@@ -11,8 +11,11 @@
 #include "cfbsim/api/match.h"
 #include "cfbsim/data/load.h"
 #include "cfbsim/field/geometry.h"
+#include "cfbsim/gen/team_builder.h"
 #include "cfbsim/log/tracking.h"
+#include "cfbsim/play/kick_matrix.h"
 #include "cfbsim/play/kick_sim.h"
+#include "cfbsim/play/matrix.h"
 #include "cfbsim/play/play_sim.h"
 #include "cfbsim/version.h"
 
@@ -23,6 +26,12 @@ struct cfbsim_match {
     std::string out;       // the last string returned
 };
 
+struct cfbsim_matrix {
+    std::unique_ptr<cfbsim::Matrix> matrix;        // a matrix of scrimmage plays, or
+    std::unique_ptr<cfbsim::KickMatrix> kicks;     // a matrix of kicks (one or the other)
+    std::string info;
+};
+
 namespace {
 
 thread_local std::string last_error;
@@ -30,6 +39,43 @@ thread_local std::string last_error;
 const char* fail(const std::string& message) {
     last_error = message;
     return nullptr;
+}
+
+// Opens a matrix of kicks (options "kind": "kicks"); see cfbsim_matrix_open.
+cfbsim_matrix* open_kick_matrix(const char* data_dir, const cfbsim::Json& o) {
+    using cfbsim::Json;
+    cfbsim::KickMatrixSpec spec;
+    spec.kicking = o.value("kicking", "");
+    spec.receiving = o.value("receiving", "");
+    if (spec.kicking.empty() || spec.receiving.empty()) return fail("a kick matrix needs \"kicking\" and \"receiving\""), nullptr;
+    spec.kicks = o.value("kicks", std::vector<std::string>{});
+    spec.returns = o.value("returns", std::vector<std::string>{});
+    spec.runs = o.value("runs", 100);
+    spec.seed = o.value("seed", std::uint64_t{1});
+    if (o.contains("hash")) {
+        const auto hash = cfbsim::from_name(cfbsim::kHashNames, o.value("hash", ""));
+        if (!hash) return fail("hash must be left, middle, or right"), nullptr;
+        spec.hash = *hash;
+    }
+    if (o.contains("yard_line")) spec.yard_line = o.value("yard_line", 35.0);
+    spec.return_aggression = o.value("return_aggression", 50.0);
+
+    cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+    if (!report.ok()) return fail("the data folder has errors: " + report.errors.front()), nullptr;
+
+    auto h = std::make_unique<cfbsim_matrix>();
+    h->kicks = std::make_unique<cfbsim::KickMatrix>(std::move(report.data), spec);
+    Json info = {{"kind", "kicks"}, {"kicking", spec.kicking}, {"receiving", spec.receiving}, {"runs", spec.runs},
+                 {"seed", spec.seed}, {"rows", Json::array()}, {"cols", Json::array()}};
+    for (const cfbsim::MatrixPlay& p : h->kicks->rows()) {
+        info["rows"].push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))}});
+    }
+    for (const cfbsim::MatrixPlay& p : h->kicks->cols()) {
+        info["cols"].push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))}});
+    }
+    info["targets"] = to_json(h->kicks->data().targets);
+    h->info = info.dump();
+    return h.release();
 }
 
 }  // namespace
@@ -227,6 +273,148 @@ const char* cfbsim_run_kick(const char* data_dir, const char* options_json) {
         const cfbsim::KickResult r = cfbsim::run_kick(data, ko, &writer);
         out = Json{{"summary", r.summary}, {"outcome", r.result}, {"yards", r.return_yards}, {"tracking", tracking.str()}}
                   .dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+cfbsim_matrix* cfbsim_matrix_open(const char* data_dir, const char* options_json) {
+    using cfbsim::Json;
+    try {
+        last_error.clear();
+        const Json o = Json::parse(options_json ? options_json : "{}");
+        if (o.value("kind", "scrimmage") == "kicks") return open_kick_matrix(data_dir, o);
+        cfbsim::MatrixSpec spec;
+        spec.offense = o.value("offense", "");
+        if (spec.offense.empty()) return fail("a matrix needs \"offense\""), nullptr;
+        spec.defense = o.value("defense", "");
+        spec.plays = o.value("plays", std::vector<std::string>{});
+        spec.defs = o.value("defs", std::vector<std::string>{});
+        spec.runs = o.value("runs", 100);
+        spec.seed = o.value("seed", std::uint64_t{1});
+        if (o.contains("hash")) {
+            const auto hash = cfbsim::from_name(cfbsim::kHashNames, o.value("hash", ""));
+            if (!hash) return fail("hash must be left, middle, or right"), nullptr;
+            spec.hash = *hash;
+        }
+        spec.yard_line = o.value("yard_line", 25.0);
+        spec.huddle = o.value("huddle", false);
+
+        cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+        if (!report.ok()) return fail("the data folder has errors: " + report.errors.front()), nullptr;
+
+        auto h = std::make_unique<cfbsim_matrix>();
+        h->matrix = std::make_unique<cfbsim::Matrix>(std::move(report.data), spec);
+        Json info = {{"kind", "scrimmage"}, {"offense", spec.offense}, {"defense", spec.defense}, {"runs", spec.runs}, {"seed", spec.seed},
+                     {"rows", Json::array()}, {"cols", Json::array()}};
+        for (const cfbsim::MatrixPlay& p : h->matrix->rows()) {
+            info["rows"].push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))}});
+        }
+        for (const cfbsim::MatrixPlay& p : h->matrix->cols()) info["cols"].push_back({{"id", p.id}, {"name", p.name}});
+        info["targets"] = to_json(h->matrix->data().targets);
+        h->info = info.dump();
+        return h.release();
+    } catch (const std::exception& e) {
+        return fail(e.what()), nullptr;
+    }
+}
+
+void cfbsim_matrix_close(cfbsim_matrix* matrix) { delete matrix; }
+
+const char* cfbsim_matrix_info(cfbsim_matrix* matrix) {
+    if (!matrix) return fail("no matrix");
+    return matrix->info.c_str();
+}
+
+const char* cfbsim_matrix_cell(cfbsim_matrix* matrix, int row, int col) {
+    using cfbsim::Json;
+    thread_local std::string out;
+    if (!matrix) return fail("no matrix");
+    try {
+        last_error.clear();
+        if (matrix->kicks) {
+            const cfbsim::KickMatrix& k = *matrix->kicks;
+            if (row < 0 || col < 0 || static_cast<std::size_t>(row) >= k.rows().size() ||
+                static_cast<std::size_t>(col) >= k.cols().size()) {
+                return fail("no such cell");
+            }
+            const auto r = static_cast<std::size_t>(row), c = static_cast<std::size_t>(col);
+            const cfbsim::KickStats stats = k.run_cell(r, c);
+            Json samples = Json::array();
+            for (const cfbsim::CellSample& s : k.samples(r, c, stats)) {
+                samples.push_back({{"kind", s.kind}, {"run", s.run}, {"seed", s.seed},
+                                   {"hash", std::string(cfbsim::to_name(cfbsim::kHashNames, s.hash))},
+                                   {"flip", false}, {"yards", s.yards}});
+            }
+            out = Json{{"row", row}, {"col", col}, {"applies", k.applies(r, c)}, {"stats", to_json(stats)},
+                       {"samples", std::move(samples)}}.dump();
+            return out.c_str();
+        }
+        const cfbsim::Matrix& m = *matrix->matrix;
+        if (row < 0 || col < 0 || static_cast<std::size_t>(row) >= m.rows().size() ||
+            static_cast<std::size_t>(col) >= m.cols().size()) {
+            return fail("no such cell");
+        }
+        const cfbsim::PlayStats stats = m.run_cell(static_cast<std::size_t>(row), static_cast<std::size_t>(col));
+        Json samples = Json::array();
+        for (const cfbsim::CellSample& s : m.samples(static_cast<std::size_t>(row), stats)) {
+            samples.push_back({{"kind", s.kind}, {"run", s.run}, {"seed", s.seed},
+                               {"hash", std::string(cfbsim::to_name(cfbsim::kHashNames, s.hash))},
+                               {"flip", s.flip}, {"yards", s.yards}});
+        }
+        out = Json{{"row", row}, {"col", col}, {"stats", to_json(stats)}, {"samples", std::move(samples)}}.dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+const char* cfbsim_list_playbooks(const char* data_dir) {
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+        if (!report.ok()) return fail("the data folder has errors: " + report.errors.front());
+        out = cfbsim::list_playbooks(report.data).dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+const char* cfbsim_get_team(const char* data_dir, const char* team_id) {
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        out = cfbsim::get_team(data_dir ? data_dir : "data", team_id ? team_id : "").dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+const char* cfbsim_save_team(const char* data_dir, const char* request_json) {
+    using cfbsim::Json;
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        const cfbsim::SavedTeam saved =
+            cfbsim::save_team(data_dir ? data_dir : "data", Json::parse(request_json ? request_json : "{}"));
+        out = Json{{"id", saved.id}, {"team_file", saved.team_file}, {"roster_file", saved.roster_file},
+                   {"created", saved.created}}.dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+const char* cfbsim_delete_team(const char* data_dir, const char* team_id) {
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        cfbsim::delete_team(data_dir ? data_dir : "data", team_id ? team_id : "");
+        out = cfbsim::Json{{"id", team_id ? team_id : ""}}.dump();
         return out.c_str();
     } catch (const std::exception& e) {
         return fail(e.what());

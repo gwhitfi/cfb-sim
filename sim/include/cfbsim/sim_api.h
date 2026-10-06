@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 typedef struct cfbsim_match cfbsim_match;
+typedef struct cfbsim_matrix cfbsim_matrix;
 
 /* The sim's version, e.g. "0.1.0". */
 const char* cfbsim_version(void);
@@ -68,6 +69,70 @@ const char* cfbsim_run_play(const char* data_dir, const char* options_json);
  * "tracking": "<JSON Lines>"}, or NULL on error (see cfbsim_last_error). The
  * string stays valid until the next cfbsim_run_kick call on the same thread. */
 const char* cfbsim_run_kick(const char* data_dir, const char* options_json);
+
+/* A matrix of kicks: with "kind": "kicks" in the options, the kicking team's kickoffs, punts, and
+ * field goals against the receiving team's returns and blocks (only a kick's own kind of answer
+ * runs; the other cells come back with "applies": false and no kicks):
+ *   {"kind": "kicks", "kicking": "clemson_2025", "receiving": "clemson_2018",   required
+ *    "kicks": ["punt_normal", ...], "returns": ["pr_middle", ...],              default every one
+ *    "runs": 100, "seed": 1, "hash": "middle",
+ *    "yard_line": 35,           the kicking team's own yard line; default each kind's usual spot
+ *    "return_aggression": 50}
+ * Its info has "kicking", "receiving" in place of "offense", "defense", and the cell stats are
+ * KickStats as JSON. Everything else works as for plays.
+ *
+ * A matrix of plays: every chosen offensive play against every chosen
+ * defensive play, many seeds per pair (a "cell"), like `cfbsim matrix`. The
+ * data folder is loaded once, when the matrix is opened. `options_json`:
+ *   {"offense": "clemson_2025", "defense": "clemson_2018",   required ("defense": "" = an empty field)
+ *    "plays": ["smash", ...],   offense play ids; default every pass and run play
+ *    "defs": ["nickel_cover2", ...],   defense play ids; default every play in the playbook
+ *    "runs": 100,               seeds per cell
+ *    "seed": 1,                 run k of every cell uses seed + k
+ *    "hash": "middle",          default: left, middle, right in turn
+ *    "yard_line": 25, "huddle": false}
+ * Returns NULL on error (see cfbsim_last_error). */
+cfbsim_matrix* cfbsim_matrix_open(const char* data_dir, const char* options_json);
+
+void cfbsim_matrix_close(cfbsim_matrix* matrix);
+
+/* The shape of the matrix: {"offense", "defense", "runs", "seed",
+ * "rows": [{"id", "name", "type"}], "cols": [{"id", "name"}],
+ * "targets": [{"metric", "kind", "value", "span", "note"}]} (the calibration
+ * targets, data/calibration/targets.json). Valid until the matrix is closed. */
+const char* cfbsim_matrix_info(cfbsim_matrix* matrix);
+
+/* Runs one cell: {"row": r, "col": c, "stats": {...}, "samples": [...]} (the stats of
+ * PlayStats as JSON: counts, sums, the gains' spread, ...; the samples: the best,
+ * median, and worst play by yards, each {"kind", "run", "seed", "hash", "flip",
+ * "yards"}, enough to replay it with cfbsim_run_play). Safe to call from several
+ * threads at once, for any cells; a cell's result doesn't depend on which
+ * thread ran it or when. NULL on error (see cfbsim_last_error). The string
+ * stays valid until the next cfbsim_matrix_cell call on the same thread. */
+const char* cfbsim_matrix_cell(cfbsim_matrix* matrix, int row, int col);
+
+/* Teams for the Builder (cfbsim/gen/team_builder.h). Each loads the data folder,
+ * and the ones that change it check the whole folder with the change in it before
+ * writing anything. All return a JSON string, or NULL on error (see
+ * cfbsim_last_error; several problems are joined with newlines). The string stays
+ * valid until the next call to one of these on the same thread. */
+
+/* [{"id", "name", "side", "scheme", "plays", "formations"}] */
+const char* cfbsim_list_playbooks(const char* data_dir);
+
+/* One team: {"id", "name", "nickname", "abbr", "scratch", "colors", "playbooks", "roster": {...}}. */
+const char* cfbsim_get_team(const char* data_dir, const char* team_id);
+
+/* Makes or changes a team. `request_json`:
+ *   {"team": {"id", "name", "nickname", "abbr", "colors": {"primary", "secondary"},
+ *             "playbooks": {"offense", "defense", "special"}, "scratch": true},
+ *    "roster": {"mode": "generate", "talent": 50, "seed": 1}  or  {"mode": "keep"},
+ *    "overwrite": false}
+ * Only scratch teams can be overwritten. Returns {"id", "team_file", "roster_file", "created"}. */
+const char* cfbsim_save_team(const char* data_dir, const char* request_json);
+
+/* Deletes a scratch team and its roster file. Returns {"id"}. */
+const char* cfbsim_delete_team(const char* data_dir, const char* team_id);
 
 #ifdef __cplusplus
 }
