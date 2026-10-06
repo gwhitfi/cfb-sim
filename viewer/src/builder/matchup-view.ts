@@ -1,14 +1,18 @@
-// The Matchup tab: pick the teams, check the plays, set the runs, and go.
+// The Matchup tab: pick the teams, check the plays, set the runs, and go. The
+// two sides sit side by side; the run settings, the count, and Run sit in a bar
+// fixed to the bottom of the page, so they stay on screen however long the lists get.
 
 import type { PlayInfo, TeamInfo } from "../plays";
 import { el, load, save } from "./dom";
 import {
+  countText,
   estimate,
   groupByFormation,
   parseForm,
   planRuns,
   problem,
   quickPick,
+  teamLabel,
   type HashChoice,
   type MatchupForm,
   type QuickPick,
@@ -33,6 +37,8 @@ export class MatchupView {
   private offenseList = el("div", { className: "playlist" });
   private defenseList = el("div", { className: "playlist" });
   private summary = el("div", { className: "summary" });
+  private offenseCount = el("span", { className: "count" });
+  private defenseCount = el("span", { className: "count" });
   private runButton = el("button", { className: "primary", textContent: "Run matrix" });
   private modeSelect = el("select");
   private valueInput = el("input", { type: "number", min: "1", step: "1" });
@@ -72,11 +78,10 @@ export class MatchupView {
 
     root.append(
       el("div", { className: "columns" },
-        this.side("Offense", this.offenseSelect, this.offenseList, true),
-        this.side("Defense", this.defenseSelect, this.defenseList, false),
+        this.side("Offense", this.offenseCount, this.offenseSelect, this.offenseList, true),
+        this.side("Defense", this.defenseCount, this.defenseSelect, this.defenseList, false),
       ),
-      el("section", { className: "card runs" },
-        el("h2", { textContent: "Runs" }),
+      el("div", { className: "runbar" },
         el("div", { className: "fields" },
           this.field("How many", this.modeSelect, this.valueInput),
           this.field("Seed", this.seedInput),
@@ -103,11 +108,9 @@ export class MatchupView {
     }
     if (this.form.defense && !ids.has(this.form.defense)) this.form.defense = first;
     this.form = this.keepKnown(this.form);
-    this.offenseSelect.replaceChildren(...teams.map((t) => el("option", { value: t.id, textContent: `${t.name} (${t.id})` })));
-    this.defenseSelect.replaceChildren(
-      el("option", { value: "", textContent: "(empty field)" }),
-      ...teams.map((t) => el("option", { value: t.id, textContent: `${t.name} (${t.id})` })),
-    );
+    const options = () => teams.map((t) => el("option", { value: t.id, textContent: teamLabel(teams, t), title: t.id }));
+    this.offenseSelect.replaceChildren(...options());
+    this.defenseSelect.replaceChildren(el("option", { value: "", textContent: "(empty field)" }), ...options());
     this.write();
   }
 
@@ -143,7 +146,7 @@ export class MatchupView {
     return { ...f, plays: plays.length ? plays : o, defs: defs.length ? defs : d };
   }
 
-  private side(title: string, select: HTMLSelectElement, list: HTMLElement, offense: boolean): HTMLElement {
+  private side(title: string, count: HTMLElement, select: HTMLSelectElement, list: HTMLElement, offense: boolean): HTMLElement {
     const picks = el("div", { className: "quick" });
     const quick = (text: string, pick: () => QuickPick) =>
       picks.append(el("button", { textContent: text, onclick: () => this.apply(offense, pick()) }));
@@ -153,7 +156,7 @@ export class MatchupView {
       quick("Pass", () => ({ kind: "type", type: "pass" }));
       quick("Run", () => ({ kind: "type", type: "run" }));
     }
-    return el("section", { className: "card" }, el("h2", { textContent: title }), select, picks, list);
+    return el("section", { className: "card side" }, el("div", { className: "side-head" }, el("h2", { textContent: title }), count), select, picks, list);
   }
 
   private apply(offense: boolean, pick: QuickPick): void {
@@ -173,7 +176,7 @@ export class MatchupView {
     list.replaceChildren(
       ...groupByFormation(plays).map((g) => {
         const all = g.plays.every((p) => on.has(p.id));
-        const header = el("label", { className: "group" },
+        const header = el("label", { className: "pl-group" },
           el("input", {
             type: "checkbox",
             checked: all,
@@ -184,7 +187,7 @@ export class MatchupView {
         );
         return el("div", { className: "formation" }, header,
           ...g.plays.map((p) =>
-            el("label", { className: "play", title: p.tags?.join(", ") ?? "" },
+            el("label", { className: "pl-play", title: p.tags?.join(", ") ?? "" },
               el("input", {
                 type: "checkbox",
                 checked: on.has(p.id),
@@ -264,6 +267,8 @@ export class MatchupView {
   }
 
   private refreshSummary(): void {
+    this.offenseCount.textContent = countText(this.form.plays.length, this.offensePlays().length, "plays");
+    this.defenseCount.textContent = this.form.defense ? countText(this.form.defs.length, this.defensePlays().length, "plays") : "";
     const plan = this.plan();
     const bad = this.problem();
     const rows = this.form.plays.length;

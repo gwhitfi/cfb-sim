@@ -82,7 +82,7 @@ export function kickProblem(f: KickForm, kicks: PlayInfo[], returns: PlayInfo[])
   return null;
 }
 
-const TYPE_NAMES: Record<string, string> = {
+export const TYPE_NAMES: Record<string, string> = {
   kickoff: "Kickoffs",
   punt: "Punts",
   field_goal: "Field goals",

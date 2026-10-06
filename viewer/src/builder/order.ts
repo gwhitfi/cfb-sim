@@ -25,7 +25,7 @@ export function nextDir(current: SortDir | null): SortDir | null {
   return current === null ? "desc" : current === "desc" ? "asc" : null;
 }
 
-function csvField(text: string): string {
+export function csvField(text: string): string {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

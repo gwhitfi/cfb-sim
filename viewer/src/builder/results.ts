@@ -72,8 +72,8 @@ export interface MatrixInfo {
   receiving?: string;
   runs: number;
   seed: number;
-  rows: { id: string; name: string; type: string }[];
-  cols: { id: string; name: string; type?: string }[];
+  rows: { id: string; name: string; type: string; formation?: string; formation_name?: string }[];
+  cols: { id: string; name: string; type?: string; formation?: string; formation_name?: string }[]; // formation: missing in runs saved before it was sent
   targets?: Target[];
 }
 
@@ -110,11 +110,26 @@ export function domainOf(info: MatrixInfo): Domain {
   return info.kind === "kicks" ? "kicks" : "scrimmage";
 }
 
-// "clemson offense vs clemson_2018", or the kicking team and its opponent for a kick matrix.
-export function titleOf(info: MatrixInfo): string {
+// "Clemson offense vs Clemson 2018", or the kicking team and its opponent for a
+// kick matrix. `name` turns a team id into its name (unknown: the id).
+export function titleOf(info: MatrixInfo, name: (id: string) => string = (id) => id): string {
   return domainOf(info) === "kicks"
-    ? `${info.kicking} kicking vs ${info.receiving} returning`
-    : `${info.offense} offense vs ${info.defense || "an empty field"}`;
+    ? `${name(info.kicking ?? "")} kicking vs ${name(info.receiving ?? "")} returning`
+    : `${name(info.offense ?? "")} offense vs ${info.defense ? name(info.defense) : "an empty field"}`;
+}
+
+// The run's settings in a line: "100 runs per cell · seed 1 · rotating hash · yard line 25 · no huddle".
+export function settingsText(info: MatrixInfo, s: MatrixSettings): string {
+  const kicks = domainOf(info) === "kicks";
+  const hash = typeof s.hash === "string" ? `${s.hash} hash` : "rotating hash";
+  const parts = [`${info.runs} ${kicks ? "kicks" : "runs"} per cell`, `seed ${info.seed}`, hash];
+  if (kicks) {
+    parts.push(typeof s.yard_line === "number" ? `yard line ${s.yard_line}` : "the usual spot");
+    parts.push(`return aggression ${s.return_aggression ?? 50}`);
+  } else {
+    parts.push(`yard line ${s.yard_line ?? 25}`, s.huddle ? "huddle" : "no huddle");
+  }
+  return parts.join(" · ");
 }
 
 // The matrix of a run: the cells that have arrived, by row and column.

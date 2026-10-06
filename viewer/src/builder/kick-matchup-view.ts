@@ -6,7 +6,7 @@ import { el, load, save } from "./dom";
 import {
   groupByType, kickProblem, parseKickForm, planKickRuns, type KickForm,
 } from "./kickmatchup";
-import { estimate, type HashChoice, type RunPlan } from "./matchup";
+import { countText, estimate, teamLabel, type HashChoice, type RunPlan } from "./matchup";
 
 const FORM_KEY = "cfbsim.builder.kicks";
 
@@ -26,6 +26,8 @@ export class KickMatchupView {
   private kickList = el("div", { className: "playlist" });
   private returnList = el("div", { className: "playlist" });
   private summary = el("div", { className: "summary" });
+  private kickCount = el("span", { className: "count" });
+  private returnCount = el("span", { className: "count" });
   private runButton = el("button", { className: "primary", textContent: "Run kick matrix" });
   private modeSelect = el("select");
   private valueInput = el("input", { type: "number", min: "1", step: "1" });
@@ -61,11 +63,10 @@ export class KickMatchupView {
 
     root.append(
       el("div", { className: "columns" },
-        this.side("Kicking team", this.kickingSelect, this.kickList, true),
-        this.side("Receiving team", this.receivingSelect, this.returnList, false),
+        this.side("Kicking team", this.kickCount, this.kickingSelect, this.kickList, true),
+        this.side("Receiving team", this.returnCount, this.receivingSelect, this.returnList, false),
       ),
-      el("section", { className: "card runs" },
-        el("h2", { textContent: "Runs" }),
+      el("div", { className: "runbar" },
         el("div", { className: "fields" },
           this.field("How many", el("div", { className: "pair" }, this.modeSelect, this.valueInput)),
           this.field("Seed", this.seedInput),
@@ -88,7 +89,7 @@ export class KickMatchupView {
     if (!ids.has(this.form.receiving)) this.form.receiving = this.fresh ? (teams[1]?.id ?? first) : first;
     this.fresh = false;
     this.form = this.keepKnown(this.form);
-    const options = () => teams.map((t) => el("option", { value: t.id, textContent: `${t.name} (${t.id})` }));
+    const options = () => teams.map((t) => el("option", { value: t.id, textContent: teamLabel(teams, t), title: t.id }));
     this.kickingSelect.replaceChildren(...options());
     this.receivingSelect.replaceChildren(...options());
     this.write();
@@ -126,12 +127,12 @@ export class KickMatchupView {
     return { ...f, kicks: kicks.length ? kicks : k, returns: returns.length ? returns : r };
   }
 
-  private side(title: string, select: HTMLSelectElement, list: HTMLElement, kicks: boolean): HTMLElement {
+  private side(title: string, count: HTMLElement, select: HTMLSelectElement, list: HTMLElement, kicks: boolean): HTMLElement {
     const picks = el("div", { className: "quick" },
       el("button", { textContent: "All", onclick: () => this.setIds(kicks, (all) => all.map((p) => p.id)) }),
       el("button", { textContent: "None", onclick: () => this.setIds(kicks, () => []) }),
     );
-    return el("section", { className: "card" }, el("h2", { textContent: title }), select, picks, list);
+    return el("section", { className: "card side" }, el("div", { className: "side-head" }, el("h2", { textContent: title }), count), select, picks, list);
   }
 
   private setIds(kicks: boolean, pick: (all: PlayInfo[]) => string[]): void {
@@ -156,7 +157,7 @@ export class KickMatchupView {
       ...groupByType(plays).map((g) => {
         const all = g.plays.every((p) => on.has(p.id));
         return el("div", { className: "formation" },
-          el("label", { className: "group" },
+          el("label", { className: "pl-group" },
             el("input", {
               type: "checkbox", checked: all,
               onchange: (e: Event) => {
@@ -168,7 +169,7 @@ export class KickMatchupView {
             el("span", { textContent: g.name }),
           ),
           ...g.plays.map((p) =>
-            el("label", { className: "play" },
+            el("label", { className: "pl-play" },
               el("input", {
                 type: "checkbox", checked: on.has(p.id),
                 onchange: (e: Event) => {
@@ -233,6 +234,8 @@ export class KickMatchupView {
   }
 
   private refreshSummary(): void {
+    this.kickCount.textContent = countText(this.form.kicks.length, this.kicksOf().length, "kicks");
+    this.returnCount.textContent = countText(this.form.returns.length, this.returnsOf().length, "returns and blocks");
     const plan = this.plan();
     const bad = this.problem();
     const short = this.form.mode === "total" && plan.total !== this.form.value;

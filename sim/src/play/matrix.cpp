@@ -19,6 +19,12 @@ void check_known(const std::vector<std::string>& only, const Playbook& book, con
     }
 }
 
+// A playbook's play as a row or column, with its formation's name.
+MatrixPlay matrix_play(const Play& p, bool flip, const DataSet& data) {
+    const auto f = data.formations.find(p.formation);
+    return {p.id, p.name, p.type, flip, p.formation, f != data.formations.end() ? f->second.name : p.formation};
+}
+
 }  // namespace
 
 Matrix::Matrix(DataSet data, MatrixSpec spec) : data_(std::move(data)), spec_(std::move(spec)) {
@@ -29,19 +35,19 @@ Matrix::Matrix(DataSet data, MatrixSpec spec) : data_(std::move(data)), spec_(st
     check_known(spec_.plays, obook, "play");
     for (const Play& p : obook.plays) {
         if (p.type != PlayType::Pass && p.type != PlayType::Run) continue;
-        if (wanted(spec_.plays, p.id)) rows_.push_back({p.id, p.name, p.type, p.flip});
+        if (wanted(spec_.plays, p.id)) rows_.push_back(matrix_play(p, p.flip, data_));
     }
     if (rows_.empty()) throw PlayError("no offensive plays chosen");
 
     if (spec_.defense.empty()) {
-        cols_.push_back({"", "(empty field)", PlayType::Defense, false});
+        cols_.push_back({"", "(empty field)", PlayType::Defense, false, "", ""});
     } else {
         const auto dteam = data_.teams.find(spec_.defense);
         if (dteam == data_.teams.end()) throw PlayError("unknown team '" + spec_.defense + "'");
         const Playbook& dbook = data_.playbooks.at(dteam->second.defense_playbook);
         check_known(spec_.defs, dbook, "defensive play");
         for (const Play& p : dbook.plays) {
-            if (wanted(spec_.defs, p.id)) cols_.push_back({p.id, p.name, p.type, false});
+            if (wanted(spec_.defs, p.id)) cols_.push_back(matrix_play(p, false, data_));
         }
         if (cols_.empty()) throw PlayError("no defensive plays chosen");
     }

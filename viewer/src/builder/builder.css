@@ -164,24 +164,36 @@ main {
 .quick button {
   padding: 2px 8px;
 }
+.side-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.side-head .count {
+  color: var(--muted);
+  font-size: 12px;
+}
+/* Each formation is a block that doesn't split; the blocks flow into as many columns as fit. */
 .playlist {
-  max-height: 46vh;
-  overflow: auto;
+  columns: 220px;
+  column-gap: 18px;
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 6px 8px;
 }
-.formation + .formation {
-  margin-top: 8px;
+.formation {
+  break-inside: avoid;
+  padding-bottom: 8px;
 }
-.group {
+.pl-group {
   display: flex;
   gap: 6px;
   align-items: center;
   font-weight: 600;
   color: var(--muted);
 }
-.play {
+.pl-play {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -201,11 +213,35 @@ main {
 .badge.run {
   color: var(--run);
 }
-.runs .fields {
+/* The run bar: fixed to the bottom of the page while the Matchup tab scrolls. */
+.runbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 18px;
+  margin: 0 -14px -14px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 18px rgba(0, 0, 0, 0.35);
+}
+.runbar .fields {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   align-items: flex-end;
+}
+.runbar .summary {
+  flex: 1;
+  min-width: 240px;
+  margin: 0;
+  align-self: center;
+}
+.runbar button.primary {
+  padding: 7px 18px;
 }
 .field {
   display: flex;
@@ -234,6 +270,68 @@ main {
 .summary {
   margin: 12px 0;
 }
+
+/* The header's connection dot and its address popover */
+.conn {
+  position: relative;
+}
+.conn-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.conn-button .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.conn-button.connected .dot {
+  background: var(--run);
+  box-shadow: 0 0 6px var(--run);
+}
+.conn-button.connecting .dot {
+  background: var(--accent);
+}
+.conn-button.down .dot {
+  background: var(--bad);
+}
+.conn-button.down {
+  color: var(--bad);
+}
+.conn-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.conn-pop[hidden] {
+  display: none;
+}
+.conn-row {
+  display: flex;
+  gap: 6px;
+}
+.conn-row input {
+  flex: 1;
+  min-width: 0;
+}
+.job-file {
+  color: var(--accent);
+  cursor: help;
+}
 label.inline {
   display: inline-flex;
   align-items: center;
@@ -243,24 +341,143 @@ label.inline {
 /* Results */
 .results-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 10px;
+}
+.results-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   flex-wrap: wrap;
 }
-.results-head select {
+.results-title strong {
+  font-size: 15px;
+}
+.results-title .source {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 8px;
+}
+.results-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.results-tools select {
   max-width: 330px;
 }
-.results-layout {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
+button.link {
+  background: none;
+  border-color: transparent;
+  color: var(--accent);
 }
-.results-main {
-  flex: 1;
-  min-width: 0;
+.segmented {
+  display: inline-flex;
+}
+.segmented button {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.segmented button:first-child {
+  border-radius: 4px 0 0 4px;
+  margin-left: 0;
+}
+.segmented button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.segmented button.active {
+  background: #2c323b;
+  border-color: var(--muted);
+  color: var(--accent);
+  position: relative;
+}
+
+/* The Plays and Defenses filter menus */
+.menu {
+  position: relative;
+}
+.menu-button.filtered {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 240px;
+  max-height: 60vh;
   overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
+.menu-quick {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.menu-group,
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.menu-group {
+  margin-top: 6px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.menu-item {
+  padding-left: 18px;
+}
+
+/* The metric chips */
+.metric-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.metric-chips .muted {
+  margin-right: 4px;
+}
+.metric-chips .divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 4px;
+}
+.metric-chips button {
+  font-size: 12px;
+  padding: 2px 9px;
+}
+.metric-chips .preset {
+  background: transparent;
+}
+.metric-chips .mchip {
+  border-radius: 12px;
+  color: var(--muted);
+}
+.metric-chips .mchip.on {
+  color: var(--text);
+  border-color: var(--muted);
+  background: #2c323b;
+}
+.metric-chips .mchip.current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .legend {
   display: flex;
   align-items: center;
@@ -276,9 +493,18 @@ label.inline {
   background: linear-gradient(90deg, rgba(72, 150, 255, 0.62), rgba(72, 150, 255, 0), rgba(255, 176, 32, 0), rgba(255, 176, 32, 0.62));
   border: 1px solid var(--border);
 }
+.table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 230px);
+}
+.matrix {
+  border-collapse: separate;
+  border-spacing: 0;
+}
 .matrix th,
 .matrix td {
-  border: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   padding: 4px 8px;
   text-align: right;
   white-space: nowrap;
@@ -286,19 +512,28 @@ label.inline {
 .matrix thead th {
   position: sticky;
   top: 0;
+  z-index: 2;
   background: var(--panel);
+  border-top: 1px solid var(--border);
   font-weight: 500;
   white-space: normal;
   min-width: 78px;
   max-width: 120px;
   vertical-align: bottom;
 }
-.matrix .rowhead {
+.matrix .rowhead,
+.matrix .corner {
   position: sticky;
   left: 0;
+  z-index: 1;
   background: var(--panel);
   text-align: left;
   font-weight: 500;
+  border-left: 1px solid var(--border);
+}
+.matrix thead .corner {
+  z-index: 3;
+  max-width: none;
 }
 .matrix .rowhead .badge {
   margin-left: 8px;
@@ -310,18 +545,6 @@ label.inline {
 .matrix .sortable:hover {
   color: var(--accent);
 }
-.matrix .hide {
-  visibility: hidden;
-  margin-left: 6px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.matrix th:hover .hide {
-  visibility: visible;
-}
-.matrix .hide:hover {
-  color: var(--bad);
-}
 .matrix .total {
   font-weight: 600;
   background: #232830;
@@ -329,35 +552,204 @@ label.inline {
 .matrix .pending {
   color: var(--muted);
 }
+.matrix td.noisy {
+  color: var(--muted);
+}
 .matrix td.pick {
   cursor: pointer;
 }
 .matrix td.pick:hover {
   outline: 1px solid var(--muted);
+  outline-offset: -1px;
 }
 .matrix td.selected {
   outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
-.matrix .hint {
-  display: block;
-  font-size: 9px;
-  opacity: 0.75;
-}
-.matrix tr.totals td,
-.matrix tr.totals th {
+.matrix tr.first-total td,
+.matrix tr.first-total th {
   border-top: 2px solid var(--muted);
 }
-.detail {
-  width: 400px;
-  flex: none;
+.results-table .toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.results-table .toggle:hover {
+  color: var(--accent);
+}
+.results-table .twisty {
+  display: inline-block;
+  width: 14px;
+  color: var(--muted);
+}
+.results-table tr.open th,
+.results-table tr.open td {
+  border-bottom-color: transparent;
+}
+.results-table th.sub {
+  padding-left: 30px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.results-table tr.row-def td,
+.results-table tr.row-def th {
+  background-color: #191c21;
+  font-size: 12px;
+}
+
+/* Comparing: A (a saved run) beside B (the run on screen) */
+.compare-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(255, 212, 0, 0.06);
+}
+.compare-bar strong {
+  color: var(--accent);
+}
+.compare-note {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.compare-note.warn {
+  color: var(--bad);
+}
+.compare-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.compare-table thead th {
+  position: static;
+  min-width: 0;
+}
+.compare-table thead th.cmp-group {
+  text-align: center;
+}
+.compare-table th.sub-head {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.compare-table .cmp-group {
+  border-left: 2px solid var(--border);
+}
+.matrix td.delta {
+  font-weight: 600;
+}
+.matrix td.delta.within {
+  font-weight: 400;
+  color: var(--muted);
+}
+.compare-kv td:not(:first-child) {
+  text-align: right;
+  padding-left: 12px;
+}
+.compare-kv tr.within td {
+  color: var(--muted);
+}
+
+/* The Sets panel: save this run, open a saved one */
+.sets-button.open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sets-panel {
+  display: none;
+  position: fixed;
+  top: 120px;
+  right: 14px;
+  z-index: 25;
+  width: min(640px, calc(100vw - 28px));
+  max-height: calc(100vh - 140px);
+  overflow: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 12px;
-  position: sticky;
-  top: 8px;
-  max-height: calc(100vh - 80px);
+  padding: 4px 14px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.sets-panel.open {
+  display: block;
+}
+.sets-panel h3 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sets-panel h3 .muted {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.sets-panel p {
+  margin: 6px 0;
+}
+.set-save {
+  display: flex;
+  gap: 8px;
+}
+.set-save input {
+  flex: 1;
+  min-width: 0;
+}
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.set-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-what .muted {
+  font-size: 11px;
+}
+.set-open {
+  cursor: pointer;
+  font-weight: 600;
+}
+.set-open:hover {
+  color: var(--accent);
+}
+.set-actions {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+/* The detail drawer: over the right edge, not beside the table */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  width: min(420px, 100vw);
   overflow: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  padding: 14px;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.18s ease, visibility 0.18s;
+}
+.drawer.open {
+  transform: none;
+  visibility: visible;
 }
 .detail-head {
   display: flex;
@@ -366,7 +758,7 @@ label.inline {
   gap: 8px;
   margin-bottom: 8px;
 }
-.detail h3 {
+.drawer h3 {
   margin: 14px 0 4px;
   font-size: 11px;
   text-transform: uppercase;
@@ -379,6 +771,9 @@ label.inline {
   align-items: center;
   flex-wrap: wrap;
 }
+table.kv {
+  width: 100%;
+}
 table.kv td {
   padding: 2px 0;
   vertical-align: top;
@@ -387,15 +782,6 @@ table.kv td:last-child {
   text-align: right;
   padding-left: 12px;
   white-space: nowrap;
-}
-@media (max-width: 1000px) {
-  .results-layout {
-    flex-direction: column;
-  }
-  .detail {
-    width: 100%;
-    position: static;
-  }
 }
 table.list th,
 table.list td {
@@ -415,6 +801,14 @@ table.list td {
   .teams-layout {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+.team-tools {
+  display: flex;
+  gap: 8px;
+}
+.team-search {
+  flex: 1;
+  min-width: 0;
 }
 .team-list {
   display: flex;

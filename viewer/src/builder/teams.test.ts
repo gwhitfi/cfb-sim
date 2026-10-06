@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { NEW_FORM, copyOf, formFromTeam, normalizeHex, saveRequest, slugify, sortProblems, textOn, validate, type TeamDetail, type TeamForm } from "./teams";
+import {
+  JERSEY_TEXT_WIDTH, NEW_FORM, copyOf, formFromTeam, jerseyLetters, matchesTeam, normalizeHex, saveRequest, slugify, sortProblems, textOn, validate, type TeamDetail, type TeamForm,
+} from "./teams";
 
 const good: TeamForm = {
   ...NEW_FORM, id: "my_u", name: "My University", nickname: "Owls", abbr: "MYU",
@@ -85,5 +87,23 @@ describe("helpers", () => {
     expect(textOn("#FFFFFF")).toBe("#000000");
     expect(textOn("#102030")).toBe("#FFFFFF");
     expect(textOn("#F2C230")).toBe("#000000");
+  });
+});
+
+describe("the team list's search", () => {
+  const fsu = { id: "fsu", name: "Florida State", abbr: "FSU", nickname: "Seminoles" };
+  it("matches the name, id, abbreviation, or nickname, ignoring case", () => {
+    for (const q of ["", "florida", "FSU", "semi", " state "]) expect(matchesTeam(fsu, q)).toBe(true);
+    expect(matchesTeam(fsu, "clemson")).toBe(false);
+  });
+});
+
+describe("the jersey's letters", () => {
+  it("fit the shirt: smaller for more letters, squeezed when wide", () => {
+    expect(jerseyLetters("ab")).toEqual({ text: "AB", fontSize: 28, squeeze: null });
+    expect(jerseyLetters("FSU").squeeze).toBeNull();
+    expect(jerseyLetters("WWWW")).toEqual({ text: "WWWW", fontSize: 16, squeeze: JERSEY_TEXT_WIDTH });
+    expect(jerseyLetters("toolong").text).toBe("TOOL");
+    expect(jerseyLetters("  ").text).toBe("ABC");
   });
 });

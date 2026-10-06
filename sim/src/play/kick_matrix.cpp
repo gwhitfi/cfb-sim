@@ -52,10 +52,10 @@ KickMatrix::KickMatrix(DataSet data, KickMatrixSpec spec) : data_(std::move(data
         if (!p || !is_answer(p->type)) throw PlayError("no return or block '" + id + "' in playbook '" + receiving.id + "'");
     }
     for (const Play& p : kicking.plays) {
-        if (is_kick(p.type) && wanted(spec_.kicks, p.id)) rows_.push_back({p.id, p.name, p.type, false});
+        if (is_kick(p.type) && wanted(spec_.kicks, p.id)) rows_.push_back({p.id, p.name, p.type, false, p.formation, ""});
     }
     for (const Play& p : receiving.plays) {
-        if (is_answer(p.type) && wanted(spec_.returns, p.id)) cols_.push_back({p.id, p.name, p.type, false});
+        if (is_answer(p.type) && wanted(spec_.returns, p.id)) cols_.push_back({p.id, p.name, p.type, false, p.formation, ""});
     }
     if (rows_.empty()) throw PlayError("no kicks chosen");
     if (cols_.empty()) throw PlayError("no returns or blocks chosen");

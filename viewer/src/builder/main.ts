@@ -5,6 +5,7 @@
 import { serverUrl } from "../server";
 import { Connection } from "./connection";
 import { el, load, save } from "./dom";
+import { doneText, progressText, shortFile } from "./job";
 import { kickRequest, type KickForm } from "./kickmatchup";
 import { KickMatchupView } from "./kick-matchup-view";
 import { matrixRequest, type MatchupForm, type RunPlan } from "./matchup";
@@ -14,7 +15,7 @@ import { ResultsView } from "./results-view";
 import { TeamsView } from "./teams-view";
 import "./builder.css";
 
-const TABS = ["teams", "matchup", "results"] as const;
+const TABS = ["matchup", "results", "teams"] as const; // in the order they're used
 type Tab = (typeof TABS)[number];
 const TAB_KEY = "cfbsim.builder.tab";
 const RATE_KEY = "cfbsim.builder.rate"; // plays per second on the last scrimmage run; ".kicks" for kicks
@@ -43,17 +44,24 @@ let started = 0; // performance.now() at matrix_started
 let grid: ResultGrid | null = null;
 let lastRequest: MatrixSettings | null = null; // what the run in progress was asked for
 let watchWindow: Window | null = null; // a tab opened for a Watch, waiting for its play
+let compareFile: string | null = null; // a server run asked for to compare with (A), not to open
 
 const jobBar = $("job");
 const progress = $<HTMLProgressElement>("job-progress");
 const jobText = $("job-text");
+const jobFile = $("job-file");
 const cancel = $<HTMLButtonElement>("job-cancel");
+const connButton = $("conn-button");
 cancel.addEventListener("click", () => conn.send({ type: "cancel_matrix" }));
 
-function jobStatus(text: string, bad = false): void {
+// The job strip's line; `file`: a saved run it names, shown by its short name (the full path in its tooltip).
+function jobStatus(text: string, bad = false, file: string | null = null): void {
   jobBar.hidden = false;
   jobText.textContent = text;
   jobText.classList.toggle("bad", bad);
+  jobFile.hidden = !file;
+  jobFile.textContent = file ? shortFile(file) : "";
+  jobFile.title = file ?? "";
 }
 
 const teamsView = new TeamsView(panels.teams, {
@@ -69,8 +77,7 @@ const teamsView = new TeamsView(panels.teams, {
 });
 const results = new ResultsView(panels.results, {
   // Replays one play of a cell (its seed, hash, and flip) on the server, then opens it in the viewer.
-  watch(sample: Sample, row: number, col: number) {
-    if (!grid) return;
+  watch(grid: ResultGrid, sample: Sample, row: number, col: number) {
     const s = grid.settings;
     const play = grid.info.rows[row]!.id;
     const answer = grid.info.cols[col]!.id;
@@ -106,8 +113,14 @@ const results = new ResultsView(panels.results, {
     jobStatus(`Running the ${sample.kind} play…`);
   },
   openSaved(file: string) {
+    compareFile = null;
     conn.send({ type: "get_matrix", file });
-    jobStatus(`Opening ${file}…`);
+    jobStatus("Opening", false, file);
+  },
+  compareSaved(file: string) {
+    compareFile = file;
+    if (!conn.send({ type: "get_matrix", file })) return jobStatus("Not connected to the server", true);
+    jobStatus("Opening to compare:", false, file);
   },
 });
 
@@ -159,15 +172,18 @@ matchup.setRate(rateOf(RATE_KEY));
 kickMatchup.setRate(rateOf(`${RATE_KEY}.kicks`));
 
 const conn: Connection = new Connection({
-  status(text, bad) {
-    const s = $("conn-status");
-    s.textContent = text;
-    s.classList.toggle("bad", bad);
+  status(text, state) {
+    $("conn-status").textContent = text;
+    $("conn-status").classList.toggle("bad", state === "down");
+    connButton.className = `conn-button ${state}`;
+    connButton.title = `${text} · click to change the server's address`;
+    $("conn-label").textContent = state === "connected" ? "Connected" : state === "connecting" ? "Connecting…" : "Not connected";
   },
   hello(teams) {
     teamsView.setTeams(teams);
     matchup.setTeams(teams);
     kickMatchup.setTeams(teams);
+    results.setTeams(teams);
     conn.send({ type: "list_matrix" });
     conn.send({ type: "list_playbooks" });
   },
@@ -176,6 +192,7 @@ const conn: Connection = new Connection({
     teamsView.setTeams(teams);
     matchup.setTeams(teams);
     kickMatchup.setTeams(teams);
+    results.setTeams(teams);
   },
   playbooks(list) {
     teamsView.setPlaybooks(list);
@@ -192,17 +209,17 @@ const conn: Connection = new Connection({
   matrixStarted(info, total, threads) {
     grid = new ResultGrid(info, lastRequest ?? { offense: info.offense, defense: info.defense });
     started = performance.now();
-    results.setGrid(grid);
+    results.setGrid(grid, "live run");
     progress.max = total;
     progress.value = 0;
     cancel.hidden = false;
-    jobStatus(`Running ${total} cells on ${threads} thread${threads === 1 ? "" : "s"}…`);
+    jobStatus(`${progressText(0, total, 0)} · ${threads} thread${threads === 1 ? "" : "s"}`);
     showTab("results");
   },
   matrixCell(cell, done, total) {
     grid?.add(cell);
     progress.value = done;
-    jobStatus(`${done}/${total} cells`);
+    jobStatus(progressText(done, total, (performance.now() - started) / 1000));
     results.schedule();
   },
   matrixDone(done) {
@@ -224,11 +241,8 @@ const conn: Connection = new Connection({
         matchup.setRate(rate);
       }
     }
-    const text = done.cancelled
-      ? `Cancelled at ${done.cells} cells`
-      : `Done: ${done.cells} cells in ${seconds.toFixed(1)} s`;
-    jobStatus(done.file ? `${text} · saved to ${done.file}` : text);
-    results.setNote("");
+    const end = doneText(done, seconds);
+    jobStatus(end.file ? `${end.text} · saved` : end.text, false, end.file);
     results.schedule();
     conn.send({ type: "list_matrix" });
   },
@@ -236,10 +250,21 @@ const conn: Connection = new Connection({
     results.setSaved(runs);
   },
   matrixLoaded(run) {
+    const short = run.file.split("/").pop() ?? run.file;
+    if (run.file === compareFile) {
+      compareFile = null;
+      const a = new ResultGrid(run.info, run.settings);
+      for (const cell of run.cells) a.add(cell);
+      const why = results.compareWith(a, `saved run ${short}`);
+      if (why) jobStatus(why, true);
+      else jobStatus("Comparing with", false, run.file);
+      showTab("results");
+      return;
+    }
     grid = new ResultGrid(run.info, run.settings);
     for (const cell of run.cells) grid.add(cell);
-    results.setGrid(grid, run.cancelled ? "(a cancelled run)" : "");
-    jobStatus(`Opened ${run.file}`);
+    results.setGrid(grid, `saved run ${short}${run.cancelled ? " (cancelled)" : ""}`);
+    jobStatus("Opened", false, run.file);
     showTab("results");
   },
   played(file, summary) {
@@ -268,7 +293,24 @@ const conn: Connection = new Connection({
   },
 });
 
+// The connection dot: a click shows the address and Connect.
 const address = $<HTMLInputElement>("conn-url");
+const connPop = $("conn-pop");
 address.value = serverUrl();
-$("conn-go").addEventListener("click", () => conn.connect(address.value.trim() || undefined));
+const connect = () => {
+  connPop.hidden = true;
+  conn.connect(address.value.trim() || undefined);
+};
+connButton.addEventListener("click", () => {
+  connPop.hidden = !connPop.hidden;
+  if (!connPop.hidden) address.select();
+});
+$("conn-go").addEventListener("click", connect);
+address.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") connect();
+  if (e.key === "Escape") connPop.hidden = true;
+});
+document.addEventListener("mousedown", (e) => {
+  if (!connPop.hidden && !(e.target as HTMLElement).closest(".conn")) connPop.hidden = true;
+});
 conn.connect();

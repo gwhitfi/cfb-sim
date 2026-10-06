@@ -39,6 +39,8 @@ struct MatrixPlay {
     std::string name;
     PlayType type = PlayType::Pass;
     bool flip = false;  // the play can be run mirrored (every other group of three seeds is)
+    std::string formation;       // its formation's id ("" for the empty field)
+    std::string formation_name;  // and name, for grouping the Builder's filters
 };
 
 // One of a cell's plays picked out to watch: the best, median, or worst by

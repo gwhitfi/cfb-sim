@@ -9,19 +9,29 @@
         <header class="bar">
             <strong class="brand">CFB Sim Builder</strong>
             <nav class="tabs">
-                <button id="btn-teams">Teams</button>
                 <button id="btn-matchup">Matchup</button>
                 <button id="btn-results">Results</button>
+                <button id="btn-teams">Teams</button>
             </nav>
             <span class="spacer"></span>
-            <span id="conn-status" class="muted">Connecting…</span>
-            <input id="conn-url" type="text" size="22" title="cfbsim-server's address" aria-label="Server address" />
-            <button id="conn-go" title="Connect to this address">Connect</button>
+            <div class="conn">
+                <button id="conn-button" class="conn-button connecting" title="The server: click to change its address">
+                    <span class="dot"></span><span id="conn-label">Connecting…</span>
+                </button>
+                <div id="conn-pop" class="conn-pop" hidden>
+                    <div id="conn-status" class="muted"></div>
+                    <div class="conn-row">
+                        <input id="conn-url" type="text" size="24" aria-label="Server address" />
+                        <button id="conn-go" class="primary">Connect</button>
+                    </div>
+                </div>
+            </div>
             <a class="button" href="/" title="Back to the game viewer">Viewer</a>
         </header>
         <div id="job" class="job" hidden>
             <progress id="job-progress" value="0" max="1"></progress>
             <span id="job-text"></span>
+            <span id="job-file" class="job-file" hidden></span>
             <button id="job-cancel" hidden>Cancel</button>
         </div>
         <main>

@@ -6,7 +6,7 @@ import type { TeamInfo } from "../plays";
 import type { Playbook } from "./connection";
 import { el } from "./dom";
 import {
-  NEW_FORM, copyOf, formFromTeam, normalizeHex, saveRequest, slugify, sortProblems, textOn, validate,
+  NEW_FORM, copyOf, formFromTeam, jerseyLetters, matchesTeam, normalizeHex, saveRequest, slugify, sortProblems, textOn, validate,
   type Field, type FieldErrors, type RosterMode, type TeamDetail, type TeamForm,
 } from "./teams";
 
@@ -33,6 +33,7 @@ export class TeamsView {
   private status = el("div", { className: "muted" });
 
   private list = el("div", { className: "team-list" });
+  private search = el("input", { type: "search", className: "team-search", placeholder: "Search teams", ariaLabel: "Search teams" });
   private notice = el("div", { className: "notice", hidden: true });
   private preview = el("div", { className: "preview" });
   private errorBox = el("div", { className: "bad errors" });
@@ -58,9 +59,10 @@ export class TeamsView {
       }
     });
 
+    this.search.addEventListener("input", () => this.drawList());
     root.append(
       el("div", { className: "teams-layout" },
-        el("section", { className: "card" }, el("h2", { textContent: "Teams" }), newButton, this.list),
+        el("section", { className: "card" }, el("h2", { textContent: "Teams" }), el("div", { className: "team-tools" }, newButton, this.search), this.list),
         el("section", { className: "card team-form" },
           el("h2", { textContent: "Team" }),
           this.notice,
@@ -160,8 +162,13 @@ export class TeamsView {
   // ---- the team list
 
   private drawList(): void {
+    const shown = this.teams.filter((t) => matchesTeam(t, this.search.value));
+    if (!shown.length) {
+      this.list.replaceChildren(el("div", { className: "muted", textContent: this.teams.length ? "No team matches." : "Waiting for the server…" }));
+      return;
+    }
     this.list.replaceChildren(
-      ...this.teams.map((t) => {
+      ...shown.map((t) => {
         const c = t.colors;
         const row = el("button", { className: `team-row${t.id === this.selected ? " active" : ""}`, title: t.id },
           el("span", { className: "swatch", style: `background: linear-gradient(90deg, ${c?.primary ?? "#444"} 50%, ${c?.secondary ?? "#888"} 50%)` }),
@@ -339,9 +346,15 @@ export class TeamsView {
         <text x="60" y="78" text-anchor="middle" font-size="26" font-weight="700" font-family="system-ui, sans-serif"
               fill="${secondary}"></text>
       </svg>`;
+    // The letters stay on the shirt's body: smaller for more of them, squeezed when they're wide.
     const text = this.preview.querySelector("text")!;
-    text.textContent = (f.abbr || "ABC").toUpperCase().slice(0, 4);
-    text.setAttribute("font-size", String(f.abbr.length <= 2 ? 28 : f.abbr.length === 3 ? 20 : 15)); // the body is narrow
+    const letters = jerseyLetters(f.abbr);
+    text.textContent = letters.text;
+    text.setAttribute("font-size", String(letters.fontSize));
+    if (letters.squeeze !== null) {
+      text.setAttribute("textLength", String(letters.squeeze));
+      text.setAttribute("lengthAdjust", "spacingAndGlyphs");
+    }
     this.preview.append(
       el("div", {},
         el("strong", { textContent: f.name || "Team name" }),

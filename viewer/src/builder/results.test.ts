@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ResultGrid, appliesTo, countOf, domainOf, formatDelta, formatValue, halfWidth, isNoisy, metricByKey, reading, sum, titleOf, totalKind,
+  ResultGrid, appliesTo, countOf, domainOf, formatDelta, formatValue, halfWidth, isNoisy, metricByKey, reading, settingsText, sum, titleOf, totalKind,
   type CellMessage, type CellStats, type KickStats, type MatrixInfo,
 } from "./results";
 
@@ -146,6 +146,13 @@ describe("kick matrices", () => {
     expect(g.rowKind(2)).toBe("field_goal");
     expect(titleOf(kickInfo)).toBe("a kicking vs b returning");
     expect(titleOf(info)).toBe("a offense vs b");
+    expect(titleOf(info, (id) => id.toUpperCase())).toBe("A offense vs B");
+  });
+
+  it("puts a run's settings in a line", () => {
+    expect(settingsText(info, { yard_line: 40, huddle: true, hash: "left" })).toBe("10 runs per cell · seed 1 · left hash · yard line 40 · huddle");
+    expect(settingsText(info, {})).toBe("10 runs per cell · seed 1 · rotating hash · yard line 25 · no huddle");
+    expect(settingsText(kickInfo, {})).toBe(`${kickInfo.runs} kicks per cell · seed ${kickInfo.seed} · rotating hash · the usual spot · return aggression 50`);
     expect(domainOf(info)).toBe("scrimmage"); // an older run has no kind
   });
   it("reads the kick numbers from the sums", () => {

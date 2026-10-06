@@ -310,9 +310,12 @@ cfbsim_matrix* cfbsim_matrix_open(const char* data_dir, const char* options_json
         Json info = {{"kind", "scrimmage"}, {"offense", spec.offense}, {"defense", spec.defense}, {"runs", spec.runs}, {"seed", spec.seed},
                      {"rows", Json::array()}, {"cols", Json::array()}};
         for (const cfbsim::MatrixPlay& p : h->matrix->rows()) {
-            info["rows"].push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))}});
+            info["rows"].push_back({{"id", p.id}, {"name", p.name}, {"type", std::string(cfbsim::to_string(p.type))},
+                                    {"formation", p.formation}, {"formation_name", p.formation_name}});
         }
-        for (const cfbsim::MatrixPlay& p : h->matrix->cols()) info["cols"].push_back({{"id", p.id}, {"name", p.name}});
+        for (const cfbsim::MatrixPlay& p : h->matrix->cols()) {
+            info["cols"].push_back({{"id", p.id}, {"name", p.name}, {"formation", p.formation}, {"formation_name", p.formation_name}});
+        }
         info["targets"] = to_json(h->matrix->data().targets);
         h->info = info.dump();
         return h.release();

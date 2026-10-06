@@ -147,3 +147,25 @@ export function textOn(hex: string): string {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(n.slice(i, i + 2), 16)) as [number, number, number];
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#000000" : "#FFFFFF";
 }
+
+// Does a team match the list's search? Any word of the name, id, abbreviation,
+// or nickname, ignoring case; an empty search matches everything.
+export function matchesTeam(t: { id: string; name: string; abbr?: string; nickname?: string }, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [t.name, t.id, t.abbr ?? "", t.nickname ?? ""].some((s) => s.toLowerCase().includes(q));
+}
+
+// The jersey preview's letters: up to 4 of the abbreviation, the font size for
+// that many, and the width to squeeze them into when they'd run off the
+// shirt's body (null: they fit). The body is 56 units wide; the letters get 44.
+export const JERSEY_TEXT_WIDTH = 44;
+const WIDE = new Set(["M", "W"]);
+const NARROW = new Set(["I", "J", "1", "."]);
+export function jerseyLetters(abbr: string): { text: string; fontSize: number; squeeze: number | null } {
+  const text = (abbr.trim() || "ABC").toUpperCase().slice(0, 4);
+  const fontSize = text.length <= 2 ? 28 : text.length === 3 ? 21 : 16;
+  // About how wide bold capitals are, in ems.
+  const ems = [...text].reduce((n, ch) => n + (WIDE.has(ch) ? 0.95 : NARROW.has(ch) ? 0.34 : 0.68), 0);
+  return { text, fontSize, squeeze: ems * fontSize > JERSEY_TEXT_WIDTH ? JERSEY_TEXT_WIDTH : null };
+}

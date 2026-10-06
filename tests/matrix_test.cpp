@@ -124,6 +124,22 @@ TEST(Matrix, DISABLED_RejectsWhatItCannotRun) {
     EXPECT_THROW(Matrix(data(), s), PlayError);
 }
 
+// The info names each row's and column's formation, so the Builder can group them.
+TEST(MatrixApi, InfoNamesEachPlaysFormation) {
+    cfbsim_matrix* m = cfbsim_matrix_open(CFBSIM_DATA_DIR, R"({"offense": "clemson_2025", "defense": "clemson_2018", "runs": 1})");
+    ASSERT_NE(m, nullptr) << cfbsim_last_error();
+    const Json info = Json::parse(cfbsim_matrix_info(m));
+    for (const char* side : {"rows", "cols"}) {
+        ASSERT_FALSE(info[side].empty());
+        for (const Json& p : info[side]) {
+            const auto f = data().formations.find(p["formation"].get<std::string>());
+            ASSERT_NE(f, data().formations.end()) << p["id"];
+            EXPECT_EQ(p["formation_name"], f->second.name);
+        }
+    }
+    cfbsim_matrix_close(m);
+}
+
 // Disabled: names a play that moved to scratch_plays/.
 TEST(MatrixApi, DISABLED_OpensRunsACellAndReportsErrors) {
     const char* options =

@@ -38,8 +38,10 @@ export interface SavedTeamInfo {
   created: boolean;
 }
 
+export type ConnState = "connecting" | "connected" | "down";
+
 export interface Handlers {
-  status(text: string, bad: boolean): void;
+  status(text: string, state: ConnState): void;
   hello(teams: TeamInfo[], version: string): void;
   matrixStarted(info: MatrixInfo, total: number, threads: number): void;
   matrixCell(cell: CellMessage, done: number, total: number): void;
@@ -67,15 +69,15 @@ export class Connection {
   connect(url = serverUrl()): void {
     rememberServer(url);
     this.ws?.close();
-    this.on.status(`Connecting to ${url}…`, false);
+    this.on.status(`Connecting to ${url}…`, "connecting");
     const ws = new WebSocket(url);
     this.ws = ws;
     ws.onopen = () => this.send({ type: "hello" });
-    ws.onerror = () => this.on.status(`Can't reach ${url}. Start the server: ./build/release/server/cfbsim-server`, true);
+    ws.onerror = () => this.on.status(`Can't reach ${url}. Start the server: ./build/release/server/cfbsim-server`, "down");
     ws.onclose = () => {
       if (this.ws === ws) {
         this.ws = null;
-        this.on.status("Disconnected", true);
+        this.on.status("Disconnected", "down");
       }
     };
     ws.onmessage = (e) => this.receive(JSON.parse(e.data as string));
@@ -90,7 +92,7 @@ export class Connection {
   private receive(m: any): void {
     switch (m.type) {
       case "hello":
-        this.on.status(`Connected · sim v${m.version}`, false);
+        this.on.status(`Connected · sim v${m.version}`, "connected");
         this.on.hello(m.teams as TeamInfo[], m.version as string);
         break;
       case "matrix_started":

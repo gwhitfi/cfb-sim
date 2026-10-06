@@ -2,6 +2,7 @@
 // many plays a choice adds up to, the play lists, and the server message.
 
 import type { PlayInfo } from "../plays";
+import { aboutTime } from "./job";
 
 export type RunMode = "per_cell" | "total";
 export type HashChoice = "rotate" | "left" | "middle" | "right";
@@ -50,10 +51,17 @@ export function planRuns(rows: number, cols: number, mode: RunMode, value: numbe
 // measured on the last run (null: no measurement yet).
 export function estimate(total: number, playsPerSecond: number | null): string | null {
   if (!playsPerSecond || playsPerSecond <= 0 || total <= 0) return null;
-  const s = total / playsPerSecond;
-  if (s < 1) return "under a second";
-  if (s < 90) return `about ${Math.round(s)} s`;
-  return `about ${Math.round(s / 60)} min`;
+  return aboutTime(total / playsPerSecond);
+}
+
+// A team picker's label: its name, with the id when another team has the same name.
+export function teamLabel(teams: { id: string; name: string }[], t: { id: string; name: string }): string {
+  return teams.some((o) => o.id !== t.id && o.name === t.name) ? `${t.name} (${t.id})` : t.name;
+}
+
+// A side's heading count: "12 of 14 plays".
+export function countText(checked: number, total: number, noun: string): string {
+  return `${checked} of ${total} ${noun}`;
 }
 
 // The run_matrix message. `plays` and `defs` are always sent explicitly (the

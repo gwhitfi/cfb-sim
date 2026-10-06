@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlayInfo } from "../plays";
-import { DEFAULT_FORM, estimate, groupByFormation, matrixRequest, parseForm, planRuns, problem, quickPick } from "./matchup";
+import { DEFAULT_FORM, countText, estimate, groupByFormation, matrixRequest, parseForm, planRuns, problem, quickPick, teamLabel } from "./matchup";
 
 const plays: PlayInfo[] = [
   { id: "smash", name: "Smash", type: "pass", formation: "gun_2x2", formation_name: "Gun 2x2" },
@@ -88,5 +88,16 @@ describe("parseForm", () => {
   it("keeps good values", () => {
     const f = { ...DEFAULT_FORM, offense: "a", defense: "", mode: "total" as const, value: 5000, hash: "right" as const };
     expect(parseForm(JSON.parse(JSON.stringify(f)))).toEqual(f);
+  });
+});
+
+describe("the sides", () => {
+  it("label a team by its name, adding the id only when two share a name", () => {
+    const teams = [{ id: "clemson", name: "Clemson" }, { id: "fsu", name: "Florida State" }, { id: "fsu_copy", name: "Florida State" }];
+    expect(teamLabel(teams, teams[0]!)).toBe("Clemson");
+    expect(teamLabel(teams, teams[2]!)).toBe("Florida State (fsu_copy)");
+  });
+  it("count what's checked", () => {
+    expect(countText(12, 14, "plays")).toBe("12 of 14 plays");
   });
 });
