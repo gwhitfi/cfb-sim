@@ -132,6 +132,178 @@
                 }
             },
             "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+        },
+        {
+            "id": "hb_sweep",
+            "name": "HB Sweep",
+            "side": "offense",
+            "type": "run",
+            "formation": "gun_wide_trips",
+            "flip": true,
+            "run": {
+                "scheme": "inside_zone",
+                "direction": "right",
+                "carrier": "RB",
+                "qb_action": {
+                    "do": "handoff",
+                    "then": "drop_fake"
+                },
+                "path": [
+                    {
+                        "x": {
+                            "from": "sideline",
+                            "side": "left",
+                            "offset": 24.5
+                        },
+                        "y": -5,
+                        "type": "mesh"
+                    },
+                    {
+                        "x": -6.5,
+                        "y": -4,
+                        "type": "aim"
+                    }
+                ],
+                "free_after": "aim",
+                "reads": ["bang", "bend", "bounce"]
+            },
+            "assignments": {
+                "LT": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "LG": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "C": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "RG": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "RT": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "X": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "Z": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "H": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "Y": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                }
+            },
+            "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+        },
+        {
+            "id": "mid_draw",
+            "name": "HB Mid Draw",
+            "side": "offense",
+            "type": "run",
+            "formation": "gun_wide_trips",
+            "flip": true,
+            "run": {
+                "scheme": "inside_zone",
+                "direction": "right",
+                "carrier": "RB",
+                "qb_action": {
+                    "do": "handoff",
+                    "then": "drop_fake"
+                },
+                "path": [
+                    {
+                        "x": {
+                            "from": "sideline",
+                            "side": "left",
+                            "offset": 27
+                        },
+                        "y": -4,
+                        "type": "mesh"
+                    },
+                    {
+                        "x": 0,
+                        "y": -1,
+                        "type": "aim"
+                    }
+                ],
+                "free_after": "aim",
+                "reads": ["bang", "bend", "bounce"]
+            },
+            "assignments": {
+                "LT": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "LG": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "C": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "RG": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "RT": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                },
+                "X": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "Z": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "H": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "Y": {
+                    "block": {
+                        "do": "scheme"
+                    }
+                }
+            },
+            "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
         }
     ]
 }

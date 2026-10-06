@@ -232,6 +232,468 @@
                 }
             },
             "tags": ["base", "zone", "vs_run", "1st_down"]
+        },
+        {
+            "id": "cover_4_quarters",
+            "name": "Cover 4 Quarters",
+            "side": "defense",
+            "formation": "43_over",
+            "coverage": "cover_4",
+            "assignments": {
+                "SDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "DT": {
+                    "run": {
+                        "gap": "B",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "B"
+                        }
+                    }
+                },
+                "NT": {
+                    "run": {
+                        "gap": "A",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "A"
+                        }
+                    }
+                },
+                "WDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "SAM": {
+                    "run": {
+                        "gap": "D",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "flat_strong"
+                    }
+                },
+                "MIKE": {
+                    "run": {
+                        "gap": "A",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "hole"
+                    }
+                },
+                "WILL": {
+                    "run": {
+                        "gap": "B",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "zone": "flat_weak"
+                    }
+                },
+                "SCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "deep_quarter_strong_out"
+                    }
+                },
+                "WCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "deep_quarter_weak_out"
+                    }
+                },
+                "SS": {
+                    "run": {
+                        "support": "alley_strong"
+                    },
+                    "pass": {
+                        "zone": "deep_quarter_strong_in"
+                    }
+                },
+                "FS": {
+                    "run": {
+                        "support": "deep_fill"
+                    },
+                    "pass": {
+                        "zone": "deep_quarter_weak_in"
+                    }
+                }
+            },
+            "tags": ["base", "zone", "vs_run", "1st_down"]
+        },
+        {
+            "id": "cover_2_man",
+            "name": "Cover 2 Man",
+            "side": "defense",
+            "formation": "43_over",
+            "coverage": "cover_2",
+            "assignments": {
+                "SDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "DT": {
+                    "run": {
+                        "gap": "B",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "B"
+                        }
+                    }
+                },
+                "NT": {
+                    "run": {
+                        "gap": "A",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "A"
+                        }
+                    }
+                },
+                "WDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "SAM": {
+                    "run": {
+                        "gap": "D",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "man": "#2_strong"
+                    }
+                },
+                "MIKE": {
+                    "run": {
+                        "gap": "A",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "man": "#3_strong"
+                    }
+                },
+                "WILL": {
+                    "run": {
+                        "gap": "B",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "man": "back_1"
+                    }
+                },
+                "SCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "man": "#1_strong"
+                    }
+                },
+                "WCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "man": "#1_weak"
+                    }
+                },
+                "SS": {
+                    "run": {
+                        "support": "alley_strong"
+                    },
+                    "pass": {
+                        "zone": "deep_half_strong"
+                    }
+                },
+                "FS": {
+                    "run": {
+                        "support": "deep_fill"
+                    },
+                    "pass": {
+                        "zone": "deep_half_weak"
+                    }
+                }
+            },
+            "tags": ["base", "zone", "vs_run", "1st_down"]
+        },
+        {
+            "id": "olb_fire_man",
+            "name": "OLB Fire Man",
+            "side": "defense",
+            "formation": "43_over",
+            "coverage": "cover_0",
+            "assignments": {
+                "SDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "DT": {
+                    "run": {
+                        "gap": "B",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "B"
+                        }
+                    }
+                },
+                "NT": {
+                    "run": {
+                        "gap": "A",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "A"
+                        }
+                    }
+                },
+                "WDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "SAM": {
+                    "run": {
+                        "gap": "D",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "blitz": {
+                            "gap": "B",
+                            "side": "strong"
+                        }
+                    }
+                },
+                "MIKE": {
+                    "run": {
+                        "gap": "A",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "man": "back_1"
+                    }
+                },
+                "WILL": {
+                    "run": {
+                        "gap": "B",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "blitz": {
+                            "gap": "B",
+                            "side": "weak"
+                        }
+                    }
+                },
+                "SCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "man": "#1_strong"
+                    }
+                },
+                "WCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "man": "#1_weak"
+                    }
+                },
+                "SS": {
+                    "run": {
+                        "support": "alley_strong"
+                    },
+                    "pass": {
+                        "man": "#2_strong"
+                    }
+                },
+                "FS": {
+                    "run": {
+                        "support": "deep_fill"
+                    },
+                    "pass": {
+                        "man": "#3_strong"
+                    }
+                }
+            },
+            "tags": ["base", "zone", "vs_run", "1st_down"]
+        },
+        {
+            "id": "free_fire_3",
+            "name": "Free Fire 3",
+            "side": "defense",
+            "formation": "43_over",
+            "coverage": "cover_3",
+            "assignments": {
+                "SDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "hole"
+                    }
+                },
+                "DT": {
+                    "run": {
+                        "gap": "B",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "B"
+                        }
+                    }
+                },
+                "NT": {
+                    "run": {
+                        "gap": "A",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "A"
+                        }
+                    }
+                },
+                "WDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "SAM": {
+                    "run": {
+                        "gap": "D",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "flat_strong"
+                    }
+                },
+                "MIKE": {
+                    "run": {
+                        "gap": "A",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "blitz": {
+                            "gap": "A",
+                            "side": "strong"
+                        }
+                    }
+                },
+                "WILL": {
+                    "run": {
+                        "gap": "B",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "blitz": {
+                            "gap": "B",
+                            "side": "weak"
+                        }
+                    }
+                },
+                "SCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "deep_third_strong"
+                    }
+                },
+                "WCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "deep_third_weak"
+                    }
+                },
+                "SS": {
+                    "run": {
+                        "support": "alley_strong"
+                    },
+                    "pass": {
+                        "zone": "deep_middle"
+                    }
+                },
+                "FS": {
+                    "run": {
+                        "support": "deep_fill"
+                    },
+                    "pass": {
+                        "zone": "flat_weak"
+                    }
+                }
+            },
+            "tags": ["base", "zone", "vs_run", "1st_down"]
         }
     ]
 }

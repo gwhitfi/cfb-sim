@@ -26,22 +26,22 @@
         },
 
         "deep_quarter_strong_out": {
-            "drop": { "x": { "from": "numbers", "side": "strong", "offset": 0 }, "y": 12 },
+            "drop": { "x": { "from": "numbers", "side": "strong", "offset": 0 }, "y": 20 },
             "width": 13,
             "depth": [10, 45]
         },
         "deep_quarter_strong_in": {
-            "drop": { "x": { "from": "hash", "side": "strong", "offset": 0 }, "y": 12 },
+            "drop": { "x": { "from": "hash", "side": "strong", "offset": 0 }, "y": 20 },
             "width": 13,
             "depth": [10, 45]
         },
         "deep_quarter_weak_in": {
-            "drop": { "x": { "from": "hash", "side": "weak", "offset": 0 }, "y": 12 },
+            "drop": { "x": { "from": "hash", "side": "weak", "offset": 0 }, "y": 20 },
             "width": 13,
             "depth": [10, 45]
         },
         "deep_quarter_weak_out": {
-            "drop": { "x": { "from": "numbers", "side": "weak", "offset": 0 }, "y": 12 },
+            "drop": { "x": { "from": "numbers", "side": "weak", "offset": 0 }, "y": 20 },
             "width": 13,
             "depth": [10, 45]
         },
