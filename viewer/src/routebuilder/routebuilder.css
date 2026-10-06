@@ -1,0 +1,10 @@
+/* The Route Builder page (/routebuilder), on top of the Play Builder's styles. */
+main { grid-template-columns: 400px minmax(0, 1fr); }
+@media (max-width: 1250px) { main { grid-template-columns: 1fr; } }
+.pt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 7px; padding: 4px 6px; border-radius: 4px; background: var(--panel2); border: 1px solid transparent; }
+.pt.on { border-color: var(--accent); }
+.pt b { width: 14px; }
+.pt .num { width: 58px; }
+#left .out textarea { height: 220px; white-space: pre; overflow-x: auto; }
+#readout { font-size: 12px; min-height: 1.4em; }
+#field { max-height: calc(100vh - 90px); cursor: crosshair; }

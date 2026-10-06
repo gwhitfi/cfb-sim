@@ -50,6 +50,7 @@ add_library(cfbsim_core STATIC
     src/play/kick_stats.cpp
     src/play/matrix.cpp
     src/play/play_stats.cpp
+    src/play/play_art.cpp
     src/play/routes.cpp
     src/world/agent.cpp
     src/world/world.cpp)

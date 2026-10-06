@@ -43,6 +43,7 @@ cfbsim_test_suite(cfbsim_unit_tests unit 30
     determinism_test.cpp
     generator_test.cpp
     play_stats_test.cpp
+    play_art_test.cpp
     geometry_test.cpp
     huddle_test.cpp
     movement_test.cpp

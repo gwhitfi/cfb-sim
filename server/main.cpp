@@ -18,6 +18,10 @@
 //   {"type": "run_kick", "kicking", "kick", "receiving", "return"?, "seed"?, "hash"?, "yard_line"?}
 //                                              -> {"type": "play", ...} as for run_play (cfbsim_run_kick)
 //   {"type": "new_game", "home", "away", "seed"?, "user": ["home"]}
+//                                              -> {"type": "started", "mode": "live", "options"}, then for each
+//                                                 user side {"type": "playbook_art", "team": "home", "art": {...}}
+//                                                 (cfbsim_playbook_art: the play menu's pictures), or with
+//                                                 "error" instead of "art" if it can't be laid out
 //   {"type": "replay", "file": "out/games/x.gamelog.jsonl"} (a file from "logs")
 //   {"type": "advance", "to_tick"?: N}         -> {"type": "advance", "result": {...}}
 //                                                (to_tick: between plays, run the clock this far)
@@ -471,7 +475,21 @@ class Server {
         s.name = o["home"].get<std::string>() + "_vs_" + o["away"].get<std::string>() + "_" + timestamp() + "_seed" +
                  std::to_string(seed) + ".gamelog.jsonl";
         std::cout << "new game: " << o.dump() << std::endl;
-        return {Json{{"type", "started"}, {"mode", "live"}, {"options", o}}.dump()};
+        std::vector<std::string> out{Json{{"type", "started"}, {"mode", "live"}, {"options", o}}.dump()};
+        // The play menu's pictures for each side the user coaches. Not part
+        // of the game, so never in its log; a failure only costs the pictures.
+        for (const Json& side : o["user"]) {
+            if (!side.is_string() || !o.contains(side.get<std::string>())) continue;
+            const std::string team = o[side.get<std::string>()].get<std::string>();
+            Json reply = {{"type", "playbook_art"}, {"team", side}};
+            if (const char* art = cfbsim_playbook_art(c_.data.c_str(), team.c_str())) {
+                reply["art"] = Json::parse(art);
+            } else {
+                reply["error"] = cfbsim_last_error();
+            }
+            out.push_back(reply.dump());
+        }
+        return out;
     }
 
     std::vector<std::string> replay(Session& s, const Json& msg) {

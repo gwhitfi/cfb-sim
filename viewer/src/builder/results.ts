@@ -11,6 +11,7 @@ export interface CellStats {
   sacks: number;
   scrambles: number;
   success: number;
+  attempts?: number; // passes thrown, throwaways included (missing in runs saved before it was counted)
   pressured: number;
   fumbles_lost: number;
   gaining: number; // plays that gained (not incompletions, picks, lost fumbles)
@@ -203,7 +204,10 @@ export function appliesTo(m: Metric, kind: PlayKind): boolean {
   return m.kinds === "all" || m.kinds.includes(kind);
 }
 
-const attempts = (s: CellStats) => s.plays - s.sacks - s.scrambles;
+// Passes thrown, throwaways included. A run saved before the server counted
+// them falls back to plays minus sacks and scrambles, which misses a scramble
+// that ended in a throw and counts a scramble sacked twice.
+export const attempts = (s: CellStats) => (typeof s.attempts === "number" ? s.attempts : s.plays - s.sacks - s.scrambles);
 
 // A share of `den`: the proportion, and its binomial standard error.
 function rate(num: number, den: number): Reading | null {

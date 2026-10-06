@@ -241,7 +241,7 @@ TEST(Defense, ReadsTheOffense) {
     EXPECT_EQ(sb.read.player("#3_strong"), std::nullopt);
 
     // Trips right with no TE on the line: passing strength decides.
-    const OffenseSet trips = offense_set("gun_trips_rt", frame);
+    const OffenseSet trips = offense_set("gun_wide_trips", frame);
     EXPECT_EQ(trips.read.strong, Side::Right);
     EXPECT_EQ(trips.read.player("#3_strong"), trips.slot("Y"));
     // 2x2 with no TE: a tie on both, so the field side (middle hash: right).
@@ -263,7 +263,7 @@ TEST(Defense, TechniquesAndReceiverAnchors) {
     EXPECT_NEAR(x("SS"), frame.hash_x(Side::Right), kEps);
 
     // Nickel against trips: the NB is 1 yd inside #2 strong (H).
-    const OffenseSet trips = offense_set("gun_trips_rt", frame);
+    const OffenseSet trips = offense_set("gun_wide_trips", frame);
     EXPECT_NEAR(def_x("nickel_over", trips, frame, "NB"), trips.x("H") - 1.0, kEps);
 }
 

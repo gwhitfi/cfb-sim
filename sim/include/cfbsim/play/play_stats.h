@@ -45,8 +45,10 @@ struct PlayStats {
     // Outcomes.
     int complete = 0, touchdowns = 0, busts = 0, picks = 0, sacks = 0, scrambles = 0;
     int fumbles = 0, fumbles_lost = 0;
-    int throws = 0;  // passes thrown at someone (not thrown away)
-    // Success: a run, or a completion, that gained 4+ yd (the 1st-and-10 standard).
+    int throws = 0;    // passes thrown at someone (not thrown away)
+    int attempts = 0;  // passes thrown, throwaways included (the real "attempts"; a sack or a
+                       // scramble with no throw isn't one, a scramble that ends in a throw is)
+    // Success: a run, a completion, or a scramble that gained 4+ yd (the 1st-and-10 standard).
     int success = 0;
     double yards = 0.0;         // every play's yards, whatever happened
     double gained_yards = 0.0;  // yards of plays that gained (not incompletions, picks, or lost fumbles)
@@ -77,8 +79,8 @@ struct PlayStats {
     // Completions by the openness at the throw: [0,.2), ..., [.8,1].
     std::array<std::pair<int, int>, 5> openness{};  // thrown, complete
 
-    // Count one play. `is_run`: the play was a designed run (it decides
-    // `success`).
+    // Count one play. `is_run`: the play was a designed run (a carry on it
+    // can be a `success`; on a pass play only a completion or a scramble can).
     void add(const PlayResult& r, bool is_run);
     void merge(const PlayStats& other);
 

@@ -1,21 +1,118 @@
 {
-  // Route templates in the route frame: origin at the receiver,
-  // +x = outside (toward his sideline), +y = downfield.
-  "format_version": 1,
-  "routes": {
-    "go":     {"points": [{"x": 0, "y": 40}], "end": "continue"},
-    "seam":   {"points": [{"x": -0.5, "y": 10}, {"x": -1, "y": 40}], "end": "continue"},
-    "slant":  {"points": [{"x": 0, "y": 2, "type": "break"}, {"x": -6, "y": 8}], "end": "continue"},
-    "out":    {"points": [{"x": 0, "y": 10, "type": "break"}, {"x": 6, "y": 10}], "end": "continue"},
-    "hitch":  {"points": [{"x": 0, "y": 5, "type": "break", "speed": "decel"}, {"x": -0.5, "y": 4}], "end": "stop"},
-    "curl":   {"points": [{"x": 0, "y": 12, "type": "break", "speed": "decel"}, {"x": -1, "y": 10}], "end": "stop"},
-    "stick":  {"points": [{"x": 0, "y": 6, "type": "break", "speed": "decel"}], "end": "settle"},
-    "flat":   {"points": [{"x": 2, "y": 1}, {"x": 8, "y": 3}], "end": "continue"},
-    "corner": {"points": [{"x": 0, "y": 10, "type": "break"}, {"x": 7, "y": 18}], "end": "continue"},
-    "post":   {"points": [{"x": 0, "y": 12, "type": "break"}, {"x": -8, "y": 24}], "end": "continue"},
-    "dig":    {"points": [{"x": 0, "y": 12, "type": "break"}, {"x": -12, "y": 12}], "end": "continue"},
-    "drag":   {"points": [{"x": 0, "y": 1, "type": "break"}, {"x": -15, "y": 2}], "end": "continue"},
-    "sit":    {"points": [{"x": 0, "y": 6, "type": "break", "speed": "decel"}], "end": "settle"},
-    "swing":  {"points": [{"x": 2, "y": -1}, {"x": 8, "y": 0}, {"x": 10, "y": 3}], "end": "continue"}
-  }
+    // Route templates in the route frame: origin at the receiver,
+    // +x = outside (toward his sideline), +y = downfield.
+    "format_version": 1,
+    "routes": {
+        "go": { "points": [{ "x": 0, "y": 40 }], "end": "continue" },
+        "seam": {
+            "points": [
+                { "x": -0.5, "y": 10 },
+                { "x": -1, "y": 40 }
+            ],
+            "end": "continue"
+        },
+        "slant": {
+            "points": [
+                { "x": 0, "y": 2, "type": "break" },
+                { "x": -6, "y": 8 }
+            ],
+            "end": "continue"
+        },
+        "slantMedium": {
+            "points": [
+                { "x": 0, "y": 5, "type": "break" },
+                { "x": -12.5, "y": 13 }
+            ],
+            "end": "continue"
+        },
+        "slantLong": {
+            "points": [
+                { "x": 0, "y": 10, "type": "break" },
+                { "x": -11.5, "y": 19 }
+            ],
+            "end": "continue"
+        },
+        "slantCurlShort": {
+            "points": [
+                { "x": -2, "y": 5 },
+                { "x": -9.5, "y": 8, "type": "break" },
+                { "x": -9.5, "y": 6 }
+            ],
+            "end": "stop"
+        },
+        "slantCurlMedium": {
+            "points": [
+                { "x": 0, "y": 4 },
+                { "x": -8, "y": 12, "type": "break" },
+                { "x": -8, "y": 10 }
+            ],
+            "end": "stop"
+        },
+        "out": {
+            "points": [
+                { "x": 0, "y": 10, "type": "break" },
+                { "x": 6, "y": 10 }
+            ],
+            "end": "continue"
+        },
+        "hitch": {
+            "points": [
+                { "x": 0, "y": 5, "type": "break", "speed": "decel" },
+                { "x": -0.5, "y": 4 }
+            ],
+            "end": "stop"
+        },
+        "curl": {
+            "points": [
+                { "x": 0, "y": 12, "type": "break", "speed": "decel" },
+                { "x": -1, "y": 10 }
+            ],
+            "end": "stop"
+        },
+        "stick": { "points": [{ "x": 0, "y": 6, "type": "break", "speed": "decel" }], "end": "settle" },
+        "flat": {
+            "points": [
+                { "x": 2, "y": 1 },
+                { "x": 8, "y": 3 }
+            ],
+            "end": "continue"
+        },
+        "corner": {
+            "points": [
+                { "x": 0, "y": 10, "type": "break" },
+                { "x": 7, "y": 18 }
+            ],
+            "end": "continue"
+        },
+        "post": {
+            "points": [
+                { "x": 0, "y": 12, "type": "break" },
+                { "x": -8, "y": 24 }
+            ],
+            "end": "continue"
+        },
+        "dig": {
+            "points": [
+                { "x": 0, "y": 12, "type": "break" },
+                { "x": -12, "y": 12 }
+            ],
+            "end": "continue"
+        },
+        "drag": {
+            "points": [
+                { "x": 0, "y": 1, "type": "break" },
+                { "x": -15, "y": 2 }
+            ],
+            "end": "continue"
+        },
+        "sit": { "points": [{ "x": 0, "y": 6, "type": "break", "speed": "decel" }], "end": "settle" },
+        "swing": {
+            "points": [
+                { "x": 2, "y": -1 },
+                { "x": 8, "y": 0 },
+                { "x": 10, "y": 3 }
+            ],
+            "end": "continue"
+        }
+    }
 }

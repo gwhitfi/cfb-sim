@@ -737,7 +737,7 @@ int cmd_matrix(const Options& opt) {
         return std::string(buf);
     };
     std::printf("%s offense vs %s defense\n", offense.c_str(), defense.c_str());
-    table("Success: complete for 4+ yd", [&](const cfbsim::PlayStats& c) { return pct(c.success); });
+    table("Success (4+ yd)", [&](const cfbsim::PlayStats& c) { return pct(c.success); });
     table("Completion", [&](const cfbsim::PlayStats& c) { return pct(c.complete); });
     table("Interceptions", [&](const cfbsim::PlayStats& c) { return std::to_string(c.picks); });
     table("Sacks", [&](const cfbsim::PlayStats& c) { return std::to_string(c.sacks); });
@@ -765,9 +765,9 @@ int cmd_matrix(const Options& opt) {
             "%.1f yd per completion, %.1f yd per play, %.1f%% intercepted, %.1f%% sacks, "
             "%.0f%% pressured, %.1f%% scrambles\n",
             total, 100.0 * all.success / total, 100.0 * all.complete / total,
-            all.throws > 0 ? 100.0 * all.complete / all.throws : 0.0,
+            all.attempts > 0 ? 100.0 * all.complete / all.attempts : 0.0,
             all.complete > 0 ? all.completed_yards / all.complete : 0.0, all.gained_yards / total,
-            all.throws > 0 ? 100.0 * all.picks / all.throws : 0.0, 100.0 * all.sacks / total,
+            all.attempts > 0 ? 100.0 * all.picks / all.attempts : 0.0, 100.0 * all.sacks / total,
             100.0 * all.pressured / total, 100.0 * all.scrambles / total);
     }
     if (!runs.empty()) {

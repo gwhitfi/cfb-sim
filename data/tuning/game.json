@@ -1,118 +1,157 @@
 {
-  // The game flow's modeled pieces: tempo, fatigue, substitutions, injuries,
-  // and foul rates (kicks are in special.json, the coach in coach.json) (docs/cfbsim_design.md#part-v-the-game).
-  "format_version": 1,
+    // The game flow's modeled pieces: tempo, fatigue, substitutions, injuries,
+    // and foul rates (kicks are in special.json, the coach in coach.json) (docs/cfbsim_design.md#part-v-the-game).
+    "format_version": 1,
 
-  "tempo": {
-    "normal": [6, 16],             // play clock reading (s) at the snap (tactics tempo "huddle")
-    "sugar": [10, 19],             // a sugar huddle
-    "no_huddle": [14, 22],
-    "hurry": [26, 33],
-    "milk": [-0.2, 4],              // under 0: delay of game
-    "ready_delay": 7                // s after the whistle the ready signal comes (40-s clock)
-  },
+    "tempo": {
+        "normal": [6, 16], // play clock reading (s) at the snap (tactics tempo "huddle")
+        "sugar": [10, 19], // a sugar huddle
+        "no_huddle": [14, 22],
+        "hurry": [26, 33],
+        "milk": [-0.2, 4], // under 0: delay of game
+        "ready_delay": 7 // s after the whistle the ready signal comes (40-s clock)
+    },
 
-  // Between plays (docs/cfbsim_design.md#between-plays). Play clock seconds used on a
-  // 40-second clock; a 25-second clock starts on the ready signal, after the
-  // stoppage, so the call and the break come 15 s earlier on it.
-  "between_plays": {
-    "call": {"huddle": 10, "sugar": 8, "no_huddle": 7, "hurry": 3},   // the offense's call comes in, by tempo
-    "huddle": 3.5,                  // s from everyone in the ring to the break (the QB gives the call; offense.huddle_ring)
-    "defense_call": 2,              // s after the offense's call: its personnel is on the field, the defense calls
-    "line_up": 3,                   // s to get set at the line with a kneel or a spike
-    // The walks (step 5): nobody warps; the break, the set, and the snap
-    // come from when players get there.
-    "walks": {
-      // yd/s; hurry: share of his top speed. Nobody walks: players run
-      // between plays with urgency ("walk" left out: a walk is a jog).
-      "pace": {"jog": 5.625, "hurry": 0.8125},
-      // Each walk draws its pace by the play clock left (the band's odds:
-      // walk, jog, hurry); before the ready signal the clock counts as full.
-      "bands": [
-        {"above": 30, "odds": [0.00, 1.00, 0.00]},
-        {"above": 17, "odds": [0.00, 0.95, 0.05]},
-        {"above": 7,  "odds": [0.00, 0.60, 0.40]},
-        {"above": -1, "odds": [0.00, 0.05, 0.95]}
-      ],
-      "work_rate_tilt": 0.15,       // the draw + this x (Work Rate - 50) / 50
-      "need_margin": 1.1,           // a pace that gets him there with this to spare
-      "accel": 3.0,                 // yd/s^2
-      "due": {"huddle": 2, "line": 8},   // s to the huddle once the call is in; at the alignment by :08
-      "ball_spotted": 3             // s after the whistle (the 25-second clock waits for it)
+    // Between plays (docs/cfbsim_design.md#between-plays). Play clock seconds used on a
+    // 40-second clock; a 25-second clock starts on the ready signal, after the
+    // stoppage, so the call and the break come 15 s earlier on it.
+    "between_plays": {
+        "call": { "huddle": 10, "sugar": 8, "no_huddle": 7, "hurry": 3 }, // the offense's call comes in, by tempo
+        "huddle": 3.5, // s from everyone in the ring to the break (the QB gives the call; offense.huddle_ring)
+        "defense_call": 2, // s after the offense's call: its personnel is on the field, the defense calls
+        "line_up": 3, // s to get set at the line with a kneel or a spike
+        // The walks (step 5): nobody warps; the break, the set, and the snap
+        // come from when players get there.
+        "walks": {
+            // yd/s; hurry: share of his top speed. Nobody walks: players run
+            // between plays with urgency ("walk" left out: a walk is a jog).
+            "pace": { "jog": 5.625, "hurry": 0.8125 },
+            // Each walk draws its pace by the play clock left (the band's odds:
+            // walk, jog, hurry); before the ready signal the clock counts as full.
+            "bands": [
+                { "above": 30, "odds": [0.0, 1.0, 0.0] },
+                { "above": 17, "odds": [0.0, 0.95, 0.05] },
+                { "above": 7, "odds": [0.0, 0.6, 0.4] },
+                { "above": -1, "odds": [0.0, 0.05, 0.95] }
+            ],
+            "work_rate_tilt": 0.15, // the draw + this x (Work Rate - 50) / 50
+            "need_margin": 1.1, // a pace that gets him there with this to spare
+            "accel": 3.0, // yd/s^2
+            "due": { "huddle": 2, "line": 8 }, // s to the huddle once the call is in; at the alignment by :08
+            "ball_spotted": 3 // s after the whistle (the 25-second clock waits for it)
+        },
+        // The defense between plays (step 6): until it sees the formation it
+        // stands in a shell, its call lined up against this offensive formation
+        // (in data/formations/offense), everyone `off_ball` yd deeper. When the
+        // call comes in each defender looks to his sideline for `signal` s; when
+        // the offense breaks (no huddle: at its call) he reads the formation for
+        // `read` s (by Anticipation), then heads for his spot.
+        "shell": {
+            "formation": "gun_wide_trips",
+            "off_ball": 1.0,
+            "read": {
+                "curve": "linear",
+                "points": [
+                    [1, 1.2],
+                    [100, 0.3]
+                ]
+            },
+            "signal": 1.0
+        },
+        // The offense between plays (step 7): before the call it gathers loosely
+        // behind the ball (linemen `gather.line` yd back, the rest `gather.others`),
+        // facing its sideline for the signal; the ring forms when the call comes
+        // in (a sugar huddle's `sugar_depth` yd off the ball) if `huddle_ring`;
+        // without it, the offense takes the call where it gathered and breaks
+        // `call_signal` s after everyone is there. The break is
+        // staggered: the line first, the receivers and then the QB and backs
+        // that many s later. With no huddle it walks to its base formation, and
+        // shifts into the called one `no_huddle_signal` s after the call.
+        "offense": {
+            "gather": { "line": 4.5, "others": [6, 9] },
+            "sugar_depth": 4,
+            "break_stagger": { "receivers": 0.3, "backs": 0.6 },
+            "no_huddle_signal": 1.0,
+            "huddle_ring": false,
+            "call_signal": 1.0
+        }
     },
-    // The defense between plays (step 6): until it sees the formation it
-    // stands in a shell, its call lined up against this offensive formation
-    // (in data/formations/offense), everyone `off_ball` yd deeper. When the
-    // call comes in each defender looks to his sideline for `signal` s; when
-    // the offense breaks (no huddle: at its call) he reads the formation for
-    // `read` s (by Anticipation), then heads for his spot.
-    "shell": {
-      "formation": "gun_2x2",
-      "off_ball": 1.0,
-      "read": {"curve": "linear", "points": [[1, 1.2], [100, 0.3]]},
-      "signal": 1.0
+
+    "fatigue": {
+        "drain_base": 0.02, // energy per snap
+        "drain_per_yard": 0.001,
+        "drain_per_engaged": 0.015, // per second engaged in a block
+        "drain_per_contact": 0.02, // per tackle try he was part of
+        "stamina": {
+            "curve": "linear",
+            "points": [
+                [0, 1.6],
+                [100, 0.6]
+            ]
+        }, // drain multiplier
+        "recover_field": 0.0005, // per s of game time between plays
+        "recover_sideline": 0.002,
+        "fitness": {
+            "curve": "linear",
+            "points": [
+                [0, 0.5],
+                [100, 1.5]
+            ]
+        }, // Natural Fitness -> recovery multiplier
+        "halftime": 0.5,
+        "modifier": {
+            "curve": "linear",
+            "points": [
+                [0, 0.8],
+                [70, 1.0],
+                [100, 1.0]
+            ]
+        } // energy x 100 -> rating multiplier
     },
-    // The offense between plays (step 7): before the call it gathers loosely
-    // behind the ball (linemen `gather.line` yd back, the rest `gather.others`),
-    // facing its sideline for the signal; the ring forms when the call comes
-    // in (a sugar huddle's `sugar_depth` yd off the ball) if `huddle_ring`;
-    // without it, the offense takes the call where it gathered and breaks
-    // `call_signal` s after everyone is there. The break is
-    // staggered: the line first, the receivers and then the QB and backs
-    // that many s later. With no huddle it walks to its base formation, and
-    // shifts into the called one `no_huddle_signal` s after the call.
-    "offense": {
-      "gather": {"line": 4.5, "others": [6, 9]},
-      "sugar_depth": 4,
-      "break_stagger": {"receivers": 0.3, "backs": 0.6},
-      "no_huddle_signal": 1.0,
-      "huddle_ring": false,
-      "call_signal": 1.0
+
+    // [sub out below, back in above] energy, by depth chart position.
+    "subs": {
+        "QB": [0, 0],
+        "RB": [0.6, 0.85],
+        "FB": [0.55, 0.8],
+        "WR": [0.55, 0.8],
+        "TE": [0.55, 0.8],
+        "OT": [0.25, 0.6],
+        "OG": [0.25, 0.6],
+        "C": [0.25, 0.6],
+        "DE": [0.65, 0.85],
+        "DT": [0.65, 0.85],
+        "OLB": [0.55, 0.8],
+        "MLB": [0.55, 0.8],
+        "CB": [0.55, 0.8],
+        "FS": [0.5, 0.8],
+        "SS": [0.5, 0.8],
+        "K": [0, 0],
+        "P": [0, 0],
+        "LS": [0, 0]
+    },
+
+    "injuries": {
+        "contact": 0.002, // per tackle try, carrier and tackler, x (0.5 + Injury Proneness/100)
+        "snap": 0.00003 // per player on the field per snap
+    },
+
+    "fouls": {
+        "skill": { "discipline": 0.7, "concentration": 0.3 },
+        "false_start": 0.0014, // per offensive player per snap, x (1.5 - skill/100)
+        "crowd": 0.6, // the away offense: x (1 + crowd x this)
+        "offside": 0.0009, // per defender per snap
+        "defensive_holding": 0.04, // per beaten-in-coverage pair
+        "hold_range": 1.0, // yd
+        "pass_interference": 0.35, // the defender on the target, pass not caught
+        "pi_range": 1.5,
+        "offensive_pi": 0.02, // the target in a contested catch
+        "roughing": 0.02, // per defender reaching the QB late
+        "late_after": 0.35,
+        "late_until": 1.0, // s after the release
+        "facemask": 0.004, // per tackle try
+        "personal": { "aggression": 0.5, "dirtiness": 0.5 }, // personal fouls x (0.5 + this/100)
+        "grounding": 0.25, // a throwaway from inside the tackle box
+        "tackle_box": 4.5 // yd either side of the ball
     }
-  },
-
-  "fatigue": {
-    "drain_base": 0.02,            // energy per snap
-    "drain_per_yard": 0.001,
-    "drain_per_engaged": 0.015,     // per second engaged in a block
-    "drain_per_contact": 0.02,      // per tackle try he was part of
-    "stamina": {"curve": "linear", "points": [[0, 1.6], [100, 0.6]]},   // drain multiplier
-    "recover_field": 0.0005,        // per s of game time between plays
-    "recover_sideline": 0.002,
-    "fitness": {"curve": "linear", "points": [[0, 0.5], [100, 1.5]]},   // Natural Fitness -> recovery multiplier
-    "halftime": 0.5,
-    "modifier": {"curve": "linear", "points": [[0, 0.8], [70, 1.0], [100, 1.0]]}  // energy x 100 -> rating multiplier
-  },
-
-  // [sub out below, back in above] energy, by depth chart position.
-  "subs": {
-    "QB": [0, 0], "RB": [0.6, 0.85], "FB": [0.55, 0.8], "WR": [0.55, 0.8], "TE": [0.55, 0.8],
-    "OT": [0.25, 0.6], "OG": [0.25, 0.6], "C": [0.25, 0.6],
-    "DE": [0.65, 0.85], "DT": [0.65, 0.85], "OLB": [0.55, 0.8], "MLB": [0.55, 0.8],
-    "CB": [0.55, 0.8], "FS": [0.5, 0.8], "SS": [0.5, 0.8],
-    "K": [0, 0], "P": [0, 0], "LS": [0, 0]
-  },
-
-  "injuries": {
-    "contact": 0.002,               // per tackle try, carrier and tackler, x (0.5 + Injury Proneness/100)
-    "snap": 0.00003                 // per player on the field per snap
-  },
-
-  "fouls": {
-    "skill": {"discipline": 0.7, "concentration": 0.3},
-    "false_start": 0.0014,          // per offensive player per snap, x (1.5 - skill/100)
-    "crowd": 0.6,                   // the away offense: x (1 + crowd x this)
-    "offside": 0.0009,              // per defender per snap
-    "defensive_holding": 0.04,      // per beaten-in-coverage pair
-    "hold_range": 1.0,              // yd
-    "pass_interference": 0.35,      // the defender on the target, pass not caught
-    "pi_range": 1.5,
-    "offensive_pi": 0.02,           // the target in a contested catch
-    "roughing": 0.02,               // per defender reaching the QB late
-    "late_after": 0.35, "late_until": 1.0,   // s after the release
-    "facemask": 0.004,              // per tackle try
-    "personal": {"aggression": 0.5, "dirtiness": 0.5},  // personal fouls x (0.5 + this/100)
-    "grounding": 0.25,              // a throwaway from inside the tackle box
-    "tackle_box": 4.5               // yd either side of the ball
-  }
 }

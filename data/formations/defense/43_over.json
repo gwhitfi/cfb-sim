@@ -1,20 +1,107 @@
 {
-  "format_version": 1,
-  "id": "43_over",
-  "name": "4-3 Over",
-  "side": "defense",
-  "package": "base",
-  "slots": {
-    "SDE":  {"pos": "DE",  "x": {"tech": "5", "side": "strong"}, "y": 1, "stance": "three_point"},
-    "DT":   {"pos": "DT",  "x": {"tech": "3", "side": "strong"}, "y": 1, "stance": "three_point"},
-    "NT":   {"pos": "DT",  "x": {"tech": "1", "side": "weak"},   "y": 1, "stance": "three_point"},
-    "WDE":  {"pos": "DE",  "x": {"tech": "5", "side": "weak"},   "y": 1, "stance": "three_point"},
-    "SAM":  {"pos": "OLB", "x": {"tech": "9", "side": "strong"}, "y": 4.5},
-    "MIKE": {"pos": "MLB", "x": {"from": "ball", "offset": 0},   "y": 5},
-    "WILL": {"pos": "OLB", "x": {"tech": "3", "side": "weak"},   "y": 5},
-    "SCB":  {"pos": "CB",  "x": {"over": "#1", "side": "strong", "offset": 1}, "y": 7},
-    "WCB":  {"pos": "CB",  "x": {"over": "#1", "side": "weak",   "offset": 1}, "y": 7},
-    "SS":   {"pos": "SS",  "x": {"from": "hash", "side": "strong", "offset": 0}, "y": 9},
-    "FS":   {"pos": "FS",  "x": {"from": "ball", "offset": 0},   "y": 13}
-  }
+    "format_version": 1,
+    "id": "43_over",
+    "name": "4-3 Over",
+    "side": "defense",
+    "package": "base",
+    "slots": {
+        "SDE": {
+            "pos": "DE",
+            "x": {
+                "tech": "5",
+                "side": "strong",
+                "offset": 1
+            },
+            "y": 1,
+            "stance": "three_point"
+        },
+        "DT": {
+            "pos": "DT",
+            "x": {
+                "tech": "3",
+                "side": "strong"
+            },
+            "y": 1,
+            "stance": "three_point"
+        },
+        "NT": {
+            "pos": "DT",
+            "x": {
+                "tech": "1",
+                "side": "weak",
+                "offset": 0.5
+            },
+            "y": 1,
+            "stance": "three_point"
+        },
+        "WDE": {
+            "pos": "DE",
+            "x": {
+                "tech": "5",
+                "side": "weak",
+                "offset": 1.5
+            },
+            "y": 1,
+            "stance": "three_point"
+        },
+        "SAM": {
+            "pos": "OLB",
+            "x": {
+                "tech": "9",
+                "side": "strong",
+                "offset": 0.5
+            },
+            "y": 5
+        },
+        "MIKE": {
+            "pos": "MLB",
+            "x": {
+                "from": "ball",
+                "offset": 0
+            },
+            "y": 5.5
+        },
+        "WILL": {
+            "pos": "OLB",
+            "x": {
+                "tech": "3",
+                "side": "weak",
+                "offset": 4.5
+            },
+            "y": 5
+        },
+        "SCB": {
+            "pos": "CB",
+            "x": {
+                "over": "#1",
+                "side": "strong"
+            },
+            "y": 4.5
+        },
+        "WCB": {
+            "pos": "CB",
+            "x": {
+                "over": "#1",
+                "side": "weak"
+            },
+            "y": 4.5
+        },
+        "SS": {
+            "pos": "SS",
+            "x": {
+                "from": "hash",
+                "side": "strong",
+                "offset": 0
+            },
+            "y": 13
+        },
+        "FS": {
+            "pos": "FS",
+            "x": {
+                "from": "ball",
+                "offset": -6.5
+            },
+            "y": 13
+        }
+    }
 }

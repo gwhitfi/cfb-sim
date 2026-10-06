@@ -30,3 +30,6 @@ _old_docs/
 # Personal notes and walkthroughs for the user, kept locally
 /test_discrepancies.md
 user_docs/
+
+# Retired plays kept for reference while the playbooks are rebuilt
+/scratch_plays/

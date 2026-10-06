@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CFB Sim Play Builder</title>
+    </head>
+    <body>
+        <header class="bar">
+            <strong class="brand">Play Builder</strong>
+            <nav class="seg">
+                <button type="button" id="btn-offense">Offense</button>
+                <button type="button" id="btn-defense">Defense</button>
+            </nav>
+            <label class="field"><span class="lbl">ball on</span>
+                <select id="hash">
+                    <option value="left">left hash</option>
+                    <option value="middle" selected>middle</option>
+                    <option value="right">right hash</option>
+                </select>
+            </label>
+            <button type="button" id="btn-import" title="Paste a formation, a play, or a playbook from data/ or scratch_plays/">Import JSON…</button>
+            <button type="button" id="btn-new-play" title="Start a new play in this formation">New play</button>
+            <button type="button" id="btn-reset" title="Back to the starting formation and play for this side">Reset side</button>
+            <span class="spacer"></span>
+            <span class="muted hint">Click a player to edit him, drag to move (Shift: 0.1 yd steps). Nothing is saved to data/: copy the JSON.</span>
+            <a class="button" href="/routebuilder">Route Builder</a>
+            <a class="button" href="/generate">Builder</a>
+            <a class="button" href="/">Viewer</a>
+        </header>
+        <main>
+            <aside id="left"></aside>
+            <section id="center">
+                <div id="notice" hidden></div>
+                <svg id="field" xmlns="http://www.w3.org/2000/svg"></svg>
+                <div id="legend" class="muted"></div>
+                <ul id="problems"></ul>
+                <div id="output"></div>
+            </section>
+            <aside id="right"></aside>
+        </main>
+        <dialog id="import-dialog">
+            <h3>Import JSON</h3>
+            <p class="muted">
+                Paste a formation file, one play, or a whole playbook (to pick a play from), from <code>data/</code> or
+                <code>scratch_plays/</code>. Import a play's formation before the play. On the Defense tab, the defense
+                lines up against the formation on the Offense tab.
+            </p>
+            <textarea id="import-text" spellcheck="false" placeholder="{ ... }"></textarea>
+            <div id="import-result"></div>
+            <div class="row">
+                <button type="button" id="import-go" class="primary">Import</button>
+                <button type="button" id="import-close">Close</button>
+            </div>
+        </dialog>
+        <script type="module" src="/src/playbuilder/main.ts"></script>
+    </body>
+</html>

@@ -1,0 +1,96 @@
+{
+    "format_version": 1,
+    "id": "gun_wide_trips",
+    "name": "Gun Wide Trips",
+    "side": "offense",
+    "personnel": "11",
+    "slots": {
+        "LT": {
+            "pos": "OT",
+            "x": -4,
+            "y": -1.5,
+            "stance": "three_point",
+            "on_line": true
+        },
+        "LG": {
+            "pos": "OG",
+            "x": -2,
+            "y": -1.5,
+            "stance": "three_point",
+            "on_line": true
+        },
+        "C": {
+            "pos": "C",
+            "x": 0,
+            "y": -1,
+            "stance": "snap",
+            "on_line": true
+        },
+        "RG": {
+            "pos": "OG",
+            "x": 2,
+            "y": -1.5,
+            "stance": "three_point",
+            "on_line": true
+        },
+        "RT": {
+            "pos": "OT",
+            "x": 4,
+            "y": -1.5,
+            "stance": "three_point",
+            "on_line": true
+        },
+        "X": {
+            "pos": "WR",
+            "x": {
+                "from": "numbers",
+                "side": "left",
+                "offset": 0
+            },
+            "y": -1,
+            "stance": "two_point",
+            "on_line": true
+        },
+        "Z": {
+            "pos": "WR",
+            "x": {
+                "from": "numbers",
+                "side": "right",
+                "offset": 0
+            },
+            "y": -1,
+            "stance": "two_point",
+            "on_line": true
+        },
+        "H": {
+            "pos": "WR",
+            "x": {
+                "from": "Z",
+                "offset": -5
+            },
+            "y": -2,
+            "stance": "two_point"
+        },
+        "Y": {
+            "pos": "TE",
+            "x": {
+                "from": "H",
+                "offset": -4
+            },
+            "y": -2,
+            "stance": "two_point"
+        },
+        "QB": {
+            "pos": "QB",
+            "x": 0,
+            "y": -5,
+            "stance": "gun"
+        },
+        "RB": {
+            "pos": "RB",
+            "x": 2.5,
+            "y": -5,
+            "stance": "two_point"
+        }
+    }
+}

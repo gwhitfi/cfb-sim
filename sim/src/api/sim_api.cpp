@@ -16,6 +16,7 @@
 #include "cfbsim/play/kick_matrix.h"
 #include "cfbsim/play/kick_sim.h"
 #include "cfbsim/play/matrix.h"
+#include "cfbsim/play/play_art.h"
 #include "cfbsim/play/play_sim.h"
 #include "cfbsim/version.h"
 
@@ -364,6 +365,19 @@ const char* cfbsim_matrix_cell(cfbsim_matrix* matrix, int row, int col) {
                                {"flip", s.flip}, {"yards", s.yards}});
         }
         out = Json{{"row", row}, {"col", col}, {"stats", to_json(stats)}, {"samples", std::move(samples)}}.dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
+const char* cfbsim_playbook_art(const char* data_dir, const char* team_id) {
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+        if (!report.ok()) return fail("the data folder has errors: " + report.errors.front());
+        out = cfbsim::playbook_art_json(report.data, team_id ? team_id : "").dump();
         return out.c_str();
     } catch (const std::exception& e) {
         return fail(e.what());

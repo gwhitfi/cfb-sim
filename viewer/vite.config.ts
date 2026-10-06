@@ -85,14 +85,51 @@ function builderPage(): Plugin {
   };
 }
 
+// The Play Builder is its own page too (playbuilder/index.html). It reads the
+// route, zone, blocking, and QB libraries straight from data/library/ so there
+// is one copy: /api/library returns them as one JSON object.
+const LIBRARY_FILES = { routes: "routes.json", zones: "zones.json", blocking: "blocking_schemes.json", qb: "qb_actions.json" } as const;
+
+// The library files are JSON with // comment lines.
+const parseCommented = (text: string): Record<string, unknown> => JSON.parse(text.replace(/^\s*\/\/.*$/gm, ""));
+
+function playBuilder(): Plugin {
+  return {
+    name: "cfbsim-play-builder",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        // The Route Builder (routebuilder/index.html) is a page of its own too.
+        if (req.url && /^\/(playbuilder|routebuilder)(\?|$)/.test(req.url)) req.url = req.url.replace(/^\/(\w+)/, "/$1/");
+        if (req.url !== "/api/library") return next();
+        Promise.all(Object.values(LIBRARY_FILES).map((f) => readFile(join(REPO, "data", "library", f), "utf8")))
+          .then((texts) => {
+            const lib: Record<string, unknown> = Object.fromEntries(Object.keys(LIBRARY_FILES).map((k, i) => [k, parseCommented(texts[i]!)]));
+            // routes.json and zones.json wrap their table; the page wants the table.
+            lib.routes = (lib.routes as { routes: unknown }).routes;
+            lib.zones = (lib.zones as { zones: unknown }).zones;
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Cache-Control", "no-store");
+            res.end(JSON.stringify(lib));
+          })
+          .catch((e) => {
+            res.statusCode = 500;
+            res.end(String(e));
+          });
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [trackingFiles(), builderPage()],
+  plugins: [trackingFiles(), builderPage(), playBuilder()],
   server: { port: 5173 },
   build: {
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL("index.html", import.meta.url)),
         generate: fileURLToPath(new URL("generate/index.html", import.meta.url)),
+        playbuilder: fileURLToPath(new URL("playbuilder/index.html", import.meta.url)),
+        routebuilder: fileURLToPath(new URL("routebuilder/index.html", import.meta.url)),
       },
     },
   },

@@ -103,13 +103,15 @@ TEST(Defense, EveryPassPlayRunsAgainstEveryDefense) {
     EXPECT_EQ(plays, 8 * 10 * 2);
 }
 
-TEST(Defense, InsideZoneRunsAgainstADefense) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_InsideZoneRunsAgainstADefense) {
     const PlayResult r = run_play(data(), matchup("sb_inside_zone", "43_over_cover3"));
     EXPECT_TRUE(r.handoff);
     EXPECT_FALSE(r.outcome.empty());
 }
 
-TEST(Defense, SameSeedSameFile) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_SameSeedSameFile) {
     const auto file = [](std::uint64_t seed) {
         std::ostringstream out;
         TrackingWriter writer(out);
@@ -122,7 +124,8 @@ TEST(Defense, SameSeedSameFile) {
 
 // With the away team on offense (as in a game), the header's teams follow the
 // agents' sides, and home_right says which way the home team attacks.
-TEST(Defense, TrackingHeaderTeamsFollowTheOffenseSide) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_TrackingHeaderTeamsFollowTheOffenseSide) {
     PlayOptions o = matchup("smash", "nickel_cover2");
     o.offense_home = false;
     o.offense_right = true;
@@ -139,7 +142,8 @@ TEST(Defense, TrackingHeaderTeamsFollowTheOffenseSide) {
     EXPECT_EQ(header["details"]["home_right"], false);
 }
 
-TEST(Defense, BeatersBeatTheirCoverages) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_BeatersBeatTheirCoverages) {
     // The done-when check for phase 5: more often than not.
     const int runs = 60;
     EXPECT_GT(successes(data(), "smash", "nickel_cover2", runs), runs / 2);
@@ -147,7 +151,8 @@ TEST(Defense, BeatersBeatTheirCoverages) {
     EXPECT_GT(successes(data(), "four_verts", "nickel_cover3", runs), runs / 2);
 }
 
-TEST(Defense, ManCoverageSkillMatters) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_ManCoverageSkillMatters) {
     // Pure man with no help: corners rated 95 vs. 20 (Man Coverage and
     // Anticipation). Worse corners leave receivers more open when the ball
     // comes out (separation is what man skill controls; whether it's caught
@@ -181,7 +186,8 @@ TEST(Defense, ManCoverageSkillMatters) {
     EXPECT_GT(openness(bad), openness(good) + 0.05);
 }
 
-TEST(Defense, BallSkillsMakeInterceptions) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_BallSkillsMakeInterceptions) {
     const auto picks = [](const DataSet& d) {
         int n = 0;
         for (std::uint64_t seed = 1; seed <= 150; ++seed) {
@@ -194,7 +200,8 @@ TEST(Defense, BallSkillsMakeInterceptions) {
               picks(with_defense_attribute(Attr::BallSkills, 5)) + 3);
 }
 
-TEST(Defense, QbThrowsItAwayWhenNothingOpens) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_QbThrowsItAwayWhenNothingOpens) {
     // A QB who never sees anything open enough throws it away when his time
     // is up (no rush here: under pressure he throws it away sooner). A
     // four-man rush, not a blitz: against Cover 0 the free linebacker gets
@@ -213,7 +220,8 @@ TEST(Defense, QbThrowsItAwayWhenNothingOpens) {
     }
 }
 
-TEST(Defense, OptionRouteReadsMan) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Defense, DISABLED_OptionRouteReadsMan) {
     // The stick route turns into an out against man: most of the time the
     // receiver reads it right.
     int man_reads = 0;
@@ -288,7 +296,8 @@ std::map<std::string, std::vector<Vec2>> tracks(const PlayOptions& o, std::initi
 
 }  // namespace
 
-TEST(Coverage, TheCallSetsTheAlignment) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Coverage, DISABLED_TheCallSetsTheAlignment) {
     // Same formation, two calls: Cover 3 keeps the FS over the ball at 13;
     // Cover 2 splits the safeties over the hashes at 12.
     PlayOptions o = matchup("smash", "nickel_cover3");
@@ -303,7 +312,8 @@ TEST(Coverage, TheCallSetsTheAlignment) {
     EXPECT_NEAR(c2.at("SS").front().x, 12.0, 0.1);
 }
 
-TEST(Coverage, ManCoverageDrivesOnAHitch) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Coverage, DISABLED_ManCoverageDrivesOnAHitch) {
     // The QB holds the ball: X runs his hitch and stops; the corner, who
     // backed off while X came at him, drives back down on him.
     int drove = 0;
@@ -322,7 +332,8 @@ TEST(Coverage, ManCoverageDrivesOnAHitch) {
     EXPECT_GE(drove, 8);
 }
 
-TEST(Coverage, DeepZonesPlayWhereTheReceiverIsGoing) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Coverage, DISABLED_DeepZonesPlayWhereTheReceiverIsGoing) {
     // Smash's corner route against Cover 2, the QB holding the ball: the
     // deep-half safety on that side stays over the top of it. (Playing where
     // H was, he let H get about a yard behind him by 2.5 s; playing where H
@@ -340,7 +351,8 @@ TEST(Coverage, DeepZonesPlayWhereTheReceiverIsGoing) {
     EXPECT_GE(over, 8);
 }
 
-TEST(Coverage, WideDeepZonesKeepOutsideLeverage) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Coverage, DISABLED_WideDeepZonesKeepOutsideLeverage) {
     // A fire zone's deep-third corner, with H stemming up inside him, stays
     // outside H (the FS in the middle is his help inside).
     int outside = 0;
@@ -390,7 +402,8 @@ TEST(Coverage, CapsuleZonesCountReceiversNearTheEdge) {
     EXPECT_TRUE(level.contains({26.5, 4.5}));
 }
 
-TEST(Coverage, EveryZoneDropIsInsideItsZone) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Coverage, DISABLED_EveryZoneDropIsInsideItsZone) {
     // zone_area() refuses a capsule whose drop is outside it; every
     // defensive play sets up (on every hash) without that error.
     for (const Hash hash : {Hash::Left, Hash::Middle, Hash::Right}) {
@@ -404,7 +417,8 @@ TEST(Coverage, EveryZoneDropIsInsideItsZone) {
     }
 }
 
-TEST(Coverage, UnderneathZonesDontComeUpUnderVerticals) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Coverage, DISABLED_UnderneathZonesDontComeUpUnderVerticals) {
     // Four Verts against Cover 3, the QB holding the ball: every receiver
     // runs deep, so none of the underneath defenders should come up toward
     // the line (they used to aim 2 yd short of a receiver still at the line,

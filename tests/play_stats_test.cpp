@@ -68,10 +68,53 @@ TEST(PlayStats, SuccessIsFourYardsOfARunOrACompletion) {
     run.add(rush, true);
     EXPECT_EQ(pass.success, 1);
     EXPECT_EQ(run.success, 1);
-    PlayStats not_a_run;  // the same 5 yd carry is no success if it wasn't a run or a completion
+    PlayStats not_a_run;  // the same 5 yd carry is no success if it wasn't a run, a completion, or a scramble
     rush.yards = 5.0;
     not_a_run.add(rush, false);
     EXPECT_EQ(not_a_run.success, 0);
+}
+
+TEST(PlayStats, AScrambleForFourYardsIsASuccess) {
+    PlayStats s;
+    PlayResult scramble;
+    scramble.outcome = "tackled";
+    scramble.scramble = true;
+    scramble.yards = 6.0;
+    s.add(scramble, false);
+    scramble.yards = 2.0;
+    s.add(scramble, false);
+    EXPECT_EQ(s.success, 1);
+}
+
+// Attempts are passes thrown, throwaways included: not sacks or scrambles
+// that never threw, whatever else they were.
+TEST(PlayStats, AttemptsAreThePassesThrown) {
+    PlayStats s;
+    s.add(completion(6.0), false);
+    s.add(incompletion(), false);
+    PlayResult away = incompletion();
+    away.thrown_away = true;
+    s.add(away, false);
+    PlayResult sacked_scramble = sack(-3.0);  // a sack and a scramble: no attempt, counted once
+    sacked_scramble.scramble = true;
+    s.add(sacked_scramble, false);
+    PlayResult ran = sack(4.0);
+    ran.outcome = "tackled";
+    ran.scramble = true;
+    s.add(ran, false);
+    PlayResult threw_on_the_run = completion(9.0);  // a scramble that ended in a throw: an attempt
+    threw_on_the_run.scramble = true;
+    s.add(threw_on_the_run, false);
+    EXPECT_EQ(s.plays, 6);
+    EXPECT_EQ(s.attempts, 4);
+    EXPECT_EQ(s.throws, 3);  // not the throwaway
+    EXPECT_EQ(s.complete, 2);
+
+    PlayStats other;
+    other.add(completion(3.0), false);
+    s.merge(other);
+    EXPECT_EQ(s.attempts, 5);
+    EXPECT_EQ(to_json(s)["attempts"], 5);
 }
 
 TEST(PlayStats, SpreadUsesSortedGains) {

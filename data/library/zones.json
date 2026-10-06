@@ -1,39 +1,79 @@
 {
-  // Zone coverage areas: a drop landmark (play frame) plus an area. Deep zones:
-  // width and a depth band.
-  // "strong" / "weak" resolve from the defensive playbook's strength call.
-  "format_version": 1,
-  "zones": {
-    "deep_half_strong":   {"drop": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 15}, "width": 26, "depth": [12, 45]},
-    "deep_half_weak":     {"drop": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 15},   "width": 26, "depth": [12, 45]},
+    // Zone coverage areas: a drop landmark (play frame) plus an area. Deep zones:
+    // width and a depth band.
+    // "strong" / "weak" resolve from the defensive playbook's strength call.
+    "format_version": 1,
+    "zones": {
+        "deep_half_strong": {
+            "drop": { "x": { "from": "hash", "side": "strong", "offset": 6 }, "y": 25 },
+            "width": 28,
+            "depth": [17, 55]
+        },
+        "deep_half_weak": {
+            "drop": { "x": { "from": "hash", "side": "weak", "offset": 6 }, "y": 25 },
+            "width": 28,
+            "depth": [17, 55]
+        },
 
-    "deep_third_strong":  {"drop": {"x": {"from": "numbers", "side": "strong", "offset": 0}, "y": 15}, "width": 18, "depth": [10, 45]},
-    "deep_middle":        {"drop": {"x": 0, "y": 15},                                               "width": 18, "depth": [10, 45]},
-    "deep_third_weak":    {"drop": {"x": {"from": "numbers", "side": "weak", "offset": 0}, "y": 15},   "width": 18, "depth": [10, 45]},
+        "deep_third_strong": {
+            "drop": { "x": { "from": "numbers", "side": "strong", "offset": -2 }, "y": 20 },
+            "radius": 10
+        },
+        "deep_middle": { "drop": { "x": 0, "y": 25 }, "radius": 10 },
+        "deep_third_weak": {
+            "drop": { "x": { "from": "numbers", "side": "weak", "offset": -2 }, "y": 20 },
+            "radius": 10
+        },
 
-    "deep_quarter_strong_out": {"drop": {"x": {"from": "numbers", "side": "strong", "offset": 0}, "y": 12}, "width": 13, "depth": [10, 45]},
-    "deep_quarter_strong_in":  {"drop": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 12},    "width": 13, "depth": [10, 45]},
-    "deep_quarter_weak_in":    {"drop": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 12},      "width": 13, "depth": [10, 45]},
-    "deep_quarter_weak_out":   {"drop": {"x": {"from": "numbers", "side": "weak", "offset": 0}, "y": 12},   "width": 13, "depth": [10, 45]},
+        "deep_quarter_strong_out": {
+            "drop": { "x": { "from": "numbers", "side": "strong", "offset": 0 }, "y": 12 },
+            "width": 13,
+            "depth": [10, 45]
+        },
+        "deep_quarter_strong_in": {
+            "drop": { "x": { "from": "hash", "side": "strong", "offset": 0 }, "y": 12 },
+            "width": 13,
+            "depth": [10, 45]
+        },
+        "deep_quarter_weak_in": {
+            "drop": { "x": { "from": "hash", "side": "weak", "offset": 0 }, "y": 12 },
+            "width": 13,
+            "depth": [10, 45]
+        },
+        "deep_quarter_weak_out": {
+            "drop": { "x": { "from": "numbers", "side": "weak", "offset": 0 }, "y": 12 },
+            "width": 13,
+            "depth": [10, 45]
+        },
 
-    // Underneath zones are capsules: every point within `radius` of the segment
-    // between the two `ends` (no ends: a circle around the drop). The drop is
-    // where he goes with no threat, and must be inside. Neighbors overlap, so a
-    // receiver between two zones belongs to both.
-    // Curl-to-flat: level, from the hash to the sideline and 1 yd behind the
-    // line to 10 deep, so it hands verticals off where the deep thirds start.
-    // He drops to the curl: 4 yd inside the numbers, 9 deep.
-    "curl_flat_strong":   {"drop": {"x": {"from": "numbers", "side": "strong", "offset": -4}, "y": 9},
-                           "ends": [{"x": {"from": "hash", "side": "strong", "offset": 5.5}, "y": 4.5},
-                                    {"x": {"from": "numbers", "side": "strong", "offset": 2.5}, "y": 4.5}], "radius": 5.5},
-    "curl_flat_weak":     {"drop": {"x": {"from": "numbers", "side": "weak", "offset": -4}, "y": 9},
-                           "ends": [{"x": {"from": "hash", "side": "weak", "offset": 5.5}, "y": 4.5},
-                                    {"x": {"from": "numbers", "side": "weak", "offset": 2.5}, "y": 4.5}], "radius": 5.5},
-    "hook_curl_strong":   {"drop": {"x": {"from": "hash", "side": "strong", "offset": 2}, "y": 10}, "radius": 6},
-    "hook_curl_weak":     {"drop": {"x": {"from": "hash", "side": "weak", "offset": 2}, "y": 10}, "radius": 6},
-    "hook_middle":        {"drop": {"x": 0, "y": 10}, "radius": 6},
-    "flat_strong":        {"drop": {"x": {"from": "numbers", "side": "strong", "offset": 1}, "y": 5}, "radius": 6},
-    "flat_weak":          {"drop": {"x": {"from": "numbers", "side": "weak", "offset": 1}, "y": 5}, "radius": 6},
-    "hole":               {"drop": {"x": 0, "y": 9}, "radius": 5}
-  }
+        // Underneath zones are capsules: every point within `radius` of the segment
+        // between the two `ends` (no ends: a circle around the drop). The drop is
+        // where he goes with no threat, and must be inside. Neighbors overlap, so a
+        // receiver between two zones belongs to both.
+        // Curl-to-flat: level, from the hash to the sideline and 1 yd behind the
+        // line to 10 deep, so it hands verticals off where the deep thirds start.
+        // He drops to the curl: 4 yd inside the numbers, 9 deep.
+        "curl_flat_strong": {
+            "drop": { "x": { "from": "numbers", "side": "strong", "offset": -4 }, "y": 9 },
+            "ends": [
+                { "x": { "from": "hash", "side": "strong", "offset": 5.5 }, "y": 4.5 },
+                { "x": { "from": "numbers", "side": "strong", "offset": 2.5 }, "y": 4.5 }
+            ],
+            "radius": 5.5
+        },
+        "curl_flat_weak": {
+            "drop": { "x": { "from": "numbers", "side": "weak", "offset": -4 }, "y": 9 },
+            "ends": [
+                { "x": { "from": "hash", "side": "weak", "offset": 5.5 }, "y": 4.5 },
+                { "x": { "from": "numbers", "side": "weak", "offset": 2.5 }, "y": 4.5 }
+            ],
+            "radius": 5.5
+        },
+        "hook_curl_strong": { "drop": { "x": { "from": "hash", "side": "strong", "offset": 2 }, "y": 7 }, "radius": 7 },
+        "hook_curl_weak": { "drop": { "x": { "from": "hash", "side": "weak", "offset": 2 }, "y": 7 }, "radius": 7 },
+        "hook_middle": { "drop": { "x": 0, "y": 12 }, "radius": 7 },
+        "flat_strong": { "drop": { "x": { "from": "numbers", "side": "strong", "offset": 1 }, "y": 5 }, "radius": 7 },
+        "flat_weak": { "drop": { "x": { "from": "numbers", "side": "weak", "offset": 1 }, "y": 5 }, "radius": 7 },
+        "hole": { "drop": { "x": 0, "y": 9 }, "radius": 5 }
+    }
 }

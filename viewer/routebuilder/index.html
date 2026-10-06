@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CFB Sim Route Builder</title>
+    </head>
+    <body>
+        <header class="bar">
+            <strong class="brand">Route Builder</strong>
+            <span class="muted hint">Click the field to add a point, drag a point to move it (Shift: 0.1 yd). Copy the entry into data/library/routes.json.</span>
+            <span class="spacer"></span>
+            <a class="button" href="/playbuilder">Play Builder</a>
+            <a class="button" href="/generate">Builder</a>
+            <a class="button" href="/">Viewer</a>
+        </header>
+        <main>
+            <aside id="left"></aside>
+            <section id="center">
+                <svg id="field" xmlns="http://www.w3.org/2000/svg"></svg>
+                <div id="readout" class="muted"></div>
+            </section>
+        </main>
+        <script type="module" src="/src/routebuilder/main.ts"></script>
+    </body>
+</html>

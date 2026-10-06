@@ -1,221 +1,237 @@
 {
-  "format_version": 1,
-  "id": "43_base",
-  "name": "4-3 Base",
-  "side": "defense",
-  "scheme": "4-3_over",
-  "strength_call": ["te", "passing_strength", "field"],
-  "formations": ["43_over", "nickel_over"],
-  "plays": [
-    {
-      "id": "43_over_cover3",
-      "name": "Over Cover 3",
-      "side": "defense",
-      "formation": "43_over",
-      "coverage": "cover_3",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"},   "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"},   "pass": {"rush": {"lane": "contain"}}},
-        "SAM":  {"run": {"gap": "D", "side": "strong"}, "pass": {"zone": "curl_flat_strong"}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"},   "pass": {"zone": "curl_flat_weak"}},
-        "SCB":  {"run": {"support": "deep_third"},      "pass": {"zone": "deep_third_strong"}},
-        "WCB":  {"run": {"support": "deep_third"},      "pass": {"zone": "deep_third_weak"}},
-        "SS":   {"run": {"support": "alley_strong"},    "pass": {"zone": "hook_curl_strong"}},
-        "FS":   {"run": {"support": "deep_fill"},       "pass": {"zone": "deep_middle"}}
-      },
-      "tags": ["base", "zone", "vs_run", "1st_down"]
-    },
-    {
-      "id": "43_over_cover1",
-      "name": "Over Cover 1",
-      "side": "defense",
-      "formation": "43_over",
-      "coverage": "cover_1",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "SAM":  {"run": {"gap": "D", "side": "strong"}, "pass": {"man": "#3_strong"}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hole"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"man": "#2_weak"}, "align": {"x": {"over": "#2", "side": "weak", "offset": -1}, "y": 5}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_strong", "leverage": "outside"}}, "align": {"y": 6}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_weak", "leverage": "outside"}}, "align": {"y": 6}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#2_strong"}, "align": {"x": {"over": "#2", "side": "strong", "offset": -1}, "y": 6}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
-      },
-      "tags": ["base", "man", "vs_pass", "3rd_medium"]
-    },
-    {
-      "id": "43_over_cover4",
-      "name": "Over Cover 4",
-      "side": "defense",
-      "formation": "43_over",
-      "coverage": "cover_4",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "SAM":  {"run": {"gap": "D", "side": "strong"}, "pass": {"zone": "curl_flat_strong"}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "curl_flat_weak"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_strong_out"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_weak_out"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_quarter_strong_in"}, "align": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 10}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_quarter_weak_in"}, "align": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 10}}
-      },
-      "tags": ["base", "zone", "vs_run", "1st_down"]
-    },
-    {
-      "id": "43_over_fire_zone",
-      "name": "Over Fire Zone",
-      "side": "defense",
-      "formation": "43_over",
-      "coverage": "fire_zone",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"zone": "curl_flat_weak"}},
-        "SAM":  {"run": {"gap": "D", "side": "strong"}, "pass": {"blitz": {"gap": "D", "side": "strong"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"blitz": {"gap": "B", "side": "weak"}}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_third_strong"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_third_weak"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "curl_flat_strong"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
-      },
-      "tags": ["pressure", "zone", "2nd_long", "3rd_long"]
-    },
-    {
-      "id": "nickel_cover1",
-      "name": "Nickel Cover 1",
-      "side": "defense",
-      "formation": "nickel_over",
-      "coverage": "cover_1",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"man": "back_1"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"man": "#2_weak"}, "align": {"x": {"over": "#2", "side": "weak", "offset": -1}, "y": 5}},
-        "NB":   {"run": {"support": "force_strong"}, "pass": {"man": "#2_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_strong", "leverage": "outside"}}, "align": {"y": 6}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": {"target": "#1_weak", "leverage": "outside"}}, "align": {"y": 6}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#3_strong"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
-      },
-      "tags": ["man", "vs_pass", "3rd_medium", "3rd_long"]
-    },
-    {
-      "id": "nickel_cover2",
-      "name": "Nickel Cover 2",
-      "side": "defense",
-      "formation": "nickel_over",
-      "coverage": "cover_2",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "hook_curl_weak"}},
-        "NB":   {"run": {"support": "force_strong"}, "pass": {"zone": "hook_curl_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "flat_strong"}, "align": {"y": 5}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "flat_weak"}, "align": {"y": 5}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_half_strong"}, "align": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 12}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_half_weak"}, "align": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 12}}
-      },
-      "tags": ["zone", "vs_pass", "2nd_long", "two_minute"]
-    },
-    {
-      "id": "nickel_cover3",
-      "name": "Nickel Cover 3",
-      "side": "defense",
-      "formation": "nickel_over",
-      "coverage": "cover_3",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_curl_weak"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "curl_flat_weak"}},
-        "NB":   {"run": {"support": "force_strong"}, "pass": {"zone": "curl_flat_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_third_strong"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_third_weak"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "hook_curl_strong"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
-      },
-      "tags": ["base", "zone", "1st_down", "2nd_long"]
-    },
-    {
-      "id": "nickel_cover4",
-      "name": "Nickel Cover 4",
-      "side": "defense",
-      "formation": "nickel_over",
-      "coverage": "cover_4",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "curl_flat_weak"}},
-        "NB":   {"run": {"support": "force_strong"}, "pass": {"zone": "curl_flat_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_strong_out"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_quarter_weak_out"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "deep_quarter_strong_in"}, "align": {"x": {"from": "hash", "side": "strong", "offset": 0}, "y": 10}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_quarter_weak_in"}, "align": {"x": {"from": "hash", "side": "weak", "offset": 0}, "y": 10}}
-      },
-      "tags": ["zone", "vs_pass", "3rd_long", "prevent"]
-    },
-    {
-      "id": "nickel_fire_zone",
-      "name": "Nickel Fire Zone",
-      "side": "defense",
-      "formation": "nickel_over",
-      "coverage": "fire_zone",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"zone": "hook_middle"}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"zone": "curl_flat_weak"}},
-        "NB":   {"run": {"support": "force_strong"}, "pass": {"blitz": {"gap": "D", "side": "strong"}}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_third_strong"}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"zone": "deep_third_weak"}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"zone": "curl_flat_strong"}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"zone": "deep_middle"}}
-      },
-      "tags": ["pressure", "zone", "3rd_medium", "3rd_long"]
-    },
-    {
-      "id": "nickel_cover0",
-      "name": "Nickel Cover 0",
-      "side": "defense",
-      "formation": "nickel_over",
-      "coverage": "cover_0",
-      "assignments": {
-        "SDE":  {"run": {"gap": "C", "side": "strong"}, "pass": {"rush": {"lane": "contain"}}},
-        "DT":   {"run": {"gap": "B", "side": "strong"}, "pass": {"rush": {"lane": "B"}}},
-        "NT":   {"run": {"gap": "A", "side": "weak"}, "pass": {"rush": {"lane": "A"}}},
-        "WDE":  {"run": {"gap": "C", "side": "weak"}, "pass": {"rush": {"lane": "contain"}}},
-        "MIKE": {"run": {"gap": "A", "side": "strong"}, "pass": {"blitz": {"gap": "A", "side": "strong"}}},
-        "WILL": {"run": {"gap": "B", "side": "weak"}, "pass": {"blitz": {"gap": "B", "side": "weak"}}},
-        "NB":   {"run": {"support": "force_strong"}, "pass": {"man": "#2_strong"}},
-        "SCB":  {"run": {"support": "deep_third"}, "pass": {"man": "#1_strong"}, "align": {"y": 5}},
-        "WCB":  {"run": {"support": "deep_third"}, "pass": {"man": "#1_weak"}, "align": {"y": 5}},
-        "SS":   {"run": {"support": "alley_strong"}, "pass": {"man": "#2_weak"}, "align": {"x": {"over": "#2", "side": "weak", "offset": -1}, "y": 5}},
-        "FS":   {"run": {"support": "deep_fill"}, "pass": {"man": "back_1"}, "align": {"x": {"from": "ball", "offset": 0}, "y": 8}}
-      },
-      "tags": ["pressure", "man", "3rd_short", "short_yardage", "goal_line"]
-    }
-  ]
+    "format_version": 1,
+    "id": "43_base",
+    "name": "4-3 Base",
+    "side": "defense",
+    "scheme": "4-3_over",
+    "strength_call": ["te", "passing_strength", "field"],
+    "formations": ["43_over"],
+    "plays": [
+        {
+            "id": "cover_3_sky",
+            "name": "Cover 3 Sky",
+            "side": "defense",
+            "formation": "43_over",
+            "coverage": "cover_3",
+            "assignments": {
+                "SDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "DT": {
+                    "run": {
+                        "gap": "B",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "B"
+                        }
+                    }
+                },
+                "NT": {
+                    "run": {
+                        "gap": "A",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "A"
+                        }
+                    }
+                },
+                "WDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "SAM": {
+                    "run": {
+                        "gap": "D",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "hook_curl_strong"
+                    }
+                },
+                "MIKE": {
+                    "run": {
+                        "gap": "A",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "hook_curl_weak"
+                    }
+                },
+                "WILL": {
+                    "run": {
+                        "gap": "B",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "zone": "flat_weak"
+                    }
+                },
+                "SCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "deep_third_strong"
+                    }
+                },
+                "WCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "deep_third_weak"
+                    }
+                },
+                "SS": {
+                    "run": {
+                        "support": "alley_strong"
+                    },
+                    "pass": {
+                        "zone": "flat_strong"
+                    }
+                },
+                "FS": {
+                    "run": {
+                        "support": "force_weak"
+                    },
+                    "pass": {
+                        "zone": "deep_middle"
+                    }
+                }
+            },
+            "tags": ["base", "zone", "vs_run", "1st_down"]
+        },
+        {
+            "id": "tampa_2",
+            "name": "Tampa 2",
+            "side": "defense",
+            "formation": "43_over",
+            "coverage": "cover_2",
+            "assignments": {
+                "SDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "DT": {
+                    "run": {
+                        "gap": "B",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "B"
+                        }
+                    }
+                },
+                "NT": {
+                    "run": {
+                        "gap": "A",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "A"
+                        }
+                    }
+                },
+                "WDE": {
+                    "run": {
+                        "gap": "C",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "rush": {
+                            "lane": "contain"
+                        }
+                    }
+                },
+                "SAM": {
+                    "run": {
+                        "gap": "D",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "hook_curl_strong"
+                    }
+                },
+                "MIKE": {
+                    "run": {
+                        "gap": "A",
+                        "side": "strong"
+                    },
+                    "pass": {
+                        "zone": "hook_middle"
+                    }
+                },
+                "WILL": {
+                    "run": {
+                        "gap": "B",
+                        "side": "weak"
+                    },
+                    "pass": {
+                        "zone": "hook_curl_weak"
+                    }
+                },
+                "SCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "flat_strong"
+                    }
+                },
+                "WCB": {
+                    "run": {
+                        "support": "deep_third"
+                    },
+                    "pass": {
+                        "zone": "flat_weak"
+                    }
+                },
+                "SS": {
+                    "run": {
+                        "support": "alley_strong"
+                    },
+                    "pass": {
+                        "zone": "deep_half_strong"
+                    }
+                },
+                "FS": {
+                    "run": {
+                        "support": "deep_fill"
+                    },
+                    "pass": {
+                        "zone": "deep_half_weak"
+                    }
+                }
+            },
+            "tags": ["base", "zone", "vs_run", "1st_down"]
+        }
+    ]
 }

@@ -111,6 +111,20 @@ const char* cfbsim_matrix_info(cfbsim_matrix* matrix);
  * stays valid until the next cfbsim_matrix_cell call on the same thread. */
 const char* cfbsim_matrix_cell(cfbsim_matrix* matrix, int row, int col);
 
+/* A team's offense playbook laid out as pictures for the play-call menu
+ * (cfbsim/play/play_art.h): every position in the play frame (yd, the ball at
+ * the origin on the middle hash, +x the offense's right, +y downfield).
+ *   {"team", "playbook",
+ *    "formations": [{"id", "name", "personnel", "players": [{"slot", "role", "x", "y"}]}],
+ *    "plays": [{"id", "name", "formation", "type", "flip",
+ *               "routes": [{"slot", "points": [[x, y], ...], "end", "primary"}],
+ *               "qb": [[x, y], ...], "path": [[x, y], ...] or null,
+ *               "pulls": [{"slot", "points"}]}]}
+ * A flipped play is the mirror of its picture (every x negated). NULL on error
+ * (see cfbsim_last_error). The string stays valid until the next call on the
+ * same thread. */
+const char* cfbsim_playbook_art(const char* data_dir, const char* team_id);
+
 /* Teams for the Builder (cfbsim/gen/team_builder.h). Each loads the data folder,
  * and the ones that change it check the whole folder with the change in it before
  * writing anything. All return a JSON string, or NULL on error (see

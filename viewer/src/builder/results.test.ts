@@ -82,6 +82,15 @@ describe("metrics", () => {
     expect(value("nonpos")).toBeCloseTo(1 / 8); // of the plays that gained
     expect(value("ten")).toBeCloseTo(3 / 8);
   });
+  it("reads completion and interceptions over the server's attempts", () => {
+    // 2 scrambles: one sacked (also a sack), one that ended in a throw. The
+    // server's 9 attempts count that throw; plays - sacks - scrambles (7) wouldn't.
+    const scrambled = stats({ sacks: 2, scrambles: 2, attempts: 8 });
+    expect(value("completion", "pass", scrambled)).toBeCloseTo(6 / 8);
+    expect(value("int", "pass", scrambled)).toBeCloseTo(1 / 8);
+    // A run saved before attempts were counted falls back to the old count.
+    expect(value("completion", "pass", stats({ sacks: 2, scrambles: 2 }))).toBeCloseTo(6 / 6);
+  });
   it("is blank for a pass metric on a run row, and for nothing to read", () => {
     expect(value("completion", "run")).toBeNull();
     expect(value("completion", "both")).toBeCloseTo(6 / 9);

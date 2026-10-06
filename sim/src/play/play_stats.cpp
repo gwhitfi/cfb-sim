@@ -23,8 +23,9 @@ void PlayStats::add(const PlayResult& r, bool is_run) {
     fumbles += r.fumble ? 1 : 0;
     fumbles_lost += r.fumble_lost ? 1 : 0;
     throws += !r.target.empty() && !r.thrown_away ? 1 : 0;
+    attempts += !r.target.empty() ? 1 : 0;
 
-    success += (is_run || r.complete) && gained && r.yards >= 4.0 ? 1 : 0;
+    success += (is_run || r.complete || r.scramble) && gained && r.yards >= 4.0 ? 1 : 0;
     yards += r.yards;
     play_yards.push_back(r.yards);
     if (gained) {
@@ -93,6 +94,7 @@ void PlayStats::merge(const PlayStats& o) {
     fumbles += o.fumbles;
     fumbles_lost += o.fumbles_lost;
     throws += o.throws;
+    attempts += o.attempts;
     success += o.success;
     yards += o.yards;
     gained_yards += o.gained_yards;
@@ -178,7 +180,7 @@ Json to_json(const PlayStats& s) {
     return {
         {"plays", s.plays}, {"complete", s.complete}, {"touchdowns", s.touchdowns}, {"busts", s.busts},
         {"picks", s.picks}, {"sacks", s.sacks}, {"scrambles", s.scrambles}, {"fumbles", s.fumbles},
-        {"fumbles_lost", s.fumbles_lost}, {"throws", s.throws}, {"success", s.success},
+        {"fumbles_lost", s.fumbles_lost}, {"throws", s.throws}, {"attempts", s.attempts}, {"success", s.success},
         {"yards", s.yards}, {"gained_yards", s.gained_yards}, {"completed_yards", s.completed_yards},
         {"gaining", s.gains.size()}, {"nonpositive", s.nonpositive}, {"ten_plus", s.ten_plus}, {"twenty_plus", s.twenty_plus},
         {"gained_yards_sq", s.gained_yards_sq}, {"yac", s.yac}, {"pressured", s.pressured},

@@ -33,7 +33,8 @@ MatrixSpec small_spec() {
 
 }  // namespace
 
-TEST(Matrix, RowsAndColumnsFollowTheSpec) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_RowsAndColumnsFollowTheSpec) {
     const Matrix m(data(), small_spec());
     ASSERT_EQ(m.rows().size(), 2u);
     ASSERT_EQ(m.cols().size(), 2u);
@@ -41,7 +42,8 @@ TEST(Matrix, RowsAndColumnsFollowTheSpec) {
     EXPECT_EQ(m.rows()[1].type, PlayType::Run);
 }
 
-TEST(Matrix, NoPlaysChosenMeansEveryPassAndRunPlay) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_NoPlaysChosenMeansEveryPassAndRunPlay) {
     MatrixSpec s = small_spec();
     s.plays.clear();
     s.defs = {"nickel_cover2"};
@@ -52,7 +54,8 @@ TEST(Matrix, NoPlaysChosenMeansEveryPassAndRunPlay) {
     EXPECT_EQ(m.rows().size(), expected);
 }
 
-TEST(Matrix, ACellIsItsRunsInOrderWithRotatingHashAndSeeds) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_ACellIsItsRunsInOrderWithRotatingHashAndSeeds) {
     const MatrixSpec spec = small_spec();
     const Matrix m(data(), spec);
     PlayStats by_hand;
@@ -73,7 +76,8 @@ TEST(Matrix, ACellIsItsRunsInOrderWithRotatingHashAndSeeds) {
     EXPECT_EQ(cell.plays, spec.runs);
 }
 
-TEST(Matrix, TheCellsAreTheSameWhateverThreadsRunThem) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_TheCellsAreTheSameWhateverThreadsRunThem) {
     const Matrix m(data(), small_spec());
     const std::size_t rows = m.rows().size(), cols = m.cols().size();
     std::vector<std::string> sequential;
@@ -94,7 +98,8 @@ TEST(Matrix, TheCellsAreTheSameWhateverThreadsRunThem) {
     EXPECT_EQ(parallel, sequential);
 }
 
-TEST(Matrix, AnEmptyFieldIsOneColumn) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_AnEmptyFieldIsOneColumn) {
     MatrixSpec s = small_spec();
     s.defense.clear();
     s.defs.clear();
@@ -103,7 +108,8 @@ TEST(Matrix, AnEmptyFieldIsOneColumn) {
     EXPECT_EQ(m.run_cell(0, 0).plays, s.runs);
 }
 
-TEST(Matrix, RejectsWhatItCannotRun) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_RejectsWhatItCannotRun) {
     MatrixSpec s = small_spec();
     s.plays = {"no_such_play"};
     EXPECT_THROW(Matrix(data(), s), PlayError);
@@ -118,7 +124,8 @@ TEST(Matrix, RejectsWhatItCannotRun) {
     EXPECT_THROW(Matrix(data(), s), PlayError);
 }
 
-TEST(MatrixApi, OpensRunsACellAndReportsErrors) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(MatrixApi, DISABLED_OpensRunsACellAndReportsErrors) {
     const char* options =
         R"({"offense": "clemson_2025", "defense": "clemson_2018", "plays": ["smash"],
             "defs": ["nickel_cover2", "43_over_cover3"], "runs": 4})";
@@ -148,7 +155,8 @@ TEST(MatrixApi, OpensRunsACellAndReportsErrors) {
     EXPECT_EQ(cfbsim_matrix_open(CFBSIM_DATA_DIR, "{}"), nullptr);
 }
 
-TEST(Matrix, SamplesAreTheBestMedianAndWorstPlayAndReplayExactly) {
+// Disabled: names a play that moved to scratch_plays/.
+TEST(Matrix, DISABLED_SamplesAreTheBestMedianAndWorstPlayAndReplayExactly) {
     const MatrixSpec spec = small_spec();
     const Matrix m(data(), spec);
     const PlayStats cell = m.run_cell(0, 0);

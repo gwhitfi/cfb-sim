@@ -1258,3 +1258,142 @@ button.primary:hover:not(:disabled) {
 .file-note {
   margin: 8px 0;
 }
+
+/* Play art: the play menu's pictures (src/art.ts). Strokes keep their
+   on-screen width at any card size (vector-effect), so a small card stays readable. */
+.play-art {
+  --art-field: #1f2a22;
+  --art-line: #ffffff26;
+  --art-los: #ffffff8c;
+  --art-route: #ffd400;
+  --art-primary: #ff4d4d;
+  --art-qb: #c3cad3;
+  --art-pull: #e6e8eb;
+  --art-skill: #e6e8eb;
+  --art-ol: #8b939e;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 53.33 / 26;
+}
+.play-art * {
+  vector-effect: non-scaling-stroke;
+}
+.play-art .art-field {
+  fill: var(--art-field);
+}
+.play-art .art-yard {
+  stroke: var(--art-line);
+  stroke-width: 1px;
+}
+.play-art .art-los {
+  stroke: var(--art-los);
+  stroke-width: 1px;
+}
+.play-art .art-route,
+.play-art .art-path,
+.play-art .art-pull,
+.play-art .art-drop {
+  fill: none;
+  stroke: var(--art-route);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.play-art .primary {
+  stroke: var(--art-primary);
+  stroke-width: 2.5px;
+}
+.play-art .art-pull {
+  stroke: var(--art-pull);
+  stroke-dasharray: 3 2;
+}
+.play-art .art-drop {
+  stroke: var(--art-qb);
+  stroke-width: 1.5px;
+  stroke-dasharray: 2 2;
+}
+.play-art .art-head {
+  stroke-dasharray: none;
+}
+.play-art .art-player {
+  fill: var(--art-skill);
+  stroke: #000;
+  stroke-width: 1px;
+}
+.play-art .art-ol {
+  fill: var(--art-ol);
+}
+.play-art .art-qb {
+  fill: #fff;
+}
+.play-art .art-slot {
+  fill: #000;
+  font-weight: 700;
+  font-family: system-ui, sans-serif;
+}
+
+/* The play menu (src/playmenu.ts): the prompt box grows to hold the cards. */
+.prompt.menu {
+  top: 56px;
+  max-height: none;
+}
+/* (Rows of the prompt body, a wrapping flex row: each takes the full width.) */
+.menu-head,
+.menu-grid,
+.menu-other {
+  flex-basis: 100%;
+}
+.menu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 6px;
+}
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.menu-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.menu-card:hover,
+.menu-card:focus-visible {
+  border-color: var(--text);
+}
+.prompt .menu-card.suggested {
+  border: 2px solid var(--accent);
+}
+.menu-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.menu-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.menu-note {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.menu-other {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
