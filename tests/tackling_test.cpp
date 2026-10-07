@@ -136,16 +136,20 @@ TEST(Tackling, DISABLED_PowerBacksBreakTackles) {
     EXPECT_GT(strong_after, weak_after);
 }
 
-// Disabled: names a play that moved to scratch_plays/.
-TEST(Tackling, DISABLED_TacklersGetSquareToTheCarrier) {
-    // Contact quality is measured against the tackler's own arm, a man beside
-    // the carrier gets a fair share of him, and a pursuer only dives once he
-    // can't get there on his feet, so a fair share of tries are square
-    // (quality 0.5+). Before, 2% were: most were hopeless dives from beside him.
+TEST(Tackling, TacklersGetSquareToTheCarrier) {
+    // A current open-field matchup: catch-and-run pursuit must produce body
+    // contacts, not regress to predominantly hopeless reaches and dives.
     int tries = 0, square = 0;
     std::vector<double> quality;
     for (std::uint64_t seed = 1; seed <= 80; ++seed) {
-        std::istringstream lines(tracking(data(), matchup("sb_outside_zone", "43_over_cover3", seed)));
+        PlayOptions options;
+        options.team = "georgia";
+        options.play = "hb_swing";
+        options.defense = "clemson";
+        options.defense_play = "cover_3_sky";
+        options.seed = seed;
+        options.huddle = false;
+        std::istringstream lines(tracking(data(), options));
         for (std::string line; std::getline(lines, line);) {
             const Json j = Json::parse(line);
             if (j.value("type", "") != "event" || !j.contains("quality") || j.value("on", "") != "RB") continue;
@@ -154,10 +158,10 @@ TEST(Tackling, DISABLED_TacklersGetSquareToTheCarrier) {
             if (quality.back() >= 0.5) ++square;
         }
     }
-    ASSERT_GT(tries, 80);
+    ASSERT_GT(tries, 50);
     std::sort(quality.begin(), quality.end());
-    EXPECT_GE(quality[quality.size() / 2], 0.14);  // about 0.17 (0.10 before)
-    EXPECT_GE(static_cast<double>(square) / tries, 0.05);  // about 8%
+    EXPECT_GE(quality[quality.size() / 2], 0.14);  // Preserve the original regression floor.
+    EXPECT_GE(static_cast<double>(square) / tries, 0.05);
 }
 
 // Disabled: names a play that moved to scratch_plays/.

@@ -180,6 +180,8 @@ struct PassingTuning {
     double behind_factor = 0.2;  // a defender's chance on a ball from straight behind him
     double bat_factor = 0.25;  // ... times this for a lineman at the line batting it
     double line_depth = 2.5;   // yd: defenders this close to the line are at the line
+    double breakup_range = 1.5;  // yd: a defender this close to a receiver who has a play on the ball ...
+    double breakup_share = 0.8;  // ... knocks it away with this x contest skill x closeness
     double tip_chance = 0.25;
     double tip_keep = 0.3;
     double tip_up_min = 1.0, tip_up_max = 3.0;
@@ -227,6 +229,8 @@ struct DefenseTuning {
     double deep_lookahead = 1.5;  // s: deep zones count receivers who'll be in the area this soon
     double deep_wide = 10.0;      // yd: deep zones with a landmark wider than this play outside leverage
     Curve deep_lead;              // zone skill -> s ahead a deep defender plays the threat
+    double read_depth = 5.0;      // yd past the line: a deep zone's read is vertical this deep ...
+    double read_speed = 6.0;      // ... moving downfield faster than this (yd/s)
     double under_short = 2.0;
     double settle_speed = 2.0;  // yd/s: an underneath threat slower than this has settled
     double drive_range = 6.0;   // yd: drive on a settled receiver in front of him this close
@@ -453,25 +457,25 @@ struct CarrierTuning {
 struct TacklingTuning {
     // Pursuit.
     Blend pursuit_skill;
-    Curve prediction;               // skill -> share of the carrier's velocity he projects
+    Curve prediction;               // skill -> fraction of the pursuit planning horizon
     Curve pursue_lag;               // skill -> s: how late he sees the carrier
-    double upfield = 0.5;           // the carrier's heading bent this far toward downfield
+    double upfield = 0.5;           // projected heading bends this far upfield over the full horizon
     double pursue_horizon = 3.0, pursue_step = 0.05;
-    double attack_range = 4.0, attack_lead = 0.4;  // close: straight at the carrier, leading him
-    // Alongside him: within close_band yd past his reach and closing slower
-    // than close_min yd/s, he cuts straight into the carrier's body.
+    double attack_range = 4.0, attack_lead = 0.4;  // blend intercept to close attack; maximum extra lead
+    // Blend toward driving through the body inside reach + close_band,
+    // increasingly as closing speed drops below close_min.
     double close_band = 1.0, close_min = 1.5;
     Curve breakdown_speed;          // pursuit skill -> yd/s he arrives at, breaking down in front of him
     double breakdown_decel = 5.0;   // yd/s^2: the steady rate he slows at to get there
     double breakdown_cos = 0.5;     // ... with the carrier heading within this of him
     double leverage = 1.0;          // yd inside (or outside, contain) of the intercept point
-    double leverage_range = 3.0;    // yd: closer than this, no offset
-    double squeeze_room = 4.0;      // yd from a sideline: no offset
+    double leverage_range = 3.0;    // yd: fade leverage from full here to zero at body contact
+    double squeeze_room = 4.0;      // yd from a sideline: start fading leverage toward zero
     double sideline_inside = 1.0;   // yd: predictions stay this far inside
-    double top_cushion = 3.0;       // yd downfield of the carrier: stay on top ...
+    double top_cushion = 3.0;       // yd downfield: blend cushion protection in up to twice this ...
     double top_keep = 0.5;          // ... keeping this share of it
     double effort_range = 10.0;     // yd
-    Curve effort;                   // Work Rate -> share of top speed further away
+    Curve effort;                   // Work Rate -> speed share, blended beyond effort_range over attack_range
 
     // Run fits.
     double fit_depth = 1.0;         // yd off the ball (linebackers), at the closest

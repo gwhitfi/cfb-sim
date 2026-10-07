@@ -3,10 +3,9 @@
 // (play calls, the hike with audibles and hot routes, timeouts, 4th down,
 // penalties). Each snap's tracking file plays in the normal viewer.
 
-import { readArtMessage, type PlaybookArt } from "./art";
+import { PlaybookArtStore } from "./art";
 import type { Playback } from "./playback";
 import {
-  byFormation,
   CHOICE_NAMES,
   describeLine,
   downText,
@@ -25,7 +24,7 @@ import {
   type Prompt,
   type TeamKey,
 } from "./game";
-import { PlayMenu, type MenuAnswer } from "./playmenu";
+import { PlayMenu, menuGroups, type MenuAnswer, type MenuCall } from "./playmenu";
 import { PlayRunner, type PlayReply, type TeamInfo } from "./plays";
 import { DEFAULT_SERVER, rememberServer, serverUrl } from "./server";
 import { StatsPanel } from "./stats";
@@ -120,9 +119,9 @@ export class Live {
   private stats = new StatsPanel($("game-stats"));
   private setup: GameSetup | null = null; // the game being started
   // The play menu's pictures for each side the user coaches (from new_game).
-  private art: Partial<Record<TeamKey, PlaybookArt>> = {};
+  private art = new PlaybookArtStore();
   // The play menu (playmenu.ts): open from the whistle until the call is in.
-  private menu: { team: TeamKey; menu: PlayMenu; rerender: () => void } | null = null;
+  private menu: { team: TeamKey; unit: "offense" | "defense"; input: "call_play" | "check"; menu: PlayMenu; rerender: () => void } | null = null;
   private early: TeamKey | null = null; // the menu is up before this side's call opens
   private held: { team: TeamKey; fields: MenuAnswer; label: string } | null = null; // a pick waiting for the call
   private earlyShown = false; // the early menu (or the held pick) is on screen
@@ -234,10 +233,9 @@ export class Live {
         this.feed(`Game log saved: ${m.path}`, "note");
         break;
       case "playbook_art": {
-        const r = readArtMessage(m);
+        const r = this.art.receive(m);
         if (!r) break;
-        if (r.art) this.art[r.side] = r.art;
-        else this.feed(`No play menu pictures for ${r.side}: ${r.error}`, "note");
+        if (!r.art) this.feed(`No ${r.unit} play menu pictures for ${r.side}: ${r.error}`, "note");
         break;
       }
       case "error":
@@ -257,7 +255,7 @@ export class Live {
     if (!this.connected) return false;
     this.setup = g;
     this.user = new Set(g.user);
-    this.art = {};
+    this.art.clear();
     const msg: Record<string, unknown> = { type: "new_game", home: g.home, away: g.away, user: g.user };
     if (g.seed !== undefined) msg.seed = g.seed;
     this.send(msg);
@@ -269,12 +267,13 @@ export class Live {
     if (!this.connected) return false;
     this.setup = { home: "", away: "", user: [], auto: false, skip };
     this.user.clear();
-    this.art = {};
+    this.art.clear();
     this.send({ type: "replay", file });
     return true;
   }
 
   private begin(mode: "live" | "replay"): void {
+    this.art.clear(); // started precedes both units' art; discard any older in-flight pictures
     this.mode = mode;
     this.queue.clear();
     this.prompt = this.shownPrompt = null;
@@ -344,6 +343,7 @@ export class Live {
     this.prompt = r.prompt && !r.prompt.live ? r.prompt : null;
     this.live = (r.live ?? []).filter((p) => this.user.has(p.team) && !this.auto.has(p.team));
     const open = new Set(this.live.map(key));
+    if (this.shownPrompt?.live && !open.has(key(this.shownPrompt))) this.hidePrompt();
     for (const k of [...this.answeredLive]) if (!open.has(k)) this.answeredLive.delete(k);
     this.inWindow = !!r.window;
     if (r.tick !== undefined) this.simTick = r.tick;
@@ -393,7 +393,7 @@ export class Live {
         this.win = { name: step.name, text: step.data, done: !step.streaming, start: 0, playClock: 0, waits: false, shown: false, dirty: true };
         // The whistle: your offense's menu goes up now, before its call opens.
         const off = this.state?.offense;
-        if (this.afterSnap && off && this.user.has(off) && !this.auto.has(off) && this.art[off]) this.early = off;
+        if (this.afterSnap && off && this.user.has(off) && !this.auto.has(off) && this.art[off].offense) this.early = off;
         this.afterSnap = false;
         return;
       }
@@ -547,7 +547,10 @@ export class Live {
     }
     this.earlyShown = false;
     if (!this.shownPrompt || key(this.shownPrompt) !== key(p) || !this.shownPrompt.live) this.showPrompt(p);
-    else this.shownPrompt = p; // (the same decision: fresh options, the same menu)
+    else if ((p.input === "call_play" || p.input === "check") &&
+      (JSON.stringify(this.shownPrompt.options) !== JSON.stringify(p.options) ||
+       JSON.stringify(this.shownPrompt.suggestion) !== JSON.stringify(p.suggestion))) this.showPrompt(p);
+    else this.shownPrompt = p; // same choices, fresh clock/state
   }
 
   private hideLive(): void {
@@ -621,7 +624,7 @@ export class Live {
 
   private answer(fields: Record<string, unknown>, prompt: Prompt | null = this.shownPrompt): void {
     const p = prompt;
-    if (p?.input === "call_play" && this.menu?.team === p.team) this.menu = null;
+    if ((p?.input === "call_play" || p?.input === "check") && this.menu?.team === p.team) this.resetMenu();
     if (p?.input === "call_play" && this.early === p.team) this.early = null;
     if (p?.live) {
       // Between plays: it names its decision; the game takes it on its next tick.
@@ -645,10 +648,11 @@ export class Live {
   }
 
   private hidePrompt(): void {
+    if (this.shownPrompt) this.resetMenu();
     this.shownPrompt = null;
     this.earlyShown = false;
     $("prompt").hidden = true;
-    $("prompt").classList.remove("menu");
+    $("prompt").classList.remove("menu", "held-call");
     const pc = document.getElementById("sb-play-clock");
     if (pc) pc.textContent = "";
   }
@@ -661,11 +665,13 @@ export class Live {
   }
 
   private showPrompt(p: Prompt): void {
+    this.menu?.menu.rememberFocus();
+    if (p.input !== "call_play" && p.input !== "check") this.resetMenu();
     this.shownPrompt = p;
     this.scoreboard(p.state);
     const box = $("prompt");
     box.hidden = false;
-    box.classList.remove("menu");
+    box.classList.remove("menu", "held-call");
     const head = el(
       "div",
       { className: "prompt-head" },
@@ -717,89 +723,67 @@ export class Live {
     }
   }
 
-  private callPlay(p: Prompt, body: HTMLElement): void {
-    const o = p.options;
-    const art = this.art[p.team];
-    if (o.side === "offense" && art) {
-      // The play menu, kept from the whistle (its screen and flip) when it was up.
-      if (this.menu?.team !== p.team) this.menu = { team: p.team, menu: new PlayMenu(), rerender: () => {} };
-      this.menu.menu.onPick = (a) => this.answer(a);
-      this.menu.rerender = () => this.showPrompt(p);
-      $("prompt").classList.add("menu");
-      this.menu.menu.render(body, {
-        art,
-        plays: o.plays as PlayOption[],
-        suggestion: p.suggestion,
-        kicks: (o.kick_plays ?? []) as string[],
-        clock: (o.clock_plays ?? []) as string[],
-      }, this.menu.rerender);
-      return;
-    }
-    const flip = el("input", { type: "checkbox" });
-    const tools = el("div", { className: "prompt-tools" });
-    if (o.side === "offense") tools.append(el("label", {}, flip, " Flip"));
-    const sug = p.suggestion?.play;
-    for (const k of (o.kick_plays ?? []) as string[]) {
-      tools.append(button(CHOICE_NAMES[k] ?? k, () => this.answer({ play: k }), k === sug ? "suggested" : ""));
-    }
-    if (o.clock_plays) {
-      for (const c of o.clock_plays as string[]) tools.append(button(c === "kneel" ? "Kneel" : "Spike", () => this.answer({ play: c })));
-    }
-    if (o.offense_personnel) tools.append(el("span", { className: "muted", textContent: `Offense: ${o.offense_personnel} personnel` }));
-    tools.append(el("span", { className: "muted", textContent: sug ? `Coach likes: ${CHOICE_NAMES[sug] ?? sug}${p.suggestion.flip ? " (flipped)" : ""}` : "" }));
-    body.append(tools);
-    const grid = el("div", { className: "play-grid" });
-    for (const [formation, plays] of byFormation(o.plays as PlayOption[])) {
-      const col = el("div", { className: "play-group" }, el("div", { className: "group-name", textContent: formation }));
-      for (const play of plays) {
-        const b = button(play.name || play.id, () => {
-          const f = flip.checked && play.flip;
-          this.answer(o.side === "offense" ? { play: play.id, flip: f } : { play: play.id });
-        }, play.id === sug ? "suggested" : "");
-        b.title = `${play.id} · ${play.type}${play.tags.length ? " · " + play.tags.join(", ") : ""}${play.flip ? "" : " · can't flip"}`;
-        col.append(b);
-      }
-      grid.append(col);
-    }
-    body.append(grid);
+  private resetMenu(): void {
+    this.menu?.menu.disconnect();
+    this.menu = null;
   }
 
-  // The defense at the line: stay with the call, or check to another play in its package.
+  private cardMenu(p: Prompt, body: HTMLElement, call: MenuCall): void {
+    const unit = call.art.unit === "defense" ? "defense" : "offense";
+    const input = p.input === "check" ? "check" : "call_play";
+    if (this.menu?.team !== p.team || this.menu.unit !== unit || this.menu.input !== input) {
+      this.resetMenu();
+      this.menu = { team: p.team, unit, input, menu: new PlayMenu(), rerender: () => {} };
+      // A check commonly has one formation's alternatives: show those cards
+      // directly. Several formations retain the normal formation selection.
+      const groups = menuGroups(call.art, call.plays);
+      if (input === "check" && groups.length === 1) this.menu.menu.formation = groups[0]!.formation.id;
+    }
+    this.menu.menu.onPick = (a) => this.answer(a);
+    this.menu.rerender = () => {
+      if (this.shownPrompt) this.showPrompt(this.shownPrompt);
+    };
+    $("prompt").classList.add("menu");
+    this.menu.menu.render(body, call, this.menu.rerender);
+  }
+
+  private callPlay(p: Prompt, body: HTMLElement): void {
+    const o = p.options;
+    const unit = o.side === "defense" ? "defense" : "offense";
+    const art = this.art[p.team][unit] ?? { unit, team: p.team, playbook: "", formations: [], plays: [] };
+    this.cardMenu(p, body, {
+      art, plays: o.plays as PlayOption[], suggestion: p.suggestion,
+      kicks: (o.kick_plays ?? []) as string[], clock: (o.clock_plays ?? []) as string[],
+    });
+  }
+
+  // The defense at the line: stay with the call, or check to a legal alternative.
   private check(p: Prompt, body: HTMLElement): void {
     const o = p.options;
-    const sug = p.suggestion?.play;
     const called = (o.plays as PlayOption[]).find((x) => x.id === o.play);
-    body.append(
-      el("div", { className: "prompt-tools" },
-        button(`Stay: ${called?.name ?? o.play}`, () => this.answer({ play: o.play }), sug === o.play ? "suggested" : ""),
-        el("span", { className: "muted", textContent: `Offense shows ${o.formation_name ?? o.formation}` }),
-      ),
-    );
-    const grid = el("div", { className: "play-grid" });
-    for (const [formation, plays] of byFormation((o.plays as PlayOption[]).filter((x) => x.id !== o.play))) {
-      const col = el("div", { className: "play-group" }, el("div", { className: "group-name", textContent: formation }));
-      for (const play of plays) {
-        const b = button(play.name || play.id, () => this.answer({ play: play.id }), play.id === sug ? "suggested" : "");
-        b.title = `${play.id}${play.tags.length ? " · " + play.tags.join(", ") : ""}`;
-        col.append(b);
-      }
-      grid.append(col);
-    }
-    body.append(grid);
+    const art = this.art[p.team].defense ?? { unit: "defense" as const, team: p.team, playbook: "", formations: [], plays: [] };
+    this.cardMenu(p, body, {
+      art, plays: (o.plays as PlayOption[]).filter((x) => x.id !== o.play), suggestion: p.suggestion,
+      kicks: [], clock: [],
+      stay: { play: o.play, name: called?.name ?? art.plays.find((x) => x.id === o.play)?.name ?? o.play },
+    });
   }
 
   // The menu before the call opens (from the whistle): a pick is held and
   // goes in when the call does (showLive); Change takes it back.
   private showEarly(): void {
     const team = this.early;
-    const art = team ? this.art[team] : undefined;
+    const art = team ? this.art[team].offense : undefined;
     if (!team || !art || this.earlyShown || this.prompt) return;
+    this.menu?.menu.rememberFocus();
     this.earlyShown = true;
     const box = $("prompt");
     box.hidden = false;
     const title = `${this.state?.teams[team].abbr ?? team}: Call the play`;
     if (this.held) {
+      this.menu?.menu.disconnect();
       box.classList.remove("menu");
+      box.classList.add("held-call");
       box.replaceChildren(
         el("div", { className: "prompt-head" },
           el("strong", { textContent: title }),
@@ -812,12 +796,16 @@ export class Live {
       );
       return;
     }
-    if (this.menu?.team !== team) this.menu = { team, menu: new PlayMenu(), rerender: () => {} };
+    if (this.menu?.team !== team || this.menu.unit !== "offense" || this.menu.input !== "call_play") {
+      this.resetMenu();
+      this.menu = { team, unit: "offense", input: "call_play", menu: new PlayMenu(), rerender: () => {} };
+    }
     this.menu.menu.onPick = (a) => this.holdPick(team, a);
     this.menu.rerender = () => {
       this.earlyShown = false;
       this.showEarly();
     };
+    box.classList.remove("held-call");
     box.classList.add("menu");
     const body = el("div", { className: "prompt-body" });
     box.replaceChildren(
@@ -833,7 +821,7 @@ export class Live {
 
   // Holds a pick made before the call opened.
   private holdPick(team: TeamKey, fields: MenuAnswer): void {
-    const art = this.art[team];
+    const art = this.art[team].offense;
     const play = art?.plays.find((q) => q.id === fields.play);
     const label = fields.auto ? "Coach's call" : `${play?.name ?? String(fields.play)}${fields.flip ? " (flipped)" : ""}`;
     this.held = { team, fields, label };
@@ -847,11 +835,11 @@ export class Live {
     this.held = null;
     if (this.earlyShown) {
       $("prompt").hidden = true;
-      $("prompt").classList.remove("menu");
+      $("prompt").classList.remove("menu", "held-call");
     }
     this.early = null;
     this.earlyShown = false;
-    if (!this.shownPrompt || this.shownPrompt.input !== "call_play") this.menu = null;
+    if (!this.shownPrompt || (this.shownPrompt.input !== "call_play" && this.shownPrompt.input !== "check")) this.resetMenu();
   }
 
   private hike(p: Prompt, body: HTMLElement): void {
@@ -952,10 +940,9 @@ export class Live {
   // Keyboard shortcuts while a prompt is up. Returns true if handled.
   key(e: KeyboardEvent): boolean {
     if (!this.mode && this.plays.key(e)) return true;
-    if (e.key === "Escape" && this.menu && $("prompt").classList.contains("menu") && this.menu.menu.back()) {
-      this.menu.rerender();
-      return true;
-    }
+    const target = e.target instanceof HTMLElement ? e.target : document.activeElement as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])")) return false;
+    if (this.menu && !$("prompt").hidden && $("prompt").classList.contains("menu") && this.menu.menu.key(e)) return true;
     if (e.key === "u" && this.mode === "live" && this.inWindow && this.mySide()) {
       this.hurry();
       return true;

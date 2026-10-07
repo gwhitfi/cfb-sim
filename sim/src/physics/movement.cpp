@@ -1,5 +1,7 @@
 #include "cfbsim/physics/movement.h"
 
+#include "physics/movement_step.h"
+
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -34,7 +36,19 @@ double direction_factor(Vec2 facing, Vec2 move_dir, const MovementTuning& tuning
     return tuning.backpedal_factor;
 }
 
-void move_agent(Agent& agent, const Intent& intent, const MovementTuning& tuning, double dt) {
+MovementStep::MovementStep(const MovementProfile& profile, const MovementTuning& tuning, double seconds)
+    : dt(seconds), acceleration_decay(std::exp(-profile.accel_rate * seconds)),
+      max_face_turn(tuning.facing_turn_rate_deg * kDegToRad * seconds),
+      cut_angle(tuning.cut_min_angle_deg * kDegToRad), braking(profile.decel * seconds),
+      half_dt(0.5 * seconds) {}
+
+namespace {
+
+// One physics implementation. The compiler selects the cached or ordinary path;
+// ordinary ticks still evaluate acceleration decay only when accelerating.
+template <bool Cached>
+void move_agent_impl(Agent& agent, const Intent& intent, const MovementTuning& tuning,
+                     double dt, const MovementStep* step) {
     const MovementProfile& p = agent.move;
     const Vec2 old_vel = agent.vel;
     double speed = old_vel.length();
@@ -51,7 +65,8 @@ void move_agent(Agent& agent, const Intent& intent, const MovementTuning& tuning
     } else if (wants_to_move) {
         face_target = want_dir;
     }
-    const double max_face_turn = tuning.facing_turn_rate_deg * kDegToRad * dt;
+    const double max_face_turn = Cached ? step->max_face_turn :
+        tuning.facing_turn_rate_deg * kDegToRad * dt;
     const double face_turn =
         std::clamp(signed_angle(agent.facing, face_target), -max_face_turn, max_face_turn);
     agent.facing = agent.facing.rotated(face_turn).normalized();
@@ -64,7 +79,8 @@ void move_agent(Agent& agent, const Intent& intent, const MovementTuning& tuning
             dir = want_dir;  // (nearly) standing still: he can step off in any direction
         } else {
             const double angle = signed_angle(dir, want_dir);
-            if (intent.plant && std::abs(angle) >= tuning.cut_min_angle_deg * kDegToRad) {
+            const double cut_angle = Cached ? step->cut_angle : tuning.cut_min_angle_deg * kDegToRad;
+            if (intent.plant && std::abs(angle) >= cut_angle) {
                 // Planted cut: change direction now, pay for it in speed.
                 speed *= cut_speed_kept(std::abs(angle), p.agility, tuning);
                 dir = want_dir;
@@ -90,15 +106,27 @@ void move_agent(Agent& agent, const Intent& intent, const MovementTuning& tuning
     double new_speed = speed;
     if (target_speed > speed) {
         // Exact solution of dv/dt = k * (cap - v) over one tick, stopped at the target.
-        new_speed = std::min(target_speed, cap + (speed - cap) * std::exp(-p.accel_rate * dt));
+        const double decay = Cached ? step->acceleration_decay : std::exp(-p.accel_rate * dt);
+        new_speed = std::min(target_speed, cap + (speed - cap) * decay);
     } else {
-        new_speed = std::max(target_speed, speed - p.decel * dt);
+        new_speed = std::max(target_speed, speed - (Cached ? step->braking : p.decel * dt));
     }
     agent.vel = dir * new_speed;
 
     // 5. Position: the trapezoid rule (average of old and new velocity) is
     //    much more accurate than using either one alone.
-    agent.pos += (old_vel + agent.vel) * (0.5 * dt);
+    agent.pos += (old_vel + agent.vel) * (Cached ? step->half_dt : 0.5 * dt);
+}
+
+}  // namespace
+
+void move_agent(Agent& agent, const Intent& intent, const MovementTuning& tuning, double dt) {
+    move_agent_impl<false>(agent, intent, tuning, dt, nullptr);
+}
+
+void move_agent_precomputed(Agent& agent, const Intent& intent,
+                            const MovementTuning& tuning, const MovementStep& step) {
+    move_agent_impl<true>(agent, intent, tuning, step.dt, &step);
 }
 
 void separate_agents(std::span<Agent> agents, const MovementTuning& tuning) {

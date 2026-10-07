@@ -127,3 +127,35 @@ dialog h3 { margin-top: 0; }
 #import-result { margin: 8px 0; }
 .pick { display: flex; flex-direction: column; gap: 3px; max-height: 260px; overflow-y: auto; }
 .pick button { text-align: left; }
+
+/* Inspector controls stay readable as labels and library names grow. */
+#left, #right { min-width: 0; }
+.panel { padding: 12px; gap: 10px; border-radius: 8px; }
+.panel h3 { color: #bac6d5; letter-spacing: .08em; }
+.field { flex-wrap: wrap; max-width: 100%; }
+.field select, .row select { min-width: 0; max-width: 100%; }
+#right .sub { gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.note { color: #aab6c5; line-height: 1.5; }
+button, select, .button { min-height: 30px; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, .button:focus-visible {
+  outline: 2px solid #a9d5ff; outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  .bar .hint { flex-basis: 100%; order: 3; }
+  #left, #right, #center { padding: 8px; }
+  .row { gap: 8px; }
+  dialog { width: calc(100% - 24px); max-width: none; }
+}
+/* On stacked layouts, edit the selected player before scrolling through JSON. */
+@media (max-width: 1250px) {
+  main { gap: 8px; padding: 8px; }
+  #center { display: contents; }
+  #notice { order: 0; }
+  #field { order: 1; }
+  #legend { order: 2; }
+  #problems { order: 3; }
+  #right { order: 4; padding: 0; }
+  #left { order: 5; padding: 0; }
+  #output { order: 6; min-width: 0; }
+}

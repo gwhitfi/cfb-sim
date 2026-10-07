@@ -19,8 +19,8 @@
 //                                              -> {"type": "play", ...} as for run_play (cfbsim_run_kick)
 //   {"type": "new_game", "home", "away", "seed"?, "user": ["home"]}
 //                                              -> {"type": "started", "mode": "live", "options"}, then for each
-//                                                 user side {"type": "playbook_art", "team": "home", "art": {...}}
-//                                                 (cfbsim_playbook_art: the play menu's pictures), or with
+//                                                 user side {"type": "playbook_art", "team": "home",
+//                                                 "unit": "offense"|"defense", "art": {...}}, or with
 //                                                 "error" instead of "art" if it can't be laid out
 //   {"type": "replay", "file": "out/games/x.gamelog.jsonl"} (a file from "logs")
 //   {"type": "advance", "to_tick"?: N}         -> {"type": "advance", "result": {...}}
@@ -481,13 +481,14 @@ class Server {
         for (const Json& side : o["user"]) {
             if (!side.is_string() || !o.contains(side.get<std::string>())) continue;
             const std::string team = o[side.get<std::string>()].get<std::string>();
-            Json reply = {{"type", "playbook_art"}, {"team", side}};
-            if (const char* art = cfbsim_playbook_art(c_.data.c_str(), team.c_str())) {
-                reply["art"] = Json::parse(art);
-            } else {
-                reply["error"] = cfbsim_last_error();
+            for (const std::string unit : {"offense", "defense"}) {
+                Json reply = {{"type", "playbook_art"}, {"team", side}, {"unit", unit}};
+                const char* art = unit == "offense" ? cfbsim_playbook_art(c_.data.c_str(), team.c_str())
+                                                   : cfbsim_defensive_playbook_art(c_.data.c_str(), team.c_str());
+                if (art) reply["art"] = Json::parse(art);
+                else reply["error"] = cfbsim_last_error();
+                out.push_back(reply.dump());
             }
-            out.push_back(reply.dump());
         }
         return out;
     }

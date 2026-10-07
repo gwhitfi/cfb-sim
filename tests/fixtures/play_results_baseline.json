@@ -1,0 +1,2798 @@
+{
+  "data_sha256": "e192711c1516b4dd31f3f1ad67d964c11bfe14a4016ba613c484e5270dd6a21e",
+  "cases": [
+    {
+      "name": "trips_all_curl/cover_3_sky/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to H, 10.3 yd downfield after 1.7 s\nwrote <output>\n",
+        "tracking_sha256": "4a7bd84fb89d63e6d23b6c2ebbfda0924161ce96d360b4ed9fb5ce5017c441b6"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_3_sky/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to Y, 8.8 yd downfield after 2.2 s\nwrote <output>\n",
+        "tracking_sha256": "8220caab4a4aaa5940d94ee6864e8de87d4d20cc6267d714d5e2b3be4014c406"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_3_sky/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to Y, 7.6 yd downfield after 2.0 s; tackled, 19.4 yd (1 bust)\n  bust: X: ran stick instead of curl\nwrote <output>\n",
+        "tracking_sha256": "b83ad49085398162dabd7e21318c62fbda00514d14c694f8f30998bc5cea7686"
+      }
+    },
+    {
+      "name": "trips_all_curl/tampa_2/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to Y, 7.3 yd downfield after 2.0 s; tackled, 9.6 yd\nwrote <output>\n",
+        "tracking_sha256": "c677701501ffdf0106716ac520b9f05bae1160642fd15ef02433caa01ca54703"
+      }
+    },
+    {
+      "name": "trips_all_curl/tampa_2/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to Y, 7.5 yd downfield after 2.8 s; tackled, 8.2 yd\nwrote <output>\n",
+        "tracking_sha256": "472e3de097827dcb66b7bf3ed1d03cc78262b6c15a6fc3e5db3ead0e980ab6ae"
+      }
+    },
+    {
+      "name": "trips_all_curl/tampa_2/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to Y, 9.0 yd downfield after 2.0 s; tackled, 10.4 yd (1 bust)\n  bust: X: ran stick instead of curl\nwrote <output>\n",
+        "tracking_sha256": "d9c611924cffbc361906696bb85ad7217898420e8f31e2b5f55dca3426f77389"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_4_quarters/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to Y, 7.4 yd downfield after 2.0 s; tackled, 16.3 yd\nwrote <output>\n",
+        "tracking_sha256": "461efc07d29759abb788aa6dd6429941b90b1b1d83a3c7a849880ca7da725a60"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_4_quarters/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to Y, 7.5 yd downfield after 2.8 s; tackled, 9.2 yd\nwrote <output>\n",
+        "tracking_sha256": "24dbe1bfbb80b3f54a53c5d7a8a7c9c683e07ca2a2232d8415e023b7fa1c1349"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_4_quarters/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to Y, 9.2 yd downfield after 2.0 s; tackled, 16.2 yd (1 bust)\n  bust: X: ran stick instead of curl\nwrote <output>\n",
+        "tracking_sha256": "7664347ec01979464616158c593b19111d547036e5954a4e653cbdd4beca497c"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_2_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to Y, 7.2 yd downfield after 2.0 s; tackled, 10.6 yd\nwrote <output>\n",
+        "tracking_sha256": "b917a1ad38a1614678342300694089eafd5fab86bcee68aff135da9143f239b4"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_2_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to RB, -3.2 yd downfield after 2.0 s; tackled, 3.5 yd\nwrote <output>\n",
+        "tracking_sha256": "c0627001e73f54b2ab97c8e1cfcd4aba5278c20d63ccfc18f423b8e3ea039b26"
+      }
+    },
+    {
+      "name": "trips_all_curl/cover_2_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to Y, 12.4 yd downfield after 2.1 s; tackled, 12.7 yd (1 bust)\n  bust: X: ran stick instead of curl\nwrote <output>\n",
+        "tracking_sha256": "f9d5177c6bb1d3a88f7f79031366b3f65f222a71fd087c207474f94b1dc49a97"
+      }
+    },
+    {
+      "name": "trips_all_curl/olb_fire_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Thrown away after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "8ab4406fdb29f1287d411625f544d9adb8c2ccd4a63b8694a7e800e20e558755"
+      }
+    },
+    {
+      "name": "trips_all_curl/olb_fire_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to H, 9.7 yd downfield after 1.7 s (broken up)\nwrote <output>\n",
+        "tracking_sha256": "2d6ae5a2d3eaf968fadb253a27fad48b32f97d2b6c481d7ff5a3cdbf70ba226a"
+      }
+    },
+    {
+      "name": "trips_all_curl/olb_fire_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to H, 9.8 yd downfield after 1.7 s; tackled, 16.9 yd (1 bust)\n  bust: X: ran stick instead of curl\nwrote <output>\n",
+        "tracking_sha256": "9022646f3add414e08bad5f99cef0e48db615c2c8e2a3fc4d6551c5e2c053ed3"
+      }
+    },
+    {
+      "name": "trips_all_curl/free_fire_3/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Thrown away after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "4590c0139b38c0bcf4aceba342432f74b2643a68b28bc842074ce0f841a9a640"
+      }
+    },
+    {
+      "name": "trips_all_curl/free_fire_3/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: No throw; sack, -4.4 yd\nwrote <output>\n",
+        "tracking_sha256": "fd8890ab9965f45a81d5c579571238d2f8cde9afcd3d47c6836490a5e0afdd44"
+      }
+    },
+    {
+      "name": "trips_all_curl/free_fire_3/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "trips_all_curl",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, 6.1 yd downfield after 2.2 s; tackled, 16.9 yd (1 bust)\n  bust: X: ran stick instead of curl\nwrote <output>\n",
+        "tracking_sha256": "786c90e57b02fa58b3e9503c5e9da3dcbb9515f7a28c812bf7dab0cfc1f1e09a"
+      }
+    },
+    {
+      "name": "four_verts/cover_3_sky/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to Y, 25.7 yd downfield after 2.6 s\nwrote <output>\n",
+        "tracking_sha256": "0895d25558a55fd2f71a84bb0d25cd7b9309e302aa6c76d6486405f62e04f408"
+      }
+    },
+    {
+      "name": "four_verts/cover_3_sky/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to X, 53.6 yd downfield after 2.1 s (broken up)\nwrote <output>\n",
+        "tracking_sha256": "307a5a0b29a4abbf4963599cef3e6bac58de639d32e714b907eaa990fbbf9ab5"
+      }
+    },
+    {
+      "name": "four_verts/cover_3_sky/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to Y, 17.4 yd downfield after 2.0 s (1 bust)\n  bust: X: ran go instead of seam\nwrote <output>\n",
+        "tracking_sha256": "b3a83365cd7683af0a51ea40216c4dbc861a21f0149c5dc1e79c3535847dd2c3"
+      }
+    },
+    {
+      "name": "four_verts/tampa_2/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to Y, 25.7 yd downfield after 2.6 s\nwrote <output>\n",
+        "tracking_sha256": "1c4d32c09369b87fa546021b3e610c2c99ae03b1726136f2244347ad7309f78e"
+      }
+    },
+    {
+      "name": "four_verts/tampa_2/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to X, 40.9 yd downfield after 2.1 s (broken up)\nwrote <output>\n",
+        "tracking_sha256": "165397e7d2a9893e6bb963ea93941c78d9065945c542b43182909742e728902f"
+      }
+    },
+    {
+      "name": "four_verts/tampa_2/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to X, 44.0 yd downfield after 2.1 s (broken up) (1 bust)\n  bust: X: ran go instead of seam\nwrote <output>\n",
+        "tracking_sha256": "4a5069f2f0e55a08869721f4de371437109208a0c03b83e69f08730dc7c81dc9"
+      }
+    },
+    {
+      "name": "four_verts/cover_4_quarters/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to Y, 20.9 yd downfield after 2.1 s; tackled, 23.6 yd\nwrote <output>\n",
+        "tracking_sha256": "37ef7d497ed1b215d8c5c916dc700985f6e358b0b3b77184962201e762fd5f72"
+      }
+    },
+    {
+      "name": "four_verts/cover_4_quarters/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to X, 46.0 yd downfield after 2.1 s; tackled, 47.0 yd\nwrote <output>\n",
+        "tracking_sha256": "bd6b17b7c9696f863398744c99aa0b4febc3af159553da16cea1ecfc85f74429"
+      }
+    },
+    {
+      "name": "four_verts/cover_4_quarters/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to Y, 18.2 yd downfield after 2.1 s (1 bust)\n  bust: X: ran go instead of seam\nwrote <output>\n",
+        "tracking_sha256": "95f7171ed1fcd5f94f1223a534ad0dfb47b023c17971f6b86ce1c367a26f0672"
+      }
+    },
+    {
+      "name": "four_verts/cover_2_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to Y, 28.8 yd downfield after 2.7 s\nwrote <output>\n",
+        "tracking_sha256": "6102c7d59a59c27688f77864bd3d7c80f00992c4b75b19f974de224970ec3722"
+      }
+    },
+    {
+      "name": "four_verts/cover_2_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to X, 46.0 yd downfield after 2.1 s; tackled, 46.9 yd\nwrote <output>\n",
+        "tracking_sha256": "d6416b1f1827251fca139ac43399a0584b1f3afc676332da2301f1c844bb2cc1"
+      }
+    },
+    {
+      "name": "four_verts/cover_2_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: No throw; sack, -7.1 yd (1 bust)\n  bust: X: ran go instead of seam\nwrote <output>\n",
+        "tracking_sha256": "739679e785614d5866a4b1b55cc789ce02188d860702d538d058a771bcd40d7a"
+      }
+    },
+    {
+      "name": "four_verts/olb_fire_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Thrown away after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "24bbc9ed5df2a02eab0cc1ae9a91b5c54ce8969fb191ee7e81604989819afecf"
+      }
+    },
+    {
+      "name": "four_verts/olb_fire_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: No throw; sack, -3.6 yd\nwrote <output>\n",
+        "tracking_sha256": "6bf3267a70bcc5cb563b37d820df6ab1b3362029ebe0e4b5e2a25b67651d8d8d"
+      }
+    },
+    {
+      "name": "four_verts/olb_fire_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: No throw; sack, -1.0 yd (1 bust)\n  bust: X: ran go instead of seam\nwrote <output>\n",
+        "tracking_sha256": "21c367b67b857180a9149e7a5825d18bf5822d77a14847493b7598793db7c36b"
+      }
+    },
+    {
+      "name": "four_verts/free_fire_3/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Thrown away after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "402d4fe3e546c1f4c1e1c9d325e85a346ff1037de1ffff94d19e98c998ffff03"
+      }
+    },
+    {
+      "name": "four_verts/free_fire_3/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: No throw; sack, -1.0 yd\nwrote <output>\n",
+        "tracking_sha256": "ae033ab6880b3a815daf0a84018e27237245abb7d5ef698bdc9d5edd0488cb7d"
+      }
+    },
+    {
+      "name": "four_verts/free_fire_3/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "four_verts",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: No throw; sack, -4.5 yd (1 bust)\n  bust: X: ran go instead of seam\nwrote <output>\n",
+        "tracking_sha256": "d29fb71570b7058229f947bd67fcc1b42840a8b709c15ea4d3f1a536dce46aae"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_3_sky/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 4.0 yd\nwrote <output>\n",
+        "tracking_sha256": "f50b56c593c8815944058b0ef59ed748945f86dfd33e8929ffc0a4a0121a9d3e"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_3_sky/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -1.2 yd\nwrote <output>\n",
+        "tracking_sha256": "75f4923bab519754651044d29896e7964a64fc0284438eace82d88527a7abc9a"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_3_sky/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -3.1 yd (1 bust)\n  bust: SAM: dropped 0.5 s late\nwrote <output>\n",
+        "tracking_sha256": "6daa2b4d4d514390e32fd7cb5c3a8ad7eb313e0813602f4fd8bc4c6dccf0d84c"
+      }
+    },
+    {
+      "name": "hb_sweep/tampa_2/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 3.2 yd\nwrote <output>\n",
+        "tracking_sha256": "b34972b4781e36d4e7a277319aab2db66905a88f9bc7eb91302cf24393d44f1f"
+      }
+    },
+    {
+      "name": "hb_sweep/tampa_2/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -3.0 yd\nwrote <output>\n",
+        "tracking_sha256": "d294deb89cb82fdc424bd1c7e2b27af67d9f00d85183f5d14e9d324df8bdb076"
+      }
+    },
+    {
+      "name": "hb_sweep/tampa_2/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -0.9 yd (1 bust)\n  bust: SAM: dropped 0.5 s late\nwrote <output>\n",
+        "tracking_sha256": "a73c14b2947032954cb6ba73ba33b2f099485a259bf9c6b9129f73852b1fd7fe"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_4_quarters/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 7.3 yd\nwrote <output>\n",
+        "tracking_sha256": "8b6e030945608937872da640249744943d43a2edc6c9f7516adac1b14071d7a0"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_4_quarters/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -3.0 yd\nwrote <output>\n",
+        "tracking_sha256": "ecf9b97a9c0b3f67b77638ffe87919c80259be8c1516a13df3902c304f60510b"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_4_quarters/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -1.9 yd (1 bust)\n  bust: SAM: dropped 0.5 s late\nwrote <output>\n",
+        "tracking_sha256": "59c18fdfeceeea37cb944eaa8f241ef93cd7099fe2ab8d54155c0b40ee4eecda"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_2_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 4.8 yd\nwrote <output>\n",
+        "tracking_sha256": "6eedc899c72ce80b3b4a0bdda57725084c689a11c1dce489f3aec9cf042fa7e5"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_2_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, 12.5 yd\nwrote <output>\n",
+        "tracking_sha256": "5e8fc6952d28be5904bda552b5620681710f87b9cd283e3f8e958d867d995264"
+      }
+    },
+    {
+      "name": "hb_sweep/cover_2_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, 1.9 yd (1 bust)\n  bust: SAM: reacted late\nwrote <output>\n",
+        "tracking_sha256": "ec6027efff06f426f114472199b9f4d9d1775570a943bc1a4ed806cac886c43e"
+      }
+    },
+    {
+      "name": "hb_sweep/olb_fire_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, -1.2 yd\nwrote <output>\n",
+        "tracking_sha256": "ae58e59acf7d7392d2373ad9872101cad62f6942d6fd32bef699fde673e96c18"
+      }
+    },
+    {
+      "name": "hb_sweep/olb_fire_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -0.0 yd\nwrote <output>\n",
+        "tracking_sha256": "d679afd4dcaea11ba3c79c39c95c070c8fdb5ce166fdfaf7f010f25203da7f1f"
+      }
+    },
+    {
+      "name": "hb_sweep/olb_fire_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, 17.2 yd\nwrote <output>\n",
+        "tracking_sha256": "a4afa44c1214101cf786faf6263747ab0da7c7e6b50948c9e7e7f66efc6386e0"
+      }
+    },
+    {
+      "name": "hb_sweep/free_fire_3/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, -1.2 yd\nwrote <output>\n",
+        "tracking_sha256": "96c3d730dcb8778faf01de69cc2560ff3d043a53d60dfcee88d1d3ae60b44889"
+      }
+    },
+    {
+      "name": "hb_sweep/free_fire_3/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -0.8 yd\nwrote <output>\n",
+        "tracking_sha256": "83304e7089c3deeed2387f53fe9188aaccc2e25f6459ab339430d35ef4654a0c"
+      }
+    },
+    {
+      "name": "hb_sweep/free_fire_3/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_sweep",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -1.5 yd\nwrote <output>\n",
+        "tracking_sha256": "e1b5d7f2079174e5da6bd02e1f4b3b2e2d0ac1ff83d6cec4c5df96afa4bb44d9"
+      }
+    },
+    {
+      "name": "mid_draw/cover_3_sky/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 0.5 yd\nwrote <output>\n",
+        "tracking_sha256": "7002cc83d8e6f8fd9ebb869bf34419a042db6ef293db902008227c0152d9e9ef"
+      }
+    },
+    {
+      "name": "mid_draw/cover_3_sky/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -0.1 yd\nwrote <output>\n",
+        "tracking_sha256": "091eced0992c16687176852d4229a3614d6fb811206f083229063473d8391599"
+      }
+    },
+    {
+      "name": "mid_draw/cover_3_sky/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, 46.9 yd (1 bust)\n  bust: SAM: dropped 0.5 s late\nwrote <output>\n",
+        "tracking_sha256": "56ff5d729040fcb45198e09d9973358fc17457aa2715ac2f869a4fce2451cfa2"
+      }
+    },
+    {
+      "name": "mid_draw/tampa_2/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 0.5 yd\nwrote <output>\n",
+        "tracking_sha256": "b3a5f8bf39ea0365cdd8c456c1f99d7ba14e1d01a7e43f9de41797a77c61ff4b"
+      }
+    },
+    {
+      "name": "mid_draw/tampa_2/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -0.5 yd\nwrote <output>\n",
+        "tracking_sha256": "cf8051b973721c6b18279324f3f4310647fdb42be28097e2aacaa77b891fdd7b"
+      }
+    },
+    {
+      "name": "mid_draw/tampa_2/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -0.5 yd (1 bust)\n  bust: SAM: dropped 0.5 s late\nwrote <output>\n",
+        "tracking_sha256": "8fb32f7a656ef6b3efef2eab5c2816ac65ffaa679f5dd24332c135a2fdf896d0"
+      }
+    },
+    {
+      "name": "mid_draw/cover_4_quarters/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 0.5 yd\nwrote <output>\n",
+        "tracking_sha256": "62328be2a32655297c5bfa8e02349760a0ec0761e49435ecb8f9a9a564c0f7ab"
+      }
+    },
+    {
+      "name": "mid_draw/cover_4_quarters/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -0.1 yd\nwrote <output>\n",
+        "tracking_sha256": "73fec2844e19d70ed8d85dc5b0401ec93c57dc66b4e257802483bf1891c3c50b"
+      }
+    },
+    {
+      "name": "mid_draw/cover_4_quarters/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -0.5 yd (1 bust)\n  bust: SAM: dropped 0.5 s late\nwrote <output>\n",
+        "tracking_sha256": "d2c69429c32b9189d821a084cf9586e7bf2b9484241ed2af5a9a734f406a7997"
+      }
+    },
+    {
+      "name": "mid_draw/cover_2_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 0.5 yd\nwrote <output>\n",
+        "tracking_sha256": "0cb16befcb9fd1f0de531e904f8336ccefac5304ebafa0eeeb93807ec2a7b2c6"
+      }
+    },
+    {
+      "name": "mid_draw/cover_2_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, -1.0 yd\nwrote <output>\n",
+        "tracking_sha256": "18d85dd67b684aa13d9df97c68e65b321af65bb4e5ef75308d7ce0ccb474b424"
+      }
+    },
+    {
+      "name": "mid_draw/cover_2_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -0.1 yd (1 bust)\n  bust: SAM: reacted late\nwrote <output>\n",
+        "tracking_sha256": "925cfb571fd111a5cc57f6e92df6f6e5175d7139daacb8bfba748662651fa5fe"
+      }
+    },
+    {
+      "name": "mid_draw/olb_fire_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, 2.4 yd\nwrote <output>\n",
+        "tracking_sha256": "a220229a42ccc1fd8c360bc0e354cdb5aa0bb1b2c73022ac2ef87e9cfcfd466d"
+      }
+    },
+    {
+      "name": "mid_draw/olb_fire_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; tackled, 43.7 yd\nwrote <output>\n",
+        "tracking_sha256": "a272ef4008271c52c8794365397c3d8eba64a54ca3a485801b16e78b96c178ec"
+      }
+    },
+    {
+      "name": "mid_draw/olb_fire_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, 2.5 yd\nwrote <output>\n",
+        "tracking_sha256": "4867b2f7cbca8fc2c4c91dc19b1b82826f3ac57646a9deb192fb18cb4dfae9ea"
+      }
+    },
+    {
+      "name": "mid_draw/free_fire_3/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Handoff to RB; tackled, -1.0 yd\nwrote <output>\n",
+        "tracking_sha256": "0c6fd5b46ac245a48914fb505725e2f285941972539d17fd96a4f077ed915e8c"
+      }
+    },
+    {
+      "name": "mid_draw/free_fire_3/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Handoff to RB; touchdown, 75.0 yd\nwrote <output>\n",
+        "tracking_sha256": "36767f003269641013f3b14278969814584356e749eb5c82e2ec8c9518fecaba"
+      }
+    },
+    {
+      "name": "mid_draw/free_fire_3/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "mid_draw",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Handoff to RB; tackled, -0.5 yd\nwrote <output>\n",
+        "tracking_sha256": "538e7cc36cbdbc69dfcf95b4bade9225a5a1eaa4ee08829fcaed455f321faf93"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_3_sky/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to H, 7.7 yd downfield after 1.7 s; down, 7.7 yd\nwrote <output>\n",
+        "tracking_sha256": "27e9a9e2c938a8f119fe409e8c31136d918c99ad2d36beb40ff8829a61d0a242"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_3_sky/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to H, 11.8 yd downfield after 1.9 s\nwrote <output>\n",
+        "tracking_sha256": "6fdee7c0572de1f60fedf8dbd7ac00c0a8abf06b0ccf3fac6c9b0d9b4cfd0e8d"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_3_sky/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to RB, -1.7 yd downfield after 1.7 s (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "831f0c4bd2e3ba7a2645f68b5b3afb85c49972ce9ac9962a6ca6dd4d0caf10d0"
+      }
+    },
+    {
+      "name": "slot_wheel/tampa_2/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to Y, 6.2 yd downfield after 2.0 s\nwrote <output>\n",
+        "tracking_sha256": "18dbecdef167ce8ea0f48834f695f494784011f2aa81439068fd5e1c3c0cb85c"
+      }
+    },
+    {
+      "name": "slot_wheel/tampa_2/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to RB, 1.5 yd downfield after 1.6 s; tackled, 13.3 yd\nwrote <output>\n",
+        "tracking_sha256": "de4a458b5395195e17b6e709df048c3622f7b14a626c5f87f7b60b26346de81d"
+      }
+    },
+    {
+      "name": "slot_wheel/tampa_2/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to RB, -2.3 yd downfield after 1.6 s (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "d8fbf5af667cc6fea611ad8e304969bbad8d4e81b322054ac00afee7d73efe05"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_4_quarters/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to Y, 9.8 yd downfield after 2.3 s\nwrote <output>\n",
+        "tracking_sha256": "7b0e12e84f2ef25d0c04d72b1ed81aff9a67686c4c1ddd5bbfc5521a585626c6"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_4_quarters/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to H, 11.8 yd downfield after 1.9 s\nwrote <output>\n",
+        "tracking_sha256": "205c8fae0246b2d1c3a659e02cf45d7a7b41cfe168dd70a173667c5334c4f698"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_4_quarters/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to H, 10.1 yd downfield after 1.8 s; tackled, 18.8 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "02699ae0aa8f9399377df5d0515372728aaed5374b8ccdb1475cd2b0be76e879"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_2_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to RB, -0.2 yd downfield after 1.6 s; tackled, 0.8 yd\nwrote <output>\n",
+        "tracking_sha256": "2437f00804dfaeeea87797e9ffb25a6064cbf70f39ae69a05e8b827dd1633f52"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_2_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to RB, 1.5 yd downfield after 1.6 s; tackled, 16.6 yd\nwrote <output>\n",
+        "tracking_sha256": "e1d6cd5935e6f16ce5edecd085bc18fc070352c7ce58af900231fbb471bb573b"
+      }
+    },
+    {
+      "name": "slot_wheel/cover_2_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to RB, -2.3 yd downfield after 1.6 s (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "70a2325bf087b4ba8a25d43dfb0545bf75d591a22cd8064f57ebcc73d1e1c341"
+      }
+    },
+    {
+      "name": "slot_wheel/olb_fire_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to RB, -0.2 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "3c13864bcf26a9e19d628bd3517a0d04ba9db314da2453d2b8457ee0aae7adeb"
+      }
+    },
+    {
+      "name": "slot_wheel/olb_fire_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to RB, -6.7 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "3dfe67431566d0ccb8b0e6da88b7b308893a2ba4adc468a598f6d57cb24901cf"
+      }
+    },
+    {
+      "name": "slot_wheel/olb_fire_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, -2.6 yd downfield after 1.6 s; tackled, 2.2 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "624ad74bc815d50ccb9d420aad5cd96a62903ecc00b84010f52c402b68a39a0d"
+      }
+    },
+    {
+      "name": "slot_wheel/free_fire_3/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to RB, 2.9 yd downfield after 1.6 s; down, 2.9 yd\nwrote <output>\n",
+        "tracking_sha256": "16d5c2506ba2de3f32871be96c2e240561c7118d2e5f73ca5d78cdf18ba34d77"
+      }
+    },
+    {
+      "name": "slot_wheel/free_fire_3/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to RB, -6.7 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "48cc0b9ad0748e07ccd6869b242b1c0ef5037dc96a6798cfc78b75eb6193deef"
+      }
+    },
+    {
+      "name": "slot_wheel/free_fire_3/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "slot_wheel",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, -1.6 yd downfield after 1.6 s; tackled, 10.4 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "390bfc529f6ee445d065902afd4cbcf7a5aa34c983e92d14df4a697397197a90"
+      }
+    },
+    {
+      "name": "hb_swing/cover_3_sky/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to X, 40.9 yd downfield after 2.2 s\nwrote <output>\n",
+        "tracking_sha256": "5c4618130f5853c06a335f3a1c9e4b47ba6d4ef34d0caede36b877151b50b553"
+      }
+    },
+    {
+      "name": "hb_swing/cover_3_sky/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to RB, 1.7 yd downfield after 1.7 s; down, 1.7 yd (1 bust)\n  bust: WILL: dropped 0.4 s late\nwrote <output>\n",
+        "tracking_sha256": "63aa2046744ce36e16e549f850e03c545847c311779c0da5d2bc5dccfe7f0dda"
+      }
+    },
+    {
+      "name": "hb_swing/cover_3_sky/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_3_sky",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, 2.7 yd downfield after 1.6 s; tackled, 12.6 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "49a6778f007ffa0819fafa784300435d4d71a3fea99d16c8f9e5e101d172c453"
+      }
+    },
+    {
+      "name": "hb_swing/tampa_2/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to RB, 2.2 yd downfield after 1.7 s; tackled, 14.6 yd\nwrote <output>\n",
+        "tracking_sha256": "252f9c3b9f2a64b464306619747e968183fbcac608f989b2bfc516e462b6e7bd"
+      }
+    },
+    {
+      "name": "hb_swing/tampa_2/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to RB, -1.1 yd downfield after 1.7 s (1 bust)\n  bust: WILL: dropped 0.4 s late\nwrote <output>\n",
+        "tracking_sha256": "fe1f039aa54aa21b35bbbec202912797eb474931e15c36f99c26ab39d215ed6d"
+      }
+    },
+    {
+      "name": "hb_swing/tampa_2/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "tampa_2",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, 3.3 yd downfield after 1.7 s; tackled, 15.4 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "fe2e27e04efee791ff8b35585209e0d652b0e1541db3445a4e53136ffe23fa2e"
+      }
+    },
+    {
+      "name": "hb_swing/cover_4_quarters/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to RB, 9.0 yd downfield after 2.2 s (broken up)\nwrote <output>\n",
+        "tracking_sha256": "1edf5b0582958e44ea4d28f60f39583a4495c46bfd0b3cbab02540ab254f34f7"
+      }
+    },
+    {
+      "name": "hb_swing/cover_4_quarters/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to RB, 1.7 yd downfield after 1.7 s; down, 1.7 yd (1 bust)\n  bust: WILL: dropped 0.4 s late\nwrote <output>\n",
+        "tracking_sha256": "e888eb414c34591e2e58fcf99baa73b04e3a61a63e918177fd089323411b7533"
+      }
+    },
+    {
+      "name": "hb_swing/cover_4_quarters/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_4_quarters",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Incomplete to RB, 17.7 yd downfield after 2.7 s (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "4359bf8bf8f2195ba16d8a1701c247cf74a5cf8b782317c71bc8c9f6b6c6ffb3"
+      }
+    },
+    {
+      "name": "hb_swing/cover_2_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Complete to RB, 0.8 yd downfield after 1.6 s; tackled, 7.8 yd\nwrote <output>\n",
+        "tracking_sha256": "975b0f2a375e1fc5abcfffd609e99894b650af597aaf3998a4b9c29af7689698"
+      }
+    },
+    {
+      "name": "hb_swing/cover_2_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Complete to RB, -1.1 yd downfield after 1.6 s; down, -1.1 yd (1 bust)\n  bust: WILL: reacted late\nwrote <output>\n",
+        "tracking_sha256": "48a05f546d3138cfc1cdd18ce78f6f95561c6b664f44708526d80c546cf9cfa6"
+      }
+    },
+    {
+      "name": "hb_swing/cover_2_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "cover_2_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, 2.6 yd downfield after 1.6 s; tackled, 16.2 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "e8df9ca391720b6622f7e9a580781c35e673c9f2ab99a7eaf23dfb5432c3f787"
+      }
+    },
+    {
+      "name": "hb_swing/olb_fire_man/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to RB, -1.8 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "814d10c86877c442165f64da77e659aad4f37b2244d0cf1bba691feffa4240de"
+      }
+    },
+    {
+      "name": "hb_swing/olb_fire_man/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to RB, 1.7 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "60fd2d08f87f094add6ea2259f290fb25d8dd967748213193b6458eb6b875e4c"
+      }
+    },
+    {
+      "name": "hb_swing/olb_fire_man/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "olb_fire_man",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, -2.2 yd downfield after 1.6 s; tackled, 1.0 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "ab00008225158cf84fa359a49661a0041511545b356bdfcaad5b1d89485f1100"
+      }
+    },
+    {
+      "name": "hb_swing/free_fire_3/1",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 1: Incomplete to RB, -1.8 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "82ca0174891c981b3d9a9de1de8130ff292c16b0f6d96482a430ffb923c09eb7"
+      }
+    },
+    {
+      "name": "hb_swing/free_fire_3/3",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "3",
+        "--hash",
+        "left",
+        "--flip"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 3: Incomplete to RB, 1.7 yd downfield after 1.6 s\nwrote <output>\n",
+        "tracking_sha256": "4a6926ea9d2af3a0e6372f3d6f530f1b8eae53380962efd8bc256229f9e555e8"
+      }
+    },
+    {
+      "name": "hb_swing/free_fire_3/17",
+      "args": [
+        "run-play",
+        "--team",
+        "clemson",
+        "--play",
+        "hb_swing",
+        "--defense",
+        "georgia",
+        "--def-play",
+        "free_fire_3",
+        "--no-huddle",
+        "--seed",
+        "17",
+        "--hash",
+        "right",
+        "--direction",
+        "left"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "seed 17: Complete to RB, -2.1 yd downfield after 1.6 s; tackled, 13.2 yd (1 bust)\n  bust: X: ran seam instead of go\nwrote <output>\n",
+        "tracking_sha256": "1f9278bc4a9316da7933996dcfbcba37f271d3e29db350a50ff671a1995ec348"
+      }
+    },
+    {
+      "name": "kickoff_deep/1",
+      "args": [
+        "run-kick",
+        "--team",
+        "clemson",
+        "--vs",
+        "georgia",
+        "--kick",
+        "kickoff_deep",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "Kickoff (deep) 65.0 yd: touchback\nwrote <output>\n",
+        "tracking_sha256": "e89403f4bead1233b7e167740cdb3c508580d161bd1a3203bd7365a82f6613c7"
+      }
+    },
+    {
+      "name": "kickoff_deep/8",
+      "args": [
+        "run-kick",
+        "--team",
+        "clemson",
+        "--vs",
+        "georgia",
+        "--kick",
+        "kickoff_deep",
+        "--seed",
+        "8"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "Kickoff (deep) 65.6 yd: returned, 9.8 yd return\nwrote <output>\n",
+        "tracking_sha256": "ec5ca780779005b15f0d5b3246a5946b64289052dfa3224a1f771c909336a29f"
+      }
+    },
+    {
+      "name": "kickoff_deep/17",
+      "args": [
+        "run-kick",
+        "--team",
+        "clemson",
+        "--vs",
+        "georgia",
+        "--kick",
+        "kickoff_deep",
+        "--seed",
+        "17"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "Kickoff (deep) 65.0 yd: touchback\nwrote <output>\n",
+        "tracking_sha256": "19e18628187dcad049e12b11ad12fc2486b184498bdee818b470c118324b720b"
+      }
+    },
+    {
+      "name": "punt_normal/1",
+      "args": [
+        "run-kick",
+        "--team",
+        "clemson",
+        "--vs",
+        "georgia",
+        "--kick",
+        "punt_normal",
+        "--seed",
+        "1"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "Punt 45.1 yd: returned, 2.9 yd return\nwrote <output>\n",
+        "tracking_sha256": "6688c34cfbb9fe76b27729060ca48902de9f4429681111c519e5fe59db0a9169"
+      }
+    },
+    {
+      "name": "punt_normal/8",
+      "args": [
+        "run-kick",
+        "--team",
+        "clemson",
+        "--vs",
+        "georgia",
+        "--kick",
+        "punt_normal",
+        "--seed",
+        "8"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "Punt 36.6 yd: fair_catch\nwrote <output>\n",
+        "tracking_sha256": "857d49126baae5b19c6cca31e4b3c8aa4676a875d9c2a3af6436af07efea4e2d"
+      }
+    },
+    {
+      "name": "punt_normal/17",
+      "args": [
+        "run-kick",
+        "--team",
+        "clemson",
+        "--vs",
+        "georgia",
+        "--kick",
+        "punt_normal",
+        "--seed",
+        "17"
+      ],
+      "output": "--out",
+      "expected": {
+        "summary": "Punt 44.7 yd: returned, 1.1 yd return\nwrote <output>\n",
+        "tracking_sha256": "3ea6caa94604e11106eb0f36efdf13846070b944701471e8a0401bbb2cf9b994"
+      }
+    },
+    {
+      "name": "game/1",
+      "args": [
+        "play-game",
+        "--home",
+        "georgia",
+        "--away",
+        "clemson",
+        "--seed",
+        "1"
+      ],
+      "output": "--log",
+      "expected": {
+        "summary": "seed 1: georgia 34, clemson 24, 222 snaps\n\n          1   2   3   4     F\nUGA      10   7  10   7    34\nCLEM      0  14   3   7    24\n\n                              UGA       CLEM\nFirst downs                    20         20\nPlays                          80         77\nTotal yards                   482        404\nRushing (att-yds)          45-173       31-7\nPassing (cmp-att-yds)   18-35-309  29-46-397\nSacks taken                     2          1\nTurnovers (int-fum)           0-0        1-0\n3rd down                     8/17       6/18\n4th down                      1/1        1/1\nPenalties (no-yds)           7-46       4-31\nPunts (no-avg)             7-48.3     8-43.5\nKick returns (no-yds)        2-19       3-24\nPunt returns (no-yds)        7-13        2-1\nField goals                   2/2        1/1\nPossession                  31:27      28:33\nInjuries                        0          1\n\nUGA\n  Pass  J. Green           18/35  309 yd  3 TD  0 INT\n  Rush  C. Mitchell        33 car  185 yd  1 TD  long 40\n  Rush  J. Green           12 car  -12 yd  0 TD  long 5\n  Rec   C. Mitchell        13 rec  184 yd  2 TD  long 47\n  Rec   C. Allen            3 rec   63 yd  1 TD  long 45\n  Rec   M. Nelson           2 rec   62 yd  0 TD  long 37\n  Tkl   M. Stewart         12 tkl  0 sack  0 INT\n  Tkl   N. Allen            8 tkl  0 sack  0 INT\n  Tkl   T. Hall             8 tkl  0 sack  1 INT\n  Kick  H. Anderson        FG 2/2 (long 36)  XP 4/4\n\nCLEM\n  Pass  J. Green           29/46  397 yd  2 TD  1 INT\n  Rush  C. Mitchell        26 car   14 yd  1 TD  long 5\n  Rush  J. Green            5 car   -7 yd  0 TD  long 6\n  Rec   C. Mitchell        18 rec  159 yd  2 TD  long 19\n  Rec   M. Nelson           4 rec  105 yd  0 TD  long 38\n  Rec   C. Allen            5 rec   73 yd  0 TD  long 21\n  Rec   D. Mitchell         1 rec   48 yd  0 TD  long 48\n  Tkl   T. Hall            12 tkl  0 sack  0 INT\n  Tkl   M. Stewart         10 tkl  0 sack  0 INT\n  Tkl   C. Hill             9 tkl  0 sack  0 INT\n  Kick  H. Anderson        FG 1/1 (long 36)  XP 3/3\n\nwrote <output>\n",
+        "tracking_sha256": "5bd98a5c2088cda0271d1a3adcacd8c0401c53938f0981252d2554aad8d7a414"
+      }
+    },
+    {
+      "name": "game/2",
+      "args": [
+        "play-game",
+        "--home",
+        "georgia",
+        "--away",
+        "clemson",
+        "--seed",
+        "2"
+      ],
+      "output": "--log",
+      "expected": {
+        "summary": "seed 2: georgia 35, clemson 17, 209 snaps\n\n          1   2   3   4     F\nUGA       0  21   7   7    35\nCLEM      0   7   3   7    17\n\n                              UGA       CLEM\nFirst downs                    10         23\nPlays                          57         93\nTotal yards                   461        394\nRushing (att-yds)          31-156      42-52\nPassing (cmp-att-yds)   15-26-304  31-51-342\nSacks taken                     3          2\nTurnovers (int-fum)           0-0        0-0\n3rd down                     4/13      10/22\n4th down                      0/2        0/3\nPenalties (no-yds)           5-31       3-16\nPunts (no-avg)             7-44.0     8-44.5\nKick returns (no-yds)        2-21       2-15\nPunt returns (no-yds)         3-4        4-2\nField goals                   0/0        1/2\nPossession                  23:16      36:44\nInjuries                        0          0\n\nUGA\n  Pass  J. Green           15/26  304 yd  3 TD  0 INT\n  Rush  C. Mitchell        22 car  174 yd  2 TD  long 43\n  Rush  J. Green            9 car  -17 yd  0 TD  long 0\n  Rec   C. Allen            5 rec  157 yd  3 TD  long 47\n  Rec   C. Mitchell         9 rec  100 yd  0 TD  long 52\n  Rec   B. Reed             1 rec   47 yd  0 TD  long 47\n  Tkl   T. Hall            13 tkl  0 sack  0 INT\n  Tkl   M. Harris          11 tkl  1 sack  0 INT\n  Tkl   J. Clark           10 tkl  0 sack  0 INT\n  Kick  H. Anderson        FG 0/0 (long 0)  XP 5/5\n\nCLEM\n  Pass  J. Green           31/51  342 yd  1 TD  0 INT\n  Rush  C. Mitchell        32 car   51 yd  1 TD  long 9\n  Rush  J. Green           10 car    1 yd  0 TD  long 14\n  Rec   C. Allen            6 rec  135 yd  0 TD  long 32\n  Rec   C. Mitchell        19 rec  106 yd  1 TD  long 14\n  Rec   M. Nelson           5 rec   71 yd  0 TD  long 19\n  Rec   D. Mitchell         1 rec   30 yd  0 TD  long 30\n  Tkl   M. Stewart          6 tkl  1 sack  0 INT\n  Tkl   C. Williams         6 tkl  0 sack  0 INT\n  Tkl   T. Hall             6 tkl  0 sack  0 INT\n  Kick  H. Anderson        FG 1/2 (long 46)  XP 2/2\n\nwrote <output>\n",
+        "tracking_sha256": "c546c0cbab40b9bc4a9e1c8d1d743acc652f9cf9fdef85f9e4f45029c18b8563"
+      }
+    },
+    {
+      "name": "game/3",
+      "args": [
+        "play-game",
+        "--home",
+        "georgia",
+        "--away",
+        "clemson",
+        "--seed",
+        "3"
+      ],
+      "output": "--log",
+      "expected": {
+        "summary": "seed 3: georgia 56, clemson 38, 234 snaps\n\n          1   2   3   4     F\nUGA       7  28  14   7    56\nCLEM     14   0   0  24    38\n\n                              UGA       CLEM\nFirst downs                    15         24\nPlays                          75         88\nTotal yards                   552        514\nRushing (att-yds)          40-194     34-104\nPassing (cmp-att-yds)   21-35-357  33-54-409\nSacks taken                     0          1\nTurnovers (int-fum)           1-0        0-0\n3rd down                     8/17       7/18\n4th down                      3/3        0/3\nPenalties (no-yds)           3-27      10-66\nPunts (no-avg)             6-42.4     7-44.9\nKick returns (no-yds)        3-28       6-62\nPunt returns (no-yds)         4-9        1-2\nField goals                   0/0        1/2\nPossession                  29:42      30:18\nInjuries                        1          0\n\nUGA\n  Pass  J. Green           21/35  357 yd  6 TD  1 INT\n  Rush  C. Mitchell        32 car  194 yd  2 TD  long 89\n  Rush  J. Green            8 car    0 yd  0 TD  long 8\n  Rec   C. Allen            6 rec   97 yd  3 TD  long 32\n  Rec   C. Mitchell        11 rec   78 yd  1 TD  long 20\n  Rec   B. Reed             1 rec   73 yd  1 TD  long 73\n  Rec   D. Mitchell         1 rec   67 yd  1 TD  long 67\n  Tkl   T. Hall            16 tkl  0 sack  0 INT\n  Tkl   C. Hill             9 tkl  1 sack  0 INT\n  Tkl   N. Allen            8 tkl  0 sack  0 INT\n  Kick  H. Anderson        FG 0/0 (long 0)  XP 8/8\n\nCLEM\n  Pass  J. Green           33/54  409 yd  4 TD  0 INT\n  Rush  C. Mitchell        28 car  101 yd  1 TD  long 20\n  Rush  J. Green            6 car    3 yd  0 TD  long 10\n  Rec   C. Mitchell        20 rec  150 yd  3 TD  long 16\n  Rec   C. Allen            6 rec  107 yd  1 TD  long 41\n  Rec   D. Mitchell         2 rec   77 yd  0 TD  long 49\n  Rec   M. Nelson           4 rec   64 yd  0 TD  long 21\n  Tkl   C. Williams        13 tkl  0 sack  0 INT\n  Tkl   N. Allen            9 tkl  0 sack  0 INT\n  Tkl   T. Hall             7 tkl  0 sack  0 INT\n  Kick  H. Anderson        FG 1/2 (long 49)  XP 5/5\n\nwrote <output>\n",
+        "tracking_sha256": "988225ceb834e71d8d1e40beb5eb8ea0fc47434141863baf0b843d107a9cf916"
+      }
+    }
+  ]
+}

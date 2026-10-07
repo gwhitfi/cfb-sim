@@ -125,6 +125,21 @@ const char* cfbsim_matrix_cell(cfbsim_matrix* matrix, int row, int col);
  * same thread. */
 const char* cfbsim_playbook_art(const char* data_dir, const char* team_id);
 
+/* A team's defensive playbook as base diagrams, independent of an opponent.
+ * Strong is drawn right, weak left, with only defensive players and jobs.
+ *   {"unit": "defense", "team", "playbook",
+ *    "formations": [{"id", "name", "package", "players"}],
+ *    "plays": [{"id", "name", "formation", "coverage", "players", "jobs"}]}
+ * Players: {"slot", "role", "x", "y"}. Jobs have "slot", "kind", and either
+ * "points" (zone/rush/blitz/stunt) or "at" (man/spy). Zones add "area":
+ * {"shape", "drop", "width", "depth"} for boxes, or
+ * {"shape", "drop", "ends", "radius"} for capsules. Rush/blitz/stunt add
+ * "contain"; man adds "leverage", never an offensive target. Coordinates
+ * use the same play frame as offensive art. NULL on error (last_error).
+ * The string stays valid until the next call to this function on the same
+ * thread. */
+const char* cfbsim_defensive_playbook_art(const char* data_dir, const char* team_id);
+
 /* Teams for the Builder (cfbsim/gen/team_builder.h). Each loads the data folder,
  * and the ones that change it check the whole folder with the change in it before
  * writing anything. All return a JSON string, or NULL on error (see

@@ -4,6 +4,8 @@
 // load_dir.cpp's check_play), and the JSON written and read. No DOM, so it is
 // unit tested (offense.test.ts).
 
+import startingFormation from "../../../data/formations/offense/gun_wide_trips.json?raw";
+import { parseJsonText, type Obj as JsonObject } from "./paste";
 import { anchorJson, num, parseAnchor, type Anchor, type Side } from "./anchors";
 
 // ---------------------------------------------------------------------------
@@ -51,24 +53,7 @@ const slot = (name: string, pos: string, x: Anchor, y: number, stance: string, o
 
 // Gun Wide Trips (data/formations/offense/gun_wide_trips.json) to start from.
 export function defaultOffenseFormation(): OffFormation {
-  return {
-    id: "gun_wide_trips",
-    name: "Gun Wide Trips",
-    personnel: "11",
-    slots: [
-      slot("LT", "OT", num(-3), -1, "three_point", true),
-      slot("LG", "OG", num(-1.5), -1, "three_point", true),
-      slot("C", "C", num(0), -1, "snap", true),
-      slot("RG", "OG", num(1.5), -1, "three_point", true),
-      slot("RT", "OT", num(3), -1, "three_point", true),
-      slot("X", "WR", { kind: "numbers", side: "left", offset: 0 }, -1, "two_point", true),
-      slot("Z", "WR", { kind: "numbers", side: "right", offset: 0 }, -1, "two_point", true),
-      slot("H", "WR", { kind: "slot", ref: "Z", offset: -5 }, -2, "two_point"),
-      slot("Y", "TE", { kind: "slot", ref: "H", offset: -4 }, -2, "two_point"),
-      slot("QB", "QB", num(0), -5, "gun"),
-      slot("RB", "RB", num(-2), -5, "two_point"),
-    ],
-  };
+  return parseOffenseFormation(parseJsonText(startingFormation) as JsonObject);
 }
 
 // A new slot's starting spot and stance for a position.

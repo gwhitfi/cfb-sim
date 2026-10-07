@@ -81,23 +81,41 @@ double Tackles::lunge(int tackler, int carrier) const {
     return std::clamp(closing * tt.lunge_per_closing, 0.0, play_.runner(carrier).lunge_max);
 }
 
-double Tackles::swept_distance(int a, int b) const {
-    const Vec2 now = play_.agent(a).pos - play_.agent(b).pos;
-    if (play_.history.empty()) return now.length();
+Tackles::ContactSample Tackles::contact_sample(int tackler, int carrier) const {
+    const Agent& k = play_.agent(tackler);
+    const Agent& c = play_.agent(carrier);
+    ContactSample sample{{k.pos, k.vel}, {c.pos, c.vel}};
+    if (play_.history.empty()) return sample;
     const auto& last = play_.history.back();  // positions at the end of the previous tick
-    const Vec2 before = last[static_cast<std::size_t>(a)].pos - last[static_cast<std::size_t>(b)].pos;
+    const auto& k_before = last[static_cast<std::size_t>(tackler)];
+    const auto& c_before = last[static_cast<std::size_t>(carrier)];
+    const Vec2 now = k.pos - c.pos;
+    const Vec2 before = k_before.pos - c_before.pos;
     const Vec2 d = now - before;
     const double len2 = d.length_squared();
     const double u = len2 > 1e-9 ? std::clamp(-before.dot(d) / len2, 0.0, 1.0) : 1.0;
-    return (before + d * u).length();
+    // The sweep models linear segments. Sample both players at its closest
+    // instant rather than combining that distance with their end-of-tick angle.
+    const auto interpolate = [u](const PlayState::Snapshot& old, const Agent& current) {
+        return PlayState::Snapshot{old.pos + (current.pos - old.pos) * u,
+                                   old.vel + (current.vel - old.vel) * u};
+    };
+    sample.tackler = interpolate(k_before, k);
+    sample.carrier = interpolate(c_before, c);
+    return sample;
+}
+
+double Tackles::swept_distance(int a, int b) const {
+    return contact_sample(a, b).distance();
 }
 
 double Tackles::contact_quality(int tackler, int carrier) const {
     const Agent& k = play_.agent(tackler);
     const Agent& c = play_.agent(carrier);
-    // The gap between the bodies at the closest point of the tick.
-    const double gap = std::max(0.0, swept_distance(tackler, carrier) - k.body.radius - c.body.radius);
-    return contact_quality_at(tackler, k.pos, k.vel, c.pos, c.vel, gap, carrier);
+    const ContactSample sample = contact_sample(tackler, carrier);
+    const double gap = std::max(0.0, sample.distance() - k.body.radius - c.body.radius);
+    return contact_quality_at(tackler, sample.tackler.pos, sample.tackler.vel,
+                              sample.carrier.pos, sample.carrier.vel, gap, carrier);
 }
 
 double Tackles::contact_quality_at(int tackler, Vec2 k_pos, Vec2 k_vel, Vec2 c_pos, Vec2 c_vel, double gap,

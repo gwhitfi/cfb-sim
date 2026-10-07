@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <string_view>
 
 #include "cfbsim/data/load.h"
 #include "cfbsim/play/play_art.h"
@@ -296,4 +297,281 @@ TEST(PlayArt, TheCApiReturnsJsonOrAnError) {
 
     EXPECT_EQ(cfbsim_playbook_art(CFBSIM_DATA_DIR, "no_such_team"), nullptr);
     EXPECT_NE(std::string(cfbsim_last_error()).find("no_such_team"), std::string::npos);
+}
+
+namespace {
+
+const ArtPlayer& defender(const std::vector<ArtPlayer>& players, std::string_view slot) {
+    for (const ArtPlayer& p : players) {
+        if (p.slot == slot) return p;
+    }
+    throw std::runtime_error("no defender " + std::string(slot));
+}
+
+const DefensiveArtJob& defense_job(const DefensivePlayArt& art, std::string_view slot) {
+    for (const DefensiveArtJob& j : art.jobs) {
+        if (j.slot == slot) return j;
+    }
+    throw std::runtime_error("no job for " + std::string(slot));
+}
+
+Job pass_job(JobKind kind, const std::string& ref = {}, Side side = Side::None) {
+    Job job;
+    job.kind = kind;
+    job.ref = ref;
+    job.side = side;
+    return job;
+}
+
+Play defensive_call() { return data().playbooks.at("43_base").plays.front(); }
+
+// Structural check: no offensive targets, receiver reads, or reference
+// lineup can slip into the exported tree, including a man/zone job.
+void expect_defense_only(const Json& node) {
+    if (node.is_object()) {
+        for (const auto& [key, value] : node.items()) {
+            EXPECT_NE(key, "offense");
+            EXPECT_NE(key, "reference");
+            EXPECT_NE(key, "target");
+            EXPECT_NE(key, "read");
+            if (key == "players") {
+                for (const Json& p : value) {
+                    const std::string role = p.at("role");
+                    EXPECT_TRUE(role == "dl" || role == "lb" || role == "cb" || role == "s") << p;
+                }
+            }
+            expect_defense_only(value);
+        }
+    } else if (node.is_array()) {
+        for (const Json& value : node) expect_defense_only(value);
+    }
+}
+
+}  // namespace
+
+TEST(DefensivePlayArt, BaseAnchorsNeedNoOpposingFormation) {
+    Formation f = data().formations.at("43_over");
+    // Exercise every technique using explicit anchors, independent of data tuning.
+    const std::vector<std::pair<std::string, double>> techniques{
+        {"0", 0}, {"1", 0.75}, {"2i", 1}, {"2", 1.5}, {"3", 2},
+        {"4i", 2.5}, {"4", 3}, {"5", 3.5}, {"7", 3.9}, {"6", 4.4}, {"9", 4.9}};
+    DataSet d = data();
+    d.tuning.defense.shade = 0.5;
+    d.tuning.defense.ghost_te_split = 1.4;
+    ASSERT_EQ(f.slots.size(), techniques.size());
+    for (std::size_t i = 0; i < f.slots.size(); ++i) {
+        f.slots[i].x = {AnchorKind::Tech, Side::Strong, 0.25, techniques[i].first};
+        f.slots[i].y = Anchor::at(2.0);
+    }
+    const DefensiveFormationArt right = defensive_formation_art(d, f);
+    EXPECT_EQ(right.package, "base");
+    for (std::size_t i = 0; i < f.slots.size(); ++i) {
+        expect_point(right.players[i].pos, techniques[i].second + 0.25, 2.0);
+        f.slots[i].x.side = Side::Weak;
+    }
+    const DefensiveFormationArt left = defensive_formation_art(d, f);
+    for (std::size_t i = 0; i < f.slots.size(); ++i) {
+        expect_point(left.players[i].pos, -techniques[i].second - 0.25, 2.0);
+    }
+}
+
+TEST(DefensivePlayArt, WidthLandmarksAndAlignmentOverridesAreBaseCoordinates) {
+    DataSet d = data();
+    d.tuning.defense.ghost_te_split = 1.4;
+    Play p = defensive_call();
+    auto& f = d.formations.at(p.formation);
+    f.slots[0].x = {AnchorKind::Receiver, Side::Strong, 0, "#1"};
+    f.slots[1].x = {AnchorKind::Receiver, Side::Weak, 0, "#2"};
+    f.slots[2].x = {AnchorKind::Receiver, Side::Strong, 0, "#3"};
+    const PlayFrame frame(25, Hash::Middle, true, false);
+    const auto original = defensive_formation_art(d, f);
+    EXPECT_NEAR(original.players[0].pos.x, frame.numbers_x(Side::Right), kEps);
+    EXPECT_NEAR(original.players[1].pos.x, frame.hash_x(Side::Left), kEps);
+    EXPECT_NEAR(original.players[2].pos.x, 4.4, kEps);
+    // Relative offsets are outward, absolute offsets are signed x.
+    p.assignments[f.slots[0].name].align_x = Anchor{AnchorKind::Hash, Side::Weak, 1, {}};
+    p.assignments[f.slots[0].name].align_y = Anchor::at(12);
+    p.assignments[f.slots[1].name].align_x = Anchor{AnchorKind::Hash, Side::Left, 1, {}};
+    p.assignments[f.slots[2].name].align_x = Anchor{AnchorKind::Slot, Side::None, 2, f.slots[0].name};
+    const auto art = defensive_play_art(d, p);
+    expect_point(art.players[0].pos, frame.hash_x(Side::Left) - 1, 12);
+    EXPECT_NEAR(art.players[1].pos.x, frame.hash_x(Side::Left) + 1, kEps);
+    EXPECT_NEAR(art.players[2].pos.x, art.players[0].pos.x + 2, kEps);
+    EXPECT_EQ(defensive_formation_art(d, f).players[0].pos.x, original.players[0].pos.x);
+}
+
+TEST(DefensivePlayArt, ZonesKeepTheirAuthoredBoxAndCapsuleGeometry) {
+    DataSet d = data();
+    Play p = defensive_call();
+    Zone box;
+    box.id = "art_box";
+    box.drop_x = {AnchorKind::Numbers, Side::Weak, -2, {}};
+    box.drop_y = Anchor::at(15);
+    box.width = 18;
+    box.depth_min = 10;
+    box.depth_max = 45;
+    d.zones[box.id] = box;
+    Zone capsule;
+    capsule.id = "art_capsule";
+    capsule.drop_x = Anchor::at(4);
+    capsule.drop_y = Anchor::at(6);
+    capsule.radius = 3;
+    capsule.ends = std::array<Zone::End, 2>{{{Anchor::at(2), Anchor::at(6)},
+                                          {Anchor::at(8), Anchor::at(6)}}};
+    d.zones[capsule.id] = capsule;
+    Zone circle = capsule;
+    circle.id = "art_circle";
+    circle.ends.reset();
+    d.zones[circle.id] = circle;
+    p.assignments["SS"].pass = pass_job(JobKind::Zone, box.id);
+    p.assignments["SAM"].pass = pass_job(JobKind::Zone, capsule.id);
+    p.assignments["MIKE"].pass = pass_job(JobKind::Zone, circle.id);
+    const auto art = defensive_play_art(d, p);
+    const auto& deep = defense_job(art, "SS");
+    ASSERT_TRUE(deep.area);
+    const PlayFrame frame(25, Hash::Middle, true, false);
+    expect_point(deep.area->drop, frame.numbers_x(Side::Left) + 2, 15);
+    EXPECT_EQ(deep.area->width, 18);
+    EXPECT_EQ(deep.area->depth_min, 10);
+    EXPECT_EQ(deep.area->depth_max, 45);
+    EXPECT_EQ(deep.area->radius, 0);
+    ASSERT_EQ(deep.points.size(), 2u);
+    expect_point(deep.points.front(), defender(art.players, "SS").pos.x, defender(art.players, "SS").pos.y);
+    expect_point(deep.points.back(), deep.area->drop.x, 15);
+    const auto& under = *defense_job(art, "SAM").area;
+    expect_point(under.end_a, 2, 6);
+    expect_point(under.end_b, 8, 6);
+    EXPECT_EQ(under.radius, 3);
+    const auto& round = *defense_job(art, "MIKE").area;
+    expect_point(round.end_a, 4, 6);
+    expect_point(round.end_b, 4, 6);
+}
+
+TEST(DefensivePlayArt, RushBlitzStuntManAndSpyHaveOnlyDefensiveGeometry) {
+    DataSet d = data();
+    d.tuning.blocking.contain_outside = 1.5;
+    Play p = defensive_call();
+    p.assignments["SDE"].pass = pass_job(JobKind::Rush, "contain", Side::Strong);
+    p.assignments["DT"].pass = pass_job(JobKind::Stunt, "B", Side::Weak);
+    p.assignments["SAM"].pass = pass_job(JobKind::Blitz, {}, Side::Strong);
+    p.assignments["SAM"].pass->gap = "A";
+    p.assignments["MIKE"].pass = pass_job(JobKind::Spy);
+    p.assignments["SCB"].pass = pass_job(JobKind::Man, "outside");
+    p.assignments["SCB"].pass->target = "#1_strong";
+    p.assignments["WCB"].pass = pass_job(JobKind::Man);
+    p.assignments["WCB"].pass->target = "back_99";
+    const auto art = defensive_play_art(d, p);
+    EXPECT_TRUE(defense_job(art, "SDE").contain);
+    expect_point(defense_job(art, "SDE").points.back(), 4.5, -3);
+    EXPECT_FALSE(defense_job(art, "DT").contain);
+    expect_point(defense_job(art, "DT").points[1], -2.25, 0);
+    expect_point(defense_job(art, "SAM").points.back(), 0.75, -3);
+    expect_point(defense_job(art, "MIKE").at, 0, 5);
+    for (const std::string slot : {"SCB", "WCB"}) {
+        const auto& man = defense_job(art, slot);
+        EXPECT_EQ(man.kind, JobKind::Man);  // no missing-target fallback in a base diagram
+        EXPECT_TRUE(man.points.empty());
+        EXPECT_FALSE(man.area);
+        expect_point(man.at, defender(art.players, slot).pos.x, defender(art.players, slot).pos.y);
+    }
+    EXPECT_EQ(defense_job(art, "SCB").leverage, "outside");
+    EXPECT_EQ(defense_job(art, "WCB").leverage, "inside");
+}
+
+TEST(DefensivePlayArt, EveryDefensiveBookExportsOnlyDefenseWithoutOffensiveData) {
+    ASSERT_TRUE(load_data_dir(CFBSIM_DATA_DIR).ok());
+    int checked = 0;
+    for (const auto& [id, book] : data().playbooks) {
+        if (book.side != PlaybookSide::Defense) continue;
+        DataSet d = data();
+        const std::string team_id = d.teams.begin()->first;
+        d.teams.at(team_id).defense_playbook = id;
+        const Json before = defensive_playbook_art_json(d, team_id);
+        EXPECT_EQ(before.at("unit"), "defense");
+        EXPECT_EQ(before.at("plays").size(), book.plays.size());
+        expect_defense_only(before);
+        for (const Json& play : before.at("plays")) {
+            EXPECT_EQ(play.at("players").size(), 11u);
+            EXPECT_EQ(play.at("jobs").size(), 11u);
+        }
+        std::erase_if(d.formations, [](const auto& entry) { return entry.second.unit != Unit::Defense; });
+        std::erase_if(d.playbooks, [](const auto& entry) { return entry.second.side != PlaybookSide::Defense; });
+        d.playbooks.at(id).strength_call = {"back", "boundary"};
+        d.teams.at(team_id).offense_playbook = "does_not_exist";
+        d.rosters.clear();
+        d.routes.clear();
+        d.qb = {};
+        EXPECT_EQ(defensive_playbook_art_json(d, team_id), before);
+        ++checked;
+    }
+    EXPECT_GT(checked, 0);
+}
+
+TEST(DefensivePlayArt, ErrorsIdentifyTheCall) {
+    DataSet d = data();
+    Play p = defensive_call();
+    p.id = "bad_defensive_art";
+    const auto expect_error = [&] {
+        try {
+            (void)defensive_play_art(d, p);
+            FAIL() << "expected an error";
+        } catch (const PlayError& e) {
+            EXPECT_NE(std::string(e.what()).find(p.id), std::string::npos) << e.what();
+        }
+    };
+    p.formation = "missing";
+    expect_error();
+    p.formation = defensive_call().formation;
+    p.assignments["SS"].pass = pass_job(JobKind::Zone, "missing_zone");
+    expect_error();
+    p.assignments["SS"].pass = pass_job(JobKind::Route);
+    expect_error();
+    p.assignments["SS"].pass.reset();
+    expect_error();
+    EXPECT_THROW(defensive_formation_art(d, d.formations.at("gun_wide_trips")), PlayError);
+}
+
+TEST(DefensivePlayArt, TheCApiReturnsTheSchemaOrAnErrorAndKeepsOffenseArtValid) {
+    const std::string team = data().teams.begin()->first;
+    const char* offense = cfbsim_playbook_art(CFBSIM_DATA_DIR, team.c_str());
+    ASSERT_NE(offense, nullptr);
+    const std::string saved_offense = offense;
+    const char* result = cfbsim_defensive_playbook_art(CFBSIM_DATA_DIR, team.c_str());
+    ASSERT_NE(result, nullptr) << cfbsim_last_error();
+    const Json art = Json::parse(result);
+    EXPECT_EQ(art, defensive_playbook_art_json(data(), team));
+    EXPECT_EQ(std::string(offense), saved_offense);
+    expect_defense_only(art);
+    bool box = false, capsule = false, man = false, rush = false;
+    for (const Json& p : art["plays"]) {
+        for (const Json& job : p["jobs"]) {
+            const std::string kind = job.at("kind");
+            if (kind == "zone") {
+                const Json& a = job.at("area");
+                if (a.at("shape") == "box") {
+                    box = true;
+                    EXPECT_TRUE(a.contains("width") && a.contains("depth"));
+                    EXPECT_FALSE(a.contains("radius"));
+                } else {
+                    capsule = true;
+                    EXPECT_EQ(a.at("ends").size(), 2u);
+                    EXPECT_TRUE(a.contains("radius"));
+                }
+            } else if (kind == "man") {
+                man = true;
+                EXPECT_TRUE(job.contains("at") && job.contains("leverage"));
+                EXPECT_FALSE(job.contains("points"));
+            } else if (kind == "rush") {
+                rush = true;
+                EXPECT_EQ(job.at("points").size(), 3u);
+                EXPECT_TRUE(job.at("contain").is_boolean());
+            }
+        }
+    }
+    EXPECT_TRUE(box && capsule && man && rush);
+    EXPECT_EQ(cfbsim_defensive_playbook_art(CFBSIM_DATA_DIR, "no_such_team"), nullptr);
+    EXPECT_NE(std::string(cfbsim_last_error()).find("no_such_team"), std::string::npos);
+    EXPECT_EQ(cfbsim_defensive_playbook_art(CFBSIM_DATA_DIR, nullptr), nullptr);
+    EXPECT_NE(cfbsim_defensive_playbook_art(CFBSIM_DATA_DIR, team.c_str()), nullptr);
+    EXPECT_STREQ(cfbsim_last_error(), "");
 }

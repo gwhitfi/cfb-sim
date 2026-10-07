@@ -4,7 +4,13 @@ import * as O from "./offense";
 import { parseJsonText, type Obj } from "./paste";
 
 const data = (path: string) => parseJsonText(readFileSync(new URL(`../../../data/${path}`, import.meta.url), "utf8")) as Obj;
-const LIB: O.LibNames = { routes: ["go", "seam", "flat", "stick", "out", "slant", "curl"], drops: ["gun_3", "gun_5"], fakes: ["drop_fake"], protections: ["slide"], runSchemes: ["inside_zone", "power"] };
+const routes = data("library/routes.json");
+const qb = data("library/qb_actions.json");
+const blocking = data("library/blocking_schemes.json");
+const LIB: O.LibNames = {
+  routes: Object.keys(routes.routes as Obj), drops: Object.keys(qb.drops as Obj), fakes: Object.keys(qb.fakes as Obj),
+  protections: Object.keys(blocking.protections as Obj), runSchemes: Object.keys(blocking.run_schemes as Obj),
+};
 
 // A play with every slot given the usual job for its position.
 function fresh(type: O.PlayType = "pass") {

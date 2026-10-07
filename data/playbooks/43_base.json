@@ -118,7 +118,7 @@
                     }
                 }
             },
-            "tags": ["base", "zone", "vs_run", "1st_down"]
+            "tags": ["base", "zone", "vs_run", "1st_down", "3rd_medium", "red_zone"]
         },
         {
             "id": "tampa_2",
@@ -231,7 +231,7 @@
                     }
                 }
             },
-            "tags": ["base", "zone", "vs_run", "1st_down"]
+            "tags": ["base", "zone", "vs_pass", "2nd_long", "3rd_long", "red_zone", "two_minute"]
         },
         {
             "id": "cover_4_quarters",
@@ -332,7 +332,8 @@
                         "support": "alley_strong"
                     },
                     "pass": {
-                        "zone": "deep_quarter_strong_in"
+                        "zone": "deep_quarter_strong_in",
+                        "read": "#2_strong"
                     }
                 },
                 "FS": {
@@ -340,11 +341,12 @@
                         "support": "deep_fill"
                     },
                     "pass": {
-                        "zone": "deep_quarter_weak_in"
+                        "zone": "deep_quarter_weak_in",
+                        "read": "#3_strong"
                     }
                 }
             },
-            "tags": ["base", "zone", "vs_run", "1st_down"]
+            "tags": ["base", "zone", "vs_pass", "2nd_long", "3rd_long", "two_minute", "prevent"]
         },
         {
             "id": "cover_2_man",
@@ -457,7 +459,7 @@
                     }
                 }
             },
-            "tags": ["base", "zone", "vs_run", "1st_down"]
+            "tags": ["base", "man", "vs_pass", "2nd_long", "3rd_long", "3rd_medium", "red_zone"]
         },
         {
             "id": "olb_fire_man",
@@ -576,7 +578,7 @@
                     }
                 }
             },
-            "tags": ["base", "zone", "vs_run", "1st_down"]
+            "tags": ["pressure", "man", "vs_pass", "2nd_long", "3rd_long", "3rd_medium"]
         },
         {
             "id": "free_fire_3",
@@ -693,7 +695,7 @@
                     }
                 }
             },
-            "tags": ["base", "zone", "vs_run", "1st_down"]
+            "tags": ["pressure", "zone", "vs_pass", "2nd_long", "3rd_long", "3rd_medium"]
         }
     ]
 }

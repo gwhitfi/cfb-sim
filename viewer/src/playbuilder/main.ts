@@ -553,7 +553,12 @@ function passSection(s: D.DefSlot, a: D.DefAssign, role: D.DefRole): HTMLElement
       r.append(select(D.RUSH_LANES, j.lane, (v) => { j.lane = v; refresh(); }, "A gap, or contain (outside the end of the line)"), side(j.side, true, (v) => { j.side = v as SideWord | ""; refresh(); }));
       break;
     case "zone":
-      r.append(select(keys(lib.zones), j.ref, (v) => { j.ref = v; refresh(); }, "data/library/zones.json"));
+      r.append(field("Zone", select(keys(lib.zones), j.ref, (v) => { j.ref = v; refresh(); })));
+      sec.append(field("Zone read", select([["", "Automatic"], ...D.MAN_TARGETS], j.read ?? "", (v) => {
+        if (v) j.read = v; else delete j.read;
+        refresh();
+      }, "Deep zones only: carry this read when it goes vertical. Automatic uses the zone's normal threat selection.")));
+      sec.append(note("An optional read applies to deep zones only."));
       break;
     case "man":
       r.append(select(D.MAN_TARGETS, j.target, (v) => { j.target = v; refresh(); }, "Receivers are numbered from the sideline in on each side; back_1 is the shallowest back"),

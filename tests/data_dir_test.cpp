@@ -79,3 +79,16 @@ TEST(Validation, CatchesDepthChartTooShallow) {
     EXPECT_TRUE(
         has_error_containing(validate_references(d), "needs CB3 but the depth chart has 2"));
 }
+
+TEST(Validation, OnlyDeepZonesTakeARead) {
+    DataSet d = starter_data().data;
+    Playbook& book = d.playbooks.at("43_base");
+    auto play = std::find_if(book.plays.begin(), book.plays.end(),
+                             [](const Play& p) { return p.id == "cover_4_quarters"; });
+    ASSERT_NE(play, book.plays.end());
+    play->assignments.at("FS").pass->target = "#3_strong";   // deep_quarter_weak_in: fine
+    play->assignments.at("SAM").pass->target = "#2_strong";  // flat_strong, a capsule: not
+    const std::vector<std::string> errors = validate_references(d);
+    EXPECT_TRUE(has_error_containing(errors, "SAM (pass): zone 'flat_strong' is not a deep zone"));
+    EXPECT_FALSE(has_error_containing(errors, "FS (pass): zone"));
+}

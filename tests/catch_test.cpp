@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <optional>
@@ -229,4 +230,91 @@ TEST(Jumps, DISABLED_PlayersJumpForHighBallsAndACaughtBallComesIn) {
     }
     EXPECT_GT(jumps, 0);
     EXPECT_GT(catches, 0);
+}
+
+namespace {
+
+// Per play: each catch by the offense with the closest defender's distance
+// from the catcher on that tick, and whether a defender played the ball then.
+struct CloseCatch {
+    double nearest;
+    bool defender_tried;
+};
+
+std::vector<CloseCatch> close_catches(const DataSet& d, int seeds, int* breakup_tries) {
+    std::vector<CloseCatch> out;
+    for (int s = 1; s <= seeds; ++s) {
+        PlayOptions o;
+        o.team = "clemson_2018";
+        o.play = "four_verts";
+        o.defense = "clemson_2025";
+        o.defense_play = "cover_3_sky";
+        o.seed = static_cast<std::uint64_t>(s);
+        o.huddle = false;
+        std::ostringstream file;
+        TrackingWriter writer(file);
+        run_play(d, o, &writer);
+        std::istringstream in(file.str());
+        std::string line;
+        std::vector<std::string> labels, teams;
+        std::string offense;
+        std::optional<int> catch_tick;
+        std::string catcher;
+        bool tried = false;
+        while (std::getline(in, line)) {
+            const Json j = Json::parse(line);
+            if (j["type"] == "header") {
+                offense = j["details"]["offense"];
+                for (const Json& p : j["players"]) {
+                    labels.push_back(p["label"]);
+                    teams.push_back(p["team"]);
+                }
+            } else if (j["type"] == "event" && j["event"] == "catch") {
+                catch_tick = j["tick"].get<int>();
+                catcher = j["player"];
+            } else if (j["type"] == "event" && j["event"] == "ball_play") {
+                const std::string who = j["player"];
+                const auto k = static_cast<std::size_t>(std::find(labels.begin(), labels.end(), who) - labels.begin());
+                tried = tried || teams[k] != offense;
+                if (j.contains("through_hands")) ++*breakup_tries;
+            } else if (j["type"] == "tick" && catch_tick && j["tick"] == *catch_tick) {
+                const auto c = static_cast<std::size_t>(std::find(labels.begin(), labels.end(), catcher) - labels.begin());
+                if (teams[c] != offense) break;  // an interception
+                const Vec2 at{j["p"][c][0].get<double>(), j["p"][c][1].get<double>()};
+                double nearest = 1e9;
+                for (std::size_t k = 0; k < labels.size(); ++k) {
+                    if (teams[k] == offense) continue;
+                    nearest = std::min(nearest, (Vec2{j["p"][k][0].get<double>(), j["p"][k][1].get<double>()} - at).length());
+                }
+                out.push_back({nearest, tried});
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST(Catches, TightCoverageGetsABreakupTry) {
+    // Four Verts against Cover 3: every catch made with a defender on the
+    // receiver (within breakup_range) had a defender play on the ball, his
+    // own or a breakup try through the receiver's hands; one farther away
+    // gets no breakup try.
+    int tries = 0;
+    const double range = data().tuning.passing.breakup_range;
+    int tight = 0;
+    for (const CloseCatch& c : close_catches(data(), 80, &tries)) {
+        if (c.nearest > range - 0.1) continue;  // positions move a bit within the tick
+        ++tight;
+        EXPECT_TRUE(c.defender_tried) << "a defender " << c.nearest << " yd away";
+    }
+    EXPECT_GE(tight, 5);
+    EXPECT_GE(tries, 5);
+
+    DataSet none = data();
+    none.tuning.passing.breakup_range = 0.0;  // nobody is that close
+    int none_tries = 0;
+    close_catches(none, 20, &none_tries);
+    EXPECT_EQ(none_tries, 0);
 }

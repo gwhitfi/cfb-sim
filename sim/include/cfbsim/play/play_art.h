@@ -1,9 +1,10 @@
-// Play art: a formation or an offensive play laid out as a picture for the
-// play-call menu (docs/PROPOSALS.md#the-play-menu). The same alignment, route
-// templates, depth overrides, and sides as a snap, with the ball in the
-// middle of the field and no route noise: the play as drawn, not a snap.
+// Play art for the play-call menu (docs/PROPOSALS.md#the-play-menu).
+// Offense uses the snap's alignment and route helpers without route noise.
+// Defense uses its base call with fixed diagram anchors, independent of an
+// opponent. Both use the middle of the field: the play as drawn, not a snap.
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,7 +19,7 @@ namespace cfbsim {
 
 struct ArtPlayer {
     std::string slot;
-    std::string role;  // "qb", "back", "wr", "te", "ol" (from the slot's expected position)
+    std::string role;  // qb/back/wr/te/ol or dl/lb/cb/s (from the slot's expected position)
     Vec2 pos;
 };
 
@@ -69,5 +70,50 @@ PlayArt play_art(const DataSet& data, const Play& play, bool flipped = false);
 // its pass and run plays (routes and paths; their players are the formation's).
 // Throws PlayError for an unknown team or playbook.
 Json playbook_art_json(const DataSet& data, const std::string& team_id);
+
+// Defensive cards are base diagrams, independent of any opposing formation.
+// Strong is drawn right, weak left. Only defensive players/jobs are exported.
+struct DefensiveFormationArt {
+    std::string id;
+    std::string name;
+    std::string package;
+    std::vector<ArtPlayer> players;  // roles: dl, lb, cb, s
+};
+
+struct ArtZone {
+    Vec2 drop;
+    double width = 0.0;
+    double depth_min = 0.0;
+    double depth_max = 0.0;
+    double radius = 0.0;  // positive for a capsule, otherwise a box
+    Vec2 end_a;
+    Vec2 end_b;
+};
+
+struct DefensiveArtJob {
+    std::string slot;
+    JobKind kind = JobKind::Zone;
+    std::vector<Vec2> points;       // zone drop or rush/blitz/stunt path
+    std::optional<ArtZone> area;   // zone only
+    Vec2 at;                       // man or spy marker
+    std::string leverage;         // man only; no target references
+    bool contain = false;         // rush/blitz/stunt only
+};
+
+struct DefensivePlayArt {
+    std::string id;
+    std::string name;
+    std::string formation;
+    std::string coverage;
+    std::vector<ArtPlayer> players;  // includes this call's alignment overrides
+    std::vector<DefensiveArtJob> jobs;
+};
+
+// Base anchor convention: 1.5-yd spacing, #1 at numbers, #2 at hash,
+// #3 at the outer technique landmark. No roster, opponent, or RNG needed.
+// Errors name the formation or play.
+DefensiveFormationArt defensive_formation_art(const DataSet& data, const Formation& formation);
+DefensivePlayArt defensive_play_art(const DataSet& data, const Play& play);
+Json defensive_playbook_art_json(const DataSet& data, const std::string& team_id);
 
 }  // namespace cfbsim

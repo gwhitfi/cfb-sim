@@ -26,24 +26,24 @@
         },
 
         "deep_quarter_strong_out": {
-            "drop": { "x": { "from": "numbers", "side": "strong", "offset": 0 }, "y": 20 },
+            "drop": { "x": { "from": "numbers", "side": "strong", "offset": 1 }, "y": 25 },
             "width": 13,
-            "depth": [10, 45]
+            "depth": [15, 45]
         },
         "deep_quarter_strong_in": {
-            "drop": { "x": { "from": "hash", "side": "strong", "offset": 0 }, "y": 20 },
+            "drop": { "x": { "from": "hash", "side": "strong", "offset": 0 }, "y": 25 },
             "width": 13,
-            "depth": [10, 45]
+            "depth": [15, 45]
         },
         "deep_quarter_weak_in": {
-            "drop": { "x": { "from": "hash", "side": "weak", "offset": 0 }, "y": 20 },
+            "drop": { "x": { "from": "hash", "side": "weak", "offset": 0 }, "y": 25 },
             "width": 13,
-            "depth": [10, 45]
+            "depth": [15, 45]
         },
         "deep_quarter_weak_out": {
-            "drop": { "x": { "from": "numbers", "side": "weak", "offset": 0 }, "y": 20 },
+            "drop": { "x": { "from": "numbers", "side": "weak", "offset": 1 }, "y": 25 },
             "width": 13,
-            "depth": [10, 45]
+            "depth": [15, 45]
         },
 
         // Underneath zones are capsules: every point within `radius` of the segment
@@ -74,6 +74,6 @@
         "hook_middle": { "drop": { "x": 0, "y": 12 }, "radius": 7 },
         "flat_strong": { "drop": { "x": { "from": "numbers", "side": "strong", "offset": 1 }, "y": 5 }, "radius": 7 },
         "flat_weak": { "drop": { "x": { "from": "numbers", "side": "weak", "offset": 1 }, "y": 5 }, "radius": 7 },
-        "hole": { "drop": { "x": 0, "y": 9 }, "radius": 5 }
+        "hole": { "drop": { "x": 0, "y": 9 }, "radius": 6 }
     }
 }

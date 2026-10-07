@@ -42,21 +42,109 @@ export interface PlayArt {
 }
 
 export interface PlaybookArt {
+  unit?: "offense"; // omitted by the original offense art API
   team: string;
   playbook: string;
   formations: FormationArt[];
   plays: PlayArt[];
 }
 
-// The server's {"type": "playbook_art", "team", "art"} (or "error"): the side
-// and its art, or the side and why there's none.
-export function readArtMessage(m: unknown): { side: TeamKey; art: PlaybookArt | null; error: string } | null {
+export interface DefensiveArtPlayer {
+  slot: string;
+  role: "dl" | "lb" | "cb" | "s" | "";
+  x: number;
+  y: number;
+}
+
+export interface DefensiveFormationArt {
+  id: string;
+  name: string;
+  package: string;
+  players: DefensiveArtPlayer[];
+}
+
+export type ArtZone =
+  | { shape: "box"; drop: Pt; width: number; depth: Pt }
+  | { shape: "capsule"; drop: Pt; ends: [Pt, Pt]; radius: number };
+
+// Base defensive assignments only: no offensive players or target references.
+export type DefensiveArtJob = { slot: string } & (
+  | { kind: "zone"; points: Pt[]; area: ArtZone }
+  | { kind: "rush" | "blitz" | "stunt"; points: Pt[]; contain: boolean }
+  | { kind: "man"; at: Pt; leverage: "inside" | "outside" }
+  | { kind: "spy"; at: Pt }
+);
+
+export interface DefensivePlayArt {
+  id: string;
+  name: string;
+  formation: string;
+  coverage: string;
+  players: DefensiveArtPlayer[]; // each call may override the formation's alignment
+  jobs: DefensiveArtJob[];
+}
+
+export interface DefensivePlaybookArt {
+  unit: "defense";
+  team: string;
+  playbook: string;
+  formations: DefensiveFormationArt[];
+  plays: DefensivePlayArt[];
+}
+
+export type ArtMessage = { side: TeamKey; error: string } & (
+  | { unit: "offense"; art: PlaybookArt | null }
+  | { unit: "defense"; art: DefensivePlaybookArt | null }
+);
+
+// Missing envelope unit means legacy offense. A defensive payload must be
+// explicitly marked, so it can never be sent to the offensive renderer.
+export function readArtMessage(m: unknown): ArtMessage | null {
   if (!m || typeof m !== "object") return null;
   const o = m as Record<string, unknown>;
   if (o.type !== "playbook_art" || (o.team !== "home" && o.team !== "away")) return null;
-  const art = o.art as PlaybookArt | undefined;
-  if (art && Array.isArray(art.formations) && Array.isArray(art.plays)) return { side: o.team, art, error: "" };
-  return { side: o.team, art: null, error: typeof o.error === "string" ? o.error : "no art in the message" };
+  const unit = o.unit === undefined ? "offense" : o.unit;
+  if (unit !== "offense" && unit !== "defense") return null;
+  const a = o.art as Record<string, unknown> | null | undefined;
+  const valid = a && typeof a.team === "string" && typeof a.playbook === "string" &&
+    Array.isArray(a.formations) && Array.isArray(a.plays) &&
+    (unit === "defense" ? a.unit === "defense" : a.unit === undefined || a.unit === "offense");
+  if (typeof o.error === "string" || !valid) {
+    return { side: o.team, unit, art: null, error: typeof o.error === "string" ? o.error : `invalid ${unit} playbook art` };
+  }
+  return unit === "defense"
+    ? { side: o.team, unit, art: a as unknown as DefensivePlaybookArt, error: "" }
+    : { side: o.team, unit, art: a as unknown as PlaybookArt, error: "" };
+}
+
+interface UnitArt {
+  offense?: PlaybookArt;
+  defense?: DefensivePlaybookArt;
+}
+
+// One game, two team sides, two units per side. A failed refresh removes
+// only that entry, allowing the caller to fall back to its text menu.
+export class PlaybookArtStore {
+  home: UnitArt = {};
+  away: UnitArt = {};
+
+  clear(): void {
+    this.home = {};
+    this.away = {};
+  }
+
+  receive(m: unknown): ArtMessage | null {
+    const r = readArtMessage(m);
+    if (!r) return null;
+    if (r.unit === "offense") {
+      if (r.art) this[r.side].offense = r.art;
+      else delete this[r.side].offense;
+    } else {
+      if (r.art) this[r.side].defense = r.art;
+      else delete this[r.side].defense;
+    }
+    return r;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -155,10 +243,10 @@ function players(list: ArtPlayer[], flip: boolean): string {
   return out;
 }
 
-function svg(body: string, title: string): string {
+function svg(body: string, title: string, defense = false): string {
   const w = ART_HALF_WIDTH;
   return (
-    `<svg class="play-art" xmlns="http://www.w3.org/2000/svg" viewBox="${n(-w)} ${-ART_DEEP} ${n(2 * w)} ${ART_DEEP + ART_BACK}" ` +
+    `<svg class="play-art${defense ? " art-defense" : ""}"${defense ? ' overflow="hidden"' : ""} xmlns="http://www.w3.org/2000/svg" viewBox="${n(-w)} ${-ART_DEEP} ${n(2 * w)} ${ART_DEEP + ART_BACK}" ` +
     `role="img" aria-label="${esc(title)}">${body}</svg>`
   );
 }
@@ -179,4 +267,126 @@ export function playSvg(p: PlayArt, f: FormationArt, opts: ArtOptions = {}): str
   for (const r of p.routes) body += line(r.points, r.end, r.primary ? "art-route primary" : "art-route", flip);
   if (p.path) body += line(p.path, "continue", "art-path primary", flip);
   return svg(body + players(f.players, flip), p.name);
+}
+
+// ---------------------------------------------------------------------------
+// Defensive base cards. The call supplies its own alignment overrides. All
+// geometry is already resolved by the sim; no opponents or targets are drawn.
+// ---------------------------------------------------------------------------
+
+function defensivePlayers(list: DefensiveArtPlayer[]): string {
+  return list.map((p) => {
+    const [x, y] = at([p.x, p.y], false);
+    const r = p.role === "dl" ? 0.85 : 1.15;
+    // End labels extend toward the edge, leaving room for the tightly
+    // spaced interior linemen without shrinking any slot names.
+    const edge = p.role === "dl" && Math.abs(x) >= 3;
+    const anchor = edge ? (x > 0 ? "start" : "end") : "middle";
+    const labelX = edge ? x - Math.sign(x) * 0.5 : x;
+    return `<g class="art-defender"><title>${esc(p.slot)}</title>` +
+      `<circle class="art-player art-${esc(p.role || "other")}" cx="${n(x)}" cy="${n(y)}" r="${r}"/>` +
+      `<text class="art-defender-label" x="${n(labelX)}" y="${n(y - r - 0.55)}" text-anchor="${anchor}">${esc(p.slot)}</text></g>`;
+  }).join("");
+}
+
+// A capsule is a round-ended rectangle along its segment. Use a circle for
+// a zero-length segment so the radius remains exact, without a degenerate path.
+function zoneShape(a: ArtZone): string {
+  if (a.shape === "box") {
+    return `<rect class="art-zone art-zone-deep" x="${n(a.drop[0] - a.width / 2)}" y="${n(-a.depth[1])}" ` +
+      `width="${n(a.width)}" height="${n(a.depth[1] - a.depth[0])}"/>`;
+  }
+  const [x, y] = at(a.ends[0], false);
+  const dx = a.ends[1][0] - a.ends[0][0];
+  const dy = -(a.ends[1][1] - a.ends[0][1]);
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return `<circle class="art-zone art-zone-under" cx="${n(x)}" cy="${n(y)}" r="${n(a.radius)}"/>`;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  return `<rect class="art-zone art-zone-under" x="${n(-a.radius)}" y="${n(-a.radius)}" ` +
+    `width="${n(length + 2 * a.radius)}" height="${n(2 * a.radius)}" rx="${n(a.radius)}" ` +
+    `transform="translate(${n(x)} ${n(y)}) rotate(${n(angle)})"/>`;
+}
+
+// Find the zone's horizontal section at the top edge. This prevents a
+// continuation mark on a capsule whose bounding box alone crosses the card.
+function zoneTop(a: ArtZone): [number, number] | null {
+  if (a.shape === "box") {
+    return a.depth[0] < ART_DEEP && a.depth[1] > ART_DEEP
+      ? [a.drop[0] - a.width / 2, a.drop[0] + a.width / 2] : null;
+  }
+  const sections: number[] = [];
+  for (const [x, y] of a.ends) {
+    const dy = ART_DEEP - y;
+    if (Math.abs(dy) < a.radius) {
+      const dx = Math.sqrt(a.radius ** 2 - dy ** 2);
+      sections.push(x - dx, x + dx);
+    }
+  }
+  // Intersect the two straight sides of the capsule with the top edge.
+  const [p, q] = a.ends;
+  const dx = q[0] - p[0], dy = q[1] - p[1];
+  const length = Math.hypot(dx, dy);
+  if (length > 0 && dy !== 0) {
+    for (const sign of [-1, 1]) {
+      const ox = -dy / length * a.radius * sign, oy = dx / length * a.radius * sign;
+      const t = (ART_DEEP - p[1] - oy) / dy;
+      if (t >= 0 && t <= 1) sections.push(p[0] + ox + t * dx);
+    }
+  }
+  return sections.length ? [Math.min(...sections), Math.max(...sections)] : null;
+}
+
+function zoneContinuation(a: ArtZone): string {
+  const section = zoneTop(a);
+  if (!section) return "";
+  const left = Math.max(section[0], -ART_HALF_WIDTH + EDGE);
+  const right = Math.min(section[1], ART_HALF_WIDTH - EDGE);
+  if (right <= left) return "";
+  const x = (left + right) / 2;
+  return endMark([x, -ART_DEEP + 2], [x, -ART_DEEP + EDGE], "continue",
+    `art-zone-edge ${a.shape === "box" ? "art-deep-line" : "art-under-line"}`);
+}
+
+function defensiveJob(job: DefensiveArtJob): string {
+  let drawing: string;
+  let title: string;
+  switch (job.kind) {
+    case "zone": {
+      const clipped = cutAt(job.points, ART_DEEP - EDGE);
+      drawing = line(job.points, "settle", `art-zone-drop ${job.area.shape === "box" ? "art-deep-line" : "art-under-line"}`, false) +
+        (clipped.cut && clipped.points.length >= 2 ? "" : zoneContinuation(job.area));
+      title = `${job.slot}: Zone coverage`;
+      break;
+    }
+    case "man": {
+      const [x, y] = at(job.at, false);
+      drawing = `<circle class="art-man" cx="${n(x)}" cy="${n(y)}" r="1.65"/>`;
+      title = `${job.slot}: Man coverage, ${job.leverage} leverage`;
+      break;
+    }
+    case "spy": {
+      const [x, y] = at(job.at, false);
+      drawing = `<polygon class="art-spy" points="${pts([[x, y - 2], [x + 2, y], [x, y + 2], [x - 2, y]])}"/>`;
+      title = `${job.slot}: Spy`;
+      break;
+    }
+    default:
+      drawing = line(job.points, "continue", job.kind === "blitz" ? "art-blitz" : `art-rush${job.contain ? " art-contain" : ""}`, false);
+      title = `${job.slot}: ${job.kind === "blitz" ? "Blitz" : "Rush"}${job.contain ? ", contain" : ""}`;
+      break;
+  }
+  return `<g class="art-job"><title>${esc(title)}</title>${drawing}</g>`;
+}
+
+export function defensiveFormationSvg(f: DefensiveFormationArt): string {
+  return svg(field() + defensivePlayers(f.players), f.name, true);
+}
+
+export function defensivePlaySvg(p: DefensivePlayArt): string {
+  // Areas first, then every assignment, then markers/labels. An overlapping
+  // zone must never paint over another defender or his rush/man symbol.
+  let body = field();
+  for (const job of p.jobs) if (job.kind === "zone") body += zoneShape(job.area);
+  for (const job of p.jobs) body += defensiveJob(job);
+  return svg(body + defensivePlayers(p.players), p.name, true);
 }

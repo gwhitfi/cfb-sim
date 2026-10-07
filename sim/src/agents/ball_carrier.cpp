@@ -7,6 +7,7 @@
 #include <numbers>
 
 #include "agents/behaviors.h"
+#include "agents/pursuit.h"
 #include "agents/steer.h"
 #include "play/shapes.h"
 
@@ -242,101 +243,17 @@ void BallCarrier::draw(const PlayState& play, int self, Json& shapes) const {
 // ---------------------------------------------------------------------------
 
 Intent Pursuer::decide(const PlayState& play, int self, Actions& /*actions*/) {
-    // (cfbsim_design.md#pursuit)
-    Intent in;
-    const int carrier = play.carrier();
     aim_.reset();
-    if (carrier < 0 || play.teammates(carrier, self)) return in;
-    const TacklingTuning& t = play.tuning().tackling;
-    const PlayFrame& f = play.frame;
+    const int carrier = play.carrier();
+    if (carrier < 0 || play.teammates(carrier, self)) return {};
     const Agent& me = play.agent(self);
-    const Seen seen = play.seen(carrier, s_.lag);
-
-    // He expects the carrier to turn upfield: the carrier's heading, bent
-    // toward the end zone.
-    const Vec2 down = play.downfield_for(carrier);
-    const double speed_c = seen.vel.length();
-    const Vec2 vel = speed_c > 0.5
-                         ? (seen.vel / speed_c * (1.0 - t.upfield) + down * t.upfield).normalized() * speed_c
-                         : seen.vel;
-    // Where the carrier will be s seconds from now, as he projects it.
-    const double left = f.sideline_x(Side::Left) + t.sideline_inside;
-    const double right = f.sideline_x(Side::Right) - t.sideline_inside;
-    const auto predict = [&](double s) {
-        Vec2 p = f.to_play(seen.pos + vel * (s * s_.quality));
-        p.x = std::clamp(p.x, left, right);
-        return f.to_field(p);
-    };
-    const auto reach_time = [&](Vec2 p) {
-        return quick_reach_time(me.pos, me.vel, me.move.top_speed, me.move.decel, me.body.reach, p);
-    };
-    // The first point he can get to in time; if there's none (the carrier is
-    // faster), lead him by the time it takes to get to where he is now.
-    std::optional<Vec2> found;
-    for (double s = 0.0; s <= t.pursue_horizon + 1e-9; s += t.pursue_step) {
-        const Vec2 p = predict(s);
-        if (reach_time(p) <= s) {
-            found = p;
-            break;
-        }
-    }
-    const Vec2 intercept = found.value_or(predict(std::min(t.pursue_horizon, reach_time(predict(0.0)))));
-
-    // Close: he attacks the carrier instead of waiting on the spot, leading
-    // him by what he sees late plus the time to get there. The lead fades as
-    // he comes into reach, so at the end he steps into the body, not to a spot
-    // ahead of it (a long lead from beside him only ran him alongside).
-    const double dist = (play.agent(carrier).pos - me.pos).length();
-    Vec2 aim = intercept;
-    if (dist <= t.attack_range) {
-        const double fade =
-            std::clamp((dist - me.body.reach) / std::max(1e-6, t.attack_range - me.body.reach), 0.0, 1.0);
-        aim = seen.pos + seen.vel * (s_.lag + fade * std::min(t.attack_lead, dist / me.move.top_speed));
-        // Alongside and not gaining: he cuts straight into him.
-        const Vec2 to_c = seen.pos - me.pos;
-        const double closing = to_c.length() > 1e-6 ? (me.vel - seen.vel).dot(to_c.normalized()) : 0.0;
-        if (dist <= me.body.reach + t.close_band && closing < t.close_min) {
-            aim = seen.pos + seen.vel * s_.lag + unit_or(to_c, down * -1.0) * me.body.reach;
-        }
-    }
-
-    // A deeper defender stays on top: he keeps at least a share of his
-    // cushion downfield of the carrier, so a cut upfield doesn't beat him.
-    const double cushion = (me.pos - seen.pos).dot(down);
-    if (cushion > t.top_cushion && dist > t.attack_range) {
-        const double ahead = (aim - seen.pos).dot(down);
-        const double keep = cushion * t.top_keep;
-        if (ahead < keep) aim += down * (keep - ahead);
-    }
-    // Leverage: the carrier on his outside shoulder (inside for contain, or
-    // a side of his own). Near a sideline, the sideline is his leverage: he squeezes.
-    Vec2 a = f.to_play(aim);
-    const double room = std::min(a.x - f.sideline_x(Side::Left), f.sideline_x(Side::Right) - a.x);
-    if (dist > t.leverage_range && room > t.squeeze_room && s_.side.length() > 0.5) {
-        aim += s_.side * t.leverage;
-    } else if (dist > t.leverage_range && room > t.squeeze_room) {
-        const double center = (f.sideline_x(Side::Left) + f.sideline_x(Side::Right)) / 2.0;
-        const double inside = std::abs(center - a.x) < 0.5 ? 0.0 : (center > a.x ? 1.0 : -1.0);
-        a.x += (s_.contain ? -inside : inside) * t.leverage;
-        aim = f.to_field(a);
-    }
-    aim_ = aim;
-
-    double speed = dist <= t.effort_range ? me.move.top_speed : me.move.top_speed * s_.effort;
-    // The carrier coming at him: he breaks down, slowing at a steady rate so
-    // he gets to him under control and a cut doesn't take him out of the play.
-    const Vec2 at_me = me.pos - seen.pos;
-    const bool coming_at_me = speed_c > 1.0 && at_me.length() > 0.1 &&
-                              (seen.vel / speed_c).dot(at_me.normalized()) > t.breakdown_cos;
-    if (cushion > 0.0 && coming_at_me) {
-        const double closing = (me.vel - seen.vel).dot(at_me.normalized() * -1.0);
-        if (closing > 0.5) {
-            const double to_contact = std::max(0.0, at_me.length() - me.body.reach) / closing;
-            speed = std::min(speed, s_.breakdown + (t.breakdown_decel + s_.breakdown_extra) * to_contact);
-        }
-    }
-    in.velocity = steer::seek(me, aim, speed);
-    return in;
+    const bool can_plant = !play.engaged(self) && !play.knocked_down(self) &&
+                          !play.stumbling(self) && !me.grounded && !me.airborne();
+    const PursuitPlan plan = plan_pursuit(me, play.seen(carrier, s_.lag),
+        play.agent(carrier).body.radius, play.downfield_for(carrier), play.frame,
+        s_, play.tuning(), can_plant);
+    aim_ = plan.aim;
+    return plan.intent;
 }
 
 void Pursuer::draw(const PlayState& play, int self, Json& shapes) const {

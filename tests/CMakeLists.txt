@@ -48,6 +48,8 @@ cfbsim_test_suite(cfbsim_unit_tests unit 30
     huddle_test.cpp
     movement_test.cpp
     parse_test.cpp
+    pursuit_test.cpp
+    tackle_contact_test.cpp
     rng_test.cpp
     route_test.cpp
     rules_test.cpp
@@ -69,3 +71,14 @@ cfbsim_test_suite(cfbsim_game_tests game 180
     coach_test.cpp
     match_test.cpp
     special_teams_test.cpp)
+
+# Exact pre-optimization play/tracking/game fixtures, independent of the C++
+# implementation. Available in CTest when Python is installed; also runnable
+# directly with scripts/check_play_baseline.py.
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME Baseline.PlayResults
+        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/scripts/check_play_baseline.py
+                --exe $<TARGET_FILE:cfbsim>)
+    set_tests_properties(Baseline.PlayResults PROPERTIES TIMEOUT 600 LABELS "play;baseline")
+endif()

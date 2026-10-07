@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { cutAt, formationSvg, playSvg, readArtMessage, type FormationArt, type PlayArt, type PlaybookArt, type Pt } from "./art";
+import { cutAt, formationSvg, playSvg, readArtMessage, PlaybookArtStore, type DefensivePlaybookArt, type FormationArt, type PlayArt, type PlaybookArt, type Pt } from "./art";
 
 const art: PlaybookArt = { team: "clemson_2025", playbook: "spread_base", formations: [], plays: [] };
 
 describe("the playbook art message", () => {
   it("gives the side and its art", () => {
-    expect(readArtMessage({ type: "playbook_art", team: "home", art })).toEqual({ side: "home", art, error: "" });
+    expect(readArtMessage({ type: "playbook_art", team: "home", art })).toEqual({ side: "home", unit: "offense", art, error: "" });
   });
 
   it("gives the side and the error when there's no art", () => {
     expect(readArtMessage({ type: "playbook_art", team: "away", error: "unknown team 'x'" })).toEqual({
       side: "away",
+      unit: "offense",
       art: null,
       error: "unknown team 'x'",
     });
@@ -21,6 +22,77 @@ describe("the playbook art message", () => {
     expect(readArtMessage({ type: "started" })).toBeNull();
     expect(readArtMessage({ type: "playbook_art", team: "visitors", art })).toBeNull();
     expect(readArtMessage(null)).toBeNull();
+  });
+});
+
+const defense: DefensivePlaybookArt = {
+  unit: "defense", team: "clemson_2025", playbook: "43_base",
+  formations: [{ id: "43_over", name: "4-3 Over", package: "base", players: [{ slot: "FS", role: "s", x: 0, y: 13 }] }],
+  plays: [{ id: "cover_3", name: "Cover 3", formation: "43_over", coverage: "cover_3",
+    players: [{ slot: "FS", role: "s", x: 0, y: 13 }],
+    jobs: [{ slot: "FS", kind: "zone", points: [[0, 13], [0, 15]],
+      area: { shape: "box", drop: [0, 15], width: 18, depth: [10, 45] } }] }],
+};
+
+describe("art units and independent storage", () => {
+  it("decodes explicit offense and defensive geometry without changing either payload", () => {
+    expect(readArtMessage({ type: "playbook_art", team: "home", unit: "offense", art })).toEqual({
+      side: "home", unit: "offense", art, error: "",
+    });
+    expect(readArtMessage({ type: "playbook_art", team: "away", unit: "defense", art: defense })).toEqual({
+      side: "away", unit: "defense", art: defense, error: "",
+    });
+  });
+
+  it("rejects unknown units and mismatched payloads, including defense in a legacy envelope", () => {
+    expect(readArtMessage({ type: "playbook_art", team: "home", unit: "kicking", art })).toBeNull();
+    expect(readArtMessage({ type: "playbook_art", team: "home", unit: null, art })).toBeNull();
+    for (const msg of [
+      { unit: "defense", art }, { unit: "offense", art: defense }, { art: defense },
+      { unit: "defense", art: { ...defense, plays: null } },
+      { unit: "offense", art: { ...art, playbook: 123 } },
+    ]) {
+      const parsed = readArtMessage({ type: "playbook_art", team: "home", ...msg });
+      expect(parsed?.art).toBeNull();
+      expect(parsed?.error).toMatch(/invalid/);
+    }
+  });
+
+  it("keeps home/away and offense/defense separate even for the same team", () => {
+    const store = new PlaybookArtStore();
+    for (const side of ["home", "away"] as const) {
+      store.receive({ type: "playbook_art", team: side, art }); // legacy offense
+      store.receive({ type: "playbook_art", team: side, unit: "defense", art: defense });
+    }
+    expect(store.home).toEqual({ offense: art, defense });
+    expect(store.away).toEqual({ offense: art, defense });
+    const changed = { ...defense, playbook: "another_book" };
+    store.receive({ type: "playbook_art", team: "away", unit: "defense", art: changed });
+    expect(store.home.defense).toBe(defense);
+    expect(store.away.defense).toBe(changed);
+    expect(store.away.offense).toBe(art);
+  });
+
+  it("clears only the failed entry and can recover on a later valid message", () => {
+    const store = new PlaybookArtStore();
+    for (const side of ["home", "away"] as const) {
+      store.receive({ type: "playbook_art", team: side, art });
+      store.receive({ type: "playbook_art", team: side, unit: "defense", art: defense });
+    }
+    expect(store.receive({ type: "playbook_art", team: "home", unit: "defense", error: "bad layout" })).toEqual({
+      side: "home", unit: "defense", art: null, error: "bad layout",
+    });
+    expect(store.home).toEqual({ offense: art });
+    expect(store.away).toEqual({ offense: art, defense });
+    store.receive({ type: "playbook_art", team: "home", unit: "defense", art: defense });
+    store.receive({ type: "playbook_art", team: "away", unit: "offense", art: {} });
+    expect(store.home).toEqual({ offense: art, defense });
+    expect(store.away).toEqual({ defense });
+    store.receive({ type: "playbook_art", team: "away", unit: "unknown", art });
+    expect(store.away).toEqual({ defense });
+    store.clear();
+    expect(store.home).toEqual({});
+    expect(store.away).toEqual({});
   });
 });
 

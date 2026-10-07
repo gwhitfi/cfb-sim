@@ -65,7 +65,22 @@
                     "side": "right"
                 }
             },
-            "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+            "tags": [
+                "quick_game",
+                "dropback",
+                "short",
+                "medium",
+                "base",
+                "1st_down",
+                "2nd_short",
+                "3rd_medium",
+                "3rd_short",
+                "red_zone",
+                "two_minute",
+                "vs_zone",
+                "vs_cover3",
+                "vs_cover4"
+            ]
         },
         {
             "id": "four_verts",
@@ -131,7 +146,22 @@
                     }
                 }
             },
-            "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+            "tags": [
+                "dropback",
+                "deep",
+                "outside",
+                "base",
+                "1st_down",
+                "2nd_long",
+                "3rd_long",
+                "3rd_medium",
+                "two_minute",
+                "vs_man",
+                "vs_cover1",
+                "vs_cover2",
+                "vs_cover3",
+                "vs_blitz"
+            ]
         },
         {
             "id": "hb_sweep",
@@ -217,7 +247,18 @@
                     }
                 }
             },
-            "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+            "tags": [
+                "outside",
+                "base",
+                "1st_down",
+                "2nd_short",
+                "3rd_short",
+                "clock_kill",
+                "vs_man",
+                "vs_cover1",
+                "vs_cover2",
+                "vs_cover4"
+            ]
         },
         {
             "id": "mid_draw",
@@ -303,7 +344,185 @@
                     }
                 }
             },
-            "tags": ["dropback", "medium", "outside", "2nd_long", "3rd_medium", "vs_zone", "vs_cover3"]
+            "tags": [
+                "inside",
+                "base",
+                "1st_down",
+                "2nd_long",
+                "2nd_short",
+                "3rd_long",
+                "3rd_short",
+                "clock_kill",
+                "vs_man",
+                "vs_cover1",
+                "vs_cover2",
+                "vs_cover4",
+                "vs_blitz"
+            ]
+        },
+        {
+            "id": "slot_wheel",
+            "name": "Slot Wheel",
+            "side": "offense",
+            "type": "pass",
+            "formation": "gun_wide_trips",
+            "flip": true,
+            "pass": {
+                "drop": "gun_3",
+                "progression": ["H", "Y", "Z", "X", "RB"],
+                "read_type": "progression",
+                "hot": "RB",
+                "protection": {
+                    "scheme": "slide",
+                    "direction": "left"
+                }
+            },
+            "assignments": {
+                "LT": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "LG": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "C": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "RG": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "RT": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "X": {
+                    "route": "go"
+                },
+                "Z": {
+                    "route": "post"
+                },
+                "H": {
+                    "route": "slantMedium"
+                },
+                "Y": {
+                    "route": "swing"
+                },
+                "RB": {
+                    "route": "swing",
+                    "side": "right"
+                }
+            },
+            "tags": [
+                "dropback",
+                "medium",
+                "deep",
+                "outside",
+                "base",
+                "1st_down",
+                "2nd_long",
+                "3rd_long",
+                "3rd_medium",
+                "vs_man",
+                "vs_cover1",
+                "vs_blitz"
+            ]
+        },
+        {
+            "id": "hb_swing",
+            "name": "HB Swing",
+            "side": "offense",
+            "type": "pass",
+            "formation": "gun_wide_trips",
+            "flip": true,
+            "pass": {
+                "drop": "gun_3",
+                "progression": ["RB", "X"],
+                "read_type": "key",
+                "hot": "RB",
+                "protection": {
+                    "scheme": "slide",
+                    "direction": "right"
+                }
+            },
+            "assignments": {
+                "LT": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "LG": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "C": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "RG": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "RT": {
+                    "block": {
+                        "do": "protect"
+                    }
+                },
+                "X": {
+                    "route": "go"
+                },
+                "Z": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "H": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "Y": {
+                    "block": {
+                        "do": "stalk",
+                        "target": "man_over"
+                    }
+                },
+                "RB": {
+                    "route": "swing",
+                    "side": "right"
+                }
+            },
+            "tags": [
+                "quick_game",
+                "short",
+                "outside",
+                "base",
+                "1st_down",
+                "2nd_short",
+                "3rd_medium",
+                "3rd_short",
+                "short_yardage",
+                "red_zone",
+                "two_minute",
+                "vs_man",
+                "vs_zone",
+                "vs_cover1",
+                "vs_cover3",
+                "vs_cover4",
+                "vs_blitz"
+            ]
         }
     ]
 }

@@ -143,6 +143,30 @@ TEST(ParsePlaybook, ParsesJobSequencesAndDefensiveJobs) {
     EXPECT_EQ(sam.pass->ref, "curl_flat_strong");
 }
 
+TEST(ParsePlaybook, ParsesAZoneRead) {
+    const auto book_with = [](const char* fs) {
+        return Json::parse(std::string(R"({
+          "format_version": 1, "id": "b", "name": "B", "side": "defense", "scheme": "s",
+          "strength_call": ["te"], "formations": ["d"],
+          "plays": [{"id": "p", "name": "P", "side": "defense", "formation": "d",
+                     "assignments": {"FS": {"run": {"support": "deep_fill"}, "pass": )") +
+                           fs + "}}}]}");
+    };
+    const Playbook book =
+        parse_playbook(book_with(R"({"zone": "deep_quarter_weak_in", "read": "#3_strong"})"), "b.json");
+    const Job& fs = *book.plays[0].assignments.at("FS").pass;
+    EXPECT_EQ(fs.ref, "deep_quarter_weak_in");
+    EXPECT_EQ(fs.target, "#3_strong");
+
+    const auto error = [&](const char* fs_pass) {
+        return error_of([&] { parse_playbook(book_with(fs_pass), "b.json"); });
+    };
+    EXPECT_NE(error(R"({"zone": "deep_half_weak", "read": "#4_strong"})").find("read must look like"),
+              std::string::npos);
+    EXPECT_NE(error(R"({"man": "#2_strong", "read": "#3_strong"})").find("'read' only applies to zones"),
+              std::string::npos);
+}
+
 TEST(ParsePlaybook, RejectsWrongJobForUnit) {
     const Json j = Json::parse(R"({
       "format_version": 1, "id": "b", "name": "B", "side": "offense", "scheme": "s",

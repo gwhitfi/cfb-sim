@@ -456,8 +456,8 @@ namesBox.addEventListener("change", () => (opts.names = namesBox.checked));
 labelsSelect.addEventListener("change", () => (opts.labelMode = labelsSelect.value as ViewOptions["labelMode"]));
 
 window.addEventListener("keydown", (e) => {
-  if (e.target instanceof HTMLInputElement && e.target.type !== "range" && e.target.type !== "checkbox") return;
-  if (e.target instanceof HTMLSelectElement) return;
+  if (e.target instanceof HTMLInputElement && (e.target.type !== "range" && e.target.type !== "checkbox" || !!e.target.closest(".prompt"))) return;
+  if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLElement && e.target.isContentEditable)) return;
   if (live.key(e)) {
     e.preventDefault();
     return;

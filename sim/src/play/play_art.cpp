@@ -5,6 +5,7 @@
 #include "cfbsim/play/play_art.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 
@@ -35,6 +36,17 @@ std::string role_of(const FormationSlot& slot) {
         case Position::OG:
         case Position::C:
             return "ol";
+        case Position::DE:
+        case Position::DT:
+            return "dl";
+        case Position::MLB:
+        case Position::OLB:
+            return "lb";
+        case Position::CB:
+            return "cb";
+        case Position::FS:
+        case Position::SS:
+            return "s";
         default:
             return "";
     }
@@ -252,6 +264,240 @@ Json playbook_art_json(const DataSet& data, const std::string& team_id) {
         formations.push_back({{"id", art.id}, {"name", art.name}, {"personnel", art.personnel}, {"players", players_json(art.players)}});
     }
     return {{"team", team_id}, {"playbook", book->first}, {"formations", formations}, {"plays", plays}};
+}
+
+namespace {
+
+// A diagram has fixed technique/width landmarks, not an opposing lineup.
+// Normalize context-dependent anchors before using the regular geometry
+// helpers, so slot dependencies and field coordinates retain their semantics.
+class DefensiveBase {
+  public:
+    explicit DefensiveBase(const DataSet& data)
+        : tuning_(data.tuning.defense), contain_outside_(data.tuning.blocking.contain_outside) {}
+
+    Side side(Side s) const {
+        if (s == Side::Strong || s == Side::Field) return Side::Right;
+        if (s == Side::Weak || s == Side::Boundary) return Side::Left;
+        if (s == Side::Left || s == Side::Right) return s;
+        throw GeometryError("base diagram anchor needs a side");
+    }
+
+    double gap(Side s, const std::string& letter) const {
+        if (letter.size() != 1) throw GeometryError("gap must be A..D");
+        return gaps_.x(side(s), letter.front());
+    }
+
+    double contain(Side s) const { return sign(side(s)) * (3.0 + contain_outside_); }
+
+    Anchor x(const Anchor& a) const {
+        switch (a.kind) {
+            case AnchorKind::Tech:
+                return Anchor::at(sign(side(a.side)) * (tech(a.ref) + a.offset));
+            case AnchorKind::Receiver: {
+                const Side s = side(a.side);
+                double landmark;
+                if (a.ref == "#1") landmark = frame_.numbers_x(s);
+                else if (a.ref == "#2") landmark = frame_.hash_x(s);
+                else if (a.ref == "#3") landmark = sign(s) * outer();
+                else throw GeometryError("unknown base width anchor '" + a.ref + "'");
+                return Anchor::at(landmark + sign(s) * a.offset);
+            }
+            case AnchorKind::Gap:
+                return Anchor::at(gap(a.side, a.ref) + a.offset);
+            case AnchorKind::Numbers:
+            case AnchorKind::Hash:
+            case AnchorKind::Sideline: {
+                Anchor out = a;
+                out.side = side(a.side);
+                // Relative sides sign offsets outward; absolute sides sign x.
+                if (a.side != Side::Left && a.side != Side::Right) out.offset *= sign(out.side);
+                return out;
+            }
+            default:
+                return a;
+        }
+    }
+
+    std::vector<ArtPlayer> players(Formation f, const Play* play = nullptr) const {
+        if (f.unit != Unit::Defense) throw PlayError("formation " + f.id + " is not defensive");
+        for (FormationSlot& s : f.slots) {
+            if (play) {
+                const auto a = play->assignments.find(s.name);
+                if (a != play->assignments.end()) {
+                    if (a->second.align_x) s.x = *a->second.align_x;
+                    if (a->second.align_y) s.y = *a->second.align_y;
+                }
+            }
+            s.x = x(s.x);
+        }
+        return place(f, frame_);
+    }
+
+    ArtZone zone(const Zone& z) const {
+        AnchorContext ctx;
+        ctx.frame = &frame_;
+        const auto point = [&](const Anchor& ax, const Anchor& ay) {
+            return Vec2{resolve_x(x(ax), ctx), resolve_y(ay, ctx)};
+        };
+        ArtZone out;
+        out.drop = point(z.drop_x, z.drop_y);
+        out.width = z.width;
+        out.depth_min = z.depth_min;
+        out.depth_max = z.depth_max;
+        out.radius = z.radius;
+        out.end_a = out.end_b = out.drop;
+        if (z.ends) {
+            out.end_a = point((*z.ends)[0].x, (*z.ends)[0].y);
+            out.end_b = point((*z.ends)[1].x, (*z.ends)[1].y);
+        }
+        return out;
+    }
+
+  private:
+    static double sign(Side s) { return s == Side::Left ? -1.0 : 1.0; }
+    double outer() const { return 3.0 + tuning_.ghost_te_split; }
+    double tech(const std::string& t) const {
+        if (t == "0") return 0.0;
+        if (t == "1") return 0.75;
+        if (t == "2i") return 1.5 - tuning_.shade;
+        if (t == "2") return 1.5;
+        if (t == "3") return 1.5 + tuning_.shade;
+        if (t == "4i") return 3.0 - tuning_.shade;
+        if (t == "4") return 3.0;
+        if (t == "5") return 3.0 + tuning_.shade;
+        if (t == "7") return outer() - tuning_.shade;
+        if (t == "6") return outer();
+        if (t == "9") return outer() + tuning_.shade;
+        throw GeometryError("unknown technique '" + t + "'");
+    }
+
+    const DefenseTuning& tuning_;
+    double contain_outside_;
+    PlayFrame frame_ = art_frame(false);
+    LineGaps gaps_ = find_gaps(0.0, std::array<double, 5>{-3.0, -1.5, 0.0, 1.5, 3.0});
+};
+
+Json defensive_job_json(const DefensiveArtJob& job) {
+    Json out = {{"slot", job.slot}, {"kind", to_string(job.kind)}};
+    if (job.kind == JobKind::Zone) {
+        const ArtZone& a = *job.area;
+        Json area = {{"drop", point_json(a.drop)}};
+        if (a.radius > 0.0) {
+            area["shape"] = "capsule";
+            area["ends"] = Json::array({point_json(a.end_a), point_json(a.end_b)});
+            area["radius"] = round2(a.radius);
+        } else {
+            area["shape"] = "box";
+            area["width"] = round2(a.width);
+            area["depth"] = Json::array({round2(a.depth_min), round2(a.depth_max)});
+        }
+        out["area"] = std::move(area);
+        out["points"] = points_json(job.points);
+    } else if (job.kind == JobKind::Man || job.kind == JobKind::Spy) {
+        out["at"] = point_json(job.at);
+        if (job.kind == JobKind::Man) out["leverage"] = job.leverage;
+    } else {
+        out["points"] = points_json(job.points);
+        out["contain"] = job.contain;
+    }
+    return out;
+}
+
+}  // namespace
+
+DefensiveFormationArt defensive_formation_art(const DataSet& data, const Formation& formation) {
+    try {
+        return {formation.id, formation.name, formation.package, DefensiveBase(data).players(formation)};
+    } catch (const GeometryError& e) {
+        throw PlayError("formation " + formation.id + ": " + e.what());
+    }
+}
+
+DefensivePlayArt defensive_play_art(const DataSet& data, const Play& play) {
+    try {
+        if (play.unit != Unit::Defense) throw PlayError("not a defensive play");
+        const auto f = data.formations.find(play.formation);
+        if (f == data.formations.end()) throw PlayError("unknown formation '" + play.formation + "'");
+        const DefensiveBase base(data);
+        DefensivePlayArt art{play.id, play.name, play.formation, play.coverage, base.players(f->second, &play), {}};
+        for (const ArtPlayer& player : art.players) {
+            const auto a = play.assignments.find(player.slot);
+            if (a == play.assignments.end() || !a->second.pass) {
+                throw PlayError("no pass responsibility for " + player.slot);
+            }
+            const Job& job = *a->second.pass;
+            DefensiveArtJob drawn;
+            drawn.slot = player.slot;
+            drawn.kind = job.kind;
+            switch (job.kind) {
+                case JobKind::Zone: {
+                    const auto z = data.zones.find(job.ref);
+                    if (z == data.zones.end()) throw PlayError("unknown zone '" + job.ref + "' for " + player.slot);
+                    drawn.area = base.zone(z->second);
+                    drawn.points = {player.pos, drawn.area->drop};
+                    break;
+                }
+                case JobKind::Man:
+                    drawn.at = player.pos;
+                    drawn.leverage = job.ref == "outside" ? "outside" : "inside";
+                    break;
+                case JobKind::Spy:
+                    drawn.at = {0.0, 5.0};
+                    break;
+                case JobKind::Rush:
+                case JobKind::Blitz:
+                case JobKind::Stunt: {
+                    const Side side = job.side == Side::None
+                                          ? (player.pos.x < 0.0 ? Side::Left : Side::Right)
+                                          : base.side(job.side);
+                    const std::string& lane = job.gap.empty() ? job.ref : job.gap;
+                    drawn.contain = lane.empty() || lane == "contain";
+                    const double x = drawn.contain ? base.contain(side) : base.gap(side, lane);
+                    drawn.points = {player.pos, {x, 0.0}, {x, -3.0}};
+                    break;
+                }
+                default:
+                    throw PlayError("unsupported pass responsibility '" + std::string(to_string(job.kind)) +
+                                    "' for " + player.slot);
+            }
+            art.jobs.push_back(std::move(drawn));
+        }
+        return art;
+    } catch (const GeometryError& e) {
+        throw PlayError("play " + play.id + ": " + e.what());
+    } catch (const PlayError& e) {
+        throw PlayError("play " + play.id + ": " + e.what());
+    }
+}
+
+Json defensive_playbook_art_json(const DataSet& data, const std::string& team_id) {
+    const auto team = data.teams.find(team_id);
+    if (team == data.teams.end()) throw PlayError("unknown team '" + team_id + "'");
+    const auto book = data.playbooks.find(team->second.defense_playbook);
+    if (book == data.playbooks.end()) throw PlayError("unknown playbook '" + team->second.defense_playbook + "'");
+    if (book->second.side != PlaybookSide::Defense) throw PlayError("playbook " + book->first + " is not defensive");
+
+    std::vector<std::string> order = book->second.formations;
+    Json plays = Json::array();
+    for (const Play& p : book->second.plays) {
+        const DefensivePlayArt art = defensive_play_art(data, p);
+        if (std::find(order.begin(), order.end(), p.formation) == order.end()) order.push_back(p.formation);
+        Json jobs = Json::array();
+        for (const DefensiveArtJob& job : art.jobs) jobs.push_back(defensive_job_json(job));
+        plays.push_back({{"id", art.id}, {"name", art.name}, {"formation", art.formation}, {"coverage", art.coverage},
+                         {"players", players_json(art.players)}, {"jobs", std::move(jobs)}});
+    }
+    Json formations = Json::array();
+    for (const std::string& id : order) {
+        const bool used = std::any_of(plays.begin(), plays.end(), [&](const Json& p) { return p["formation"] == id; });
+        if (!used) continue;
+        const DefensiveFormationArt art = defensive_formation_art(data, data.formations.at(id));
+        formations.push_back({{"id", art.id}, {"name", art.name}, {"package", art.package},
+                              {"players", players_json(art.players)}});
+    }
+    return {{"unit", "defense"}, {"team", team_id}, {"playbook", book->first},
+            {"formations", std::move(formations)}, {"plays", std::move(plays)}};
 }
 
 }  // namespace cfbsim

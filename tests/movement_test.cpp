@@ -5,6 +5,8 @@
 
 #include <gtest/gtest.h>
 
+#include <bit>
+#include <cstdint>
 #include <cmath>
 #include <numbers>
 #include <string>
@@ -13,6 +15,7 @@
 #include "cfbsim/data/load.h"
 #include "cfbsim/drills/drills.h"
 #include "cfbsim/world/world.h"
+#include "physics/movement_step.h"
 
 using namespace cfbsim;
 
@@ -219,4 +222,35 @@ TEST(Collisions, HeadOnRunnersBumpInsteadOfPassingThrough) {
     // The 200 lb player gets knocked backward; the 300 lb player never does.
     EXPECT_LT(lightest_vx, -1.0);
     EXPECT_LT(heaviest_vx, 0.0);
+}
+
+// Exact comparisons guard rounding, braking, cuts, facing, and carrying across
+// repeated forecast ticks. Ratings/tick durations each get their own cache.
+TEST(Movement, PrecomputedStepsMatchOrdinaryMovementExactly) {
+    const auto bits = [](double value) { return std::bit_cast<std::uint64_t>(value); };
+    for (double rating : {30.0, 70.0, 95.0}) {
+        for (double dt : {0.01, kTickSeconds, 0.1}) {
+            Agent ordinary = moving_agent(rating, rating, {3.0, -2.0});
+            Agent cached = ordinary;
+            const MovementStep step{cached.move, tuning(), dt};
+            for (int tick = 0; tick < 240; ++tick) {
+                SCOPED_TRACE(::testing::Message() << rating << "/" << dt << "/" << tick);
+                const double angle = static_cast<double>(tick) * 0.19;
+                Intent intent;
+                intent.velocity = tick % 11 == 0 ? Vec2{} :
+                    Vec2{std::cos(angle), std::sin(angle)} * (tick % 3 == 0 ? 2.0 : 12.0);
+                intent.plant = tick % 4 == 0;
+                if (tick % 5 == 0) intent.face = Vec2{-1.0, 0.0};
+                ordinary.carrying = cached.carrying = tick % 7 < 3;
+                move_agent(ordinary, intent, tuning(), dt);
+                move_agent_precomputed(cached, intent, tuning(), step);
+                EXPECT_EQ(bits(ordinary.pos.x), bits(cached.pos.x));
+                EXPECT_EQ(bits(ordinary.pos.y), bits(cached.pos.y));
+                EXPECT_EQ(bits(ordinary.vel.x), bits(cached.vel.x));
+                EXPECT_EQ(bits(ordinary.vel.y), bits(cached.vel.y));
+                EXPECT_EQ(bits(ordinary.facing.x), bits(cached.facing.x));
+                EXPECT_EQ(bits(ordinary.facing.y), bits(cached.facing.y));
+            }
+        }
+    }
 }

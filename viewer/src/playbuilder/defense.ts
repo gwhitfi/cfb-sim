@@ -3,6 +3,9 @@
 // each position is offered, the loader's checks, and the JSON written and
 // read. No DOM (defense.test.ts).
 
+import startingFormation from "../../../data/formations/defense/43_over.json?raw";
+import startingBook from "../../../data/playbooks/43_base.json?raw";
+import { parseJsonText } from "./paste";
 import { anchorJson, parseAnchor, type Anchor, type Gap, type SideWord } from "./anchors";
 
 export const DEFENSE_POSITIONS = ["DE", "DT", "OLB", "MLB", "CB", "SS", "FS"] as const;
@@ -12,6 +15,8 @@ export const STRENGTH_CALLS = ["te", "passing_strength", "field", "boundary", "b
 export const SUPPORTS = ["alley_strong", "alley_weak", "force_strong", "force_weak", "deep_third", "deep_fill", "alley", "force"] as const;
 export const RUSH_LANES = ["contain", "A", "B", "C", "D"] as const;
 export const MAN_TARGETS = ["#1_strong", "#2_strong", "#3_strong", "#1_weak", "#2_weak", "#3_weak", "back_1", "back_2"] as const;
+// Match the sim's receiver-key syntax; imported back keys remain intact.
+export const isZoneRead = (value: string): boolean => /^#[1-3]_(strong|weak)$/.test(value) || value.startsWith("back_");
 export const DEFENSE_TAGS = [
   "base", "pressure", "man", "zone", "vs_run", "vs_pass", "1st_down", "2nd_long", "3rd_long", "3rd_medium", "3rd_short",
   "short_yardage", "goal_line", "red_zone", "two_minute", "prevent",
@@ -34,7 +39,7 @@ export interface DefFormation {
 export type RunJob = { kind: "gap"; gap: Gap; side: SideWord } | { kind: "support"; ref: string } | { kind: "contain" } | { kind: "pursue" };
 export type PassJob =
   | { kind: "rush"; lane: string; side: SideWord | "" }
-  | { kind: "zone"; ref: string }
+  | { kind: "zone"; ref: string; read?: string }
   | { kind: "man"; target: string; leverage: "inside" | "outside" }
   | { kind: "spy" }
   | { kind: "blitz"; gap: Gap; side: SideWord }
@@ -116,53 +121,12 @@ export function makeAssign(s: DefSlot, side: "strong" | "weak", zones: readonly 
 
 // 4-3 Over Cover 3 (data/formations/defense/43_over.json, playbooks/43_base.json).
 export function defaultDefenseFormation(): DefFormation {
-  const tech = (t: string, side: SideWord): Anchor => ({ kind: "tech", ref: t, side, offset: 0 });
-  const d = (name: string, pos: string, x: Anchor, y: number, stance = ""): DefSlot => ({ name, pos, x, y, stance });
-  return {
-    id: "43_over",
-    name: "4-3 Over",
-    package: "base",
-    slots: [
-      d("SDE", "DE", tech("5", "strong"), 1, "three_point"),
-      d("DT", "DT", tech("3", "strong"), 1, "three_point"),
-      d("NT", "DT", tech("1", "weak"), 1, "three_point"),
-      d("WDE", "DE", tech("5", "weak"), 1, "three_point"),
-      d("SAM", "OLB", tech("9", "strong"), 4.5),
-      d("MIKE", "MLB", { kind: "ball", offset: 0 }, 5),
-      d("WILL", "OLB", tech("3", "weak"), 5),
-      d("SCB", "CB", { kind: "over", ref: "#1", side: "strong", offset: 1 }, 7),
-      d("WCB", "CB", { kind: "over", ref: "#1", side: "weak", offset: 1 }, 7),
-      d("SS", "SS", { kind: "hash", side: "strong", offset: 0 }, 9),
-      d("FS", "FS", { kind: "ball", offset: 0 }, 13),
-    ],
-  };
+  return parseDefenseFormation(parseJsonText(startingFormation) as Obj);
 }
 
 export function defaultDefensePlay(): DefensePlay {
-  const a = (run: RunJob, pass: PassJob): DefAssign => ({ run, pass, align: {} });
-  const gap = (g: Gap, side: SideWord): RunJob => ({ kind: "gap", gap: g, side });
-  const rush = (lane: string): PassJob => ({ kind: "rush", lane, side: "" });
-  const zone = (ref: string): PassJob => ({ kind: "zone", ref });
-  const support = (ref: string): RunJob => ({ kind: "support", ref });
-  return {
-    id: "43_over_cover3",
-    name: "Over Cover 3",
-    coverage: "cover_3",
-    tags: ["base", "zone", "vs_run", "1st_down"],
-    assignments: {
-      SDE: a(gap("C", "strong"), rush("contain")),
-      DT: a(gap("B", "strong"), rush("B")),
-      NT: a(gap("A", "weak"), rush("A")),
-      WDE: a(gap("C", "weak"), rush("contain")),
-      SAM: a(gap("D", "strong"), zone("curl_flat_strong")),
-      MIKE: a(gap("A", "strong"), zone("hook_middle")),
-      WILL: a(gap("B", "weak"), zone("curl_flat_weak")),
-      SCB: a(support("deep_third"), zone("deep_third_strong")),
-      WCB: a(support("deep_third"), zone("deep_third_weak")),
-      SS: a(support("alley_strong"), zone("hook_curl_strong")),
-      FS: a(support("deep_fill"), zone("deep_middle")),
-    },
-  };
+  const book = parseJsonText(startingBook) as { plays: Obj[] };
+  return parseDefensePlay(book.plays[0]!, defaultDefenseFormation()).play;
 }
 
 export function newDefSlot(pos: string, taken: string[]): DefSlot {
@@ -204,6 +168,7 @@ export function playProblems(f: DefFormation, p: DefensePlay, calls: string[], z
       continue;
     }
     if (a.pass.kind === "zone" && !known(a.pass.ref)) out.push(`${s.name}: unknown zone '${a.pass.ref}'`);
+    if (a.pass.kind === "zone" && a.pass.read && !isZoneRead(a.pass.read)) out.push(`${s.name}: invalid zone read '${a.pass.read}'`);
     if (a.pass.kind === "man") men.set(a.pass.target, [...(men.get(a.pass.target) ?? []), s.name]);
   }
   for (const [target, who] of men) if (who.length > 1) out.push(`${who.join(" and ")} both have ${target} in man`);
@@ -236,7 +201,7 @@ export function runJson(j: RunJob): object {
 export function passJson(j: PassJob): object {
   switch (j.kind) {
     case "rush": return { rush: { lane: j.lane, ...(j.side ? { side: j.side } : {}) } };
-    case "zone": return { zone: j.ref };
+    case "zone": return { zone: j.ref, ...(j.read ? { read: j.read } : {}) };
     case "man": return { man: j.leverage === "inside" ? j.target : { target: j.target, leverage: j.leverage } };
     case "spy": return { spy: true };
     case "blitz": return { blitz: { gap: j.gap, side: j.side } };
@@ -283,8 +248,12 @@ export function parseRun(o: Obj): RunJob {
 }
 
 export function parsePass(o: Obj): PassJob {
+  if (o.read !== undefined && typeof o.zone !== "string") throw new Error("read only applies to zones");
   if (isObj(o.rush)) return { kind: "rush", lane: str(o.rush.lane) || str(o.rush.gap, "contain"), side: o.rush.side ? sideOf(o.rush.side) : "" };
-  if (typeof o.zone === "string") return { kind: "zone", ref: o.zone };
+  if (typeof o.zone === "string") {
+    if (o.read !== undefined && (typeof o.read !== "string" || !isZoneRead(o.read))) throw new Error("invalid zone read");
+    return { kind: "zone", ref: o.zone, ...(typeof o.read === "string" ? { read: o.read } : {}) };
+  }
   if (typeof o.man === "string") return { kind: "man", target: o.man, leverage: "inside" };
   if (isObj(o.man)) return { kind: "man", target: str(o.man.target), leverage: o.man.leverage === "outside" ? "outside" : "inside" };
   if (o.spy) return { kind: "spy" };

@@ -1,114 +1,159 @@
 {
-  // Pursuit, run fits, tackles, fumbles, and the loose ball
-  // (docs/cfbsim_design.md#ball-carrier-pursuit-and-tackling).
-  "format_version": 1,
+    // Pursuit, run fits, tackles, fumbles, and the loose ball
+    // (docs/cfbsim_design.md#ball-carrier-pursuit-and-tackling).
+    "format_version": 1,
 
-  "pursuit": {
-    "skill": {"pursuit": 0.6, "anticipation": 0.4},
-    "prediction": {"curve": "linear", "points": [[0, 0.3], [100, 1.0]]},  // share of the carrier's velocity he projects
-    "lag": {"curve": "linear", "points": [[0, 0.35], [100, 0.1]]},        // s: how late he sees the carrier
-    "upfield": 0.5,           // he expects the carrier's heading to bend this far toward downfield
-    "horizon": 3.0,           // s he looks ahead for an intercept point ...
-    "step": 0.05,             // ... in steps of this
-    "attack_range": 4.0,      // yd: this close he goes at the carrier ...
-    "attack_lead": 0.4,       // ... leading him by his lag plus the time to get there, at most this many s
-                              // (the lead fades to just his lag as he comes into reach)
-    "close_band": 1.0,        // yd past his reach: alongside him here and ...
-    "close_min": 1.5,         // ... closing slower than this (yd/s), he cuts into the carrier's body
-    // Breaking down: with the carrier coming at him his speed is capped at
-    // breakdown_speed + breakdown_decel x time to contact. Late and hard (about
-    // 0.2 s out) tackles well: braking much earlier lets the carrier slide past him.
-    "breakdown_speed": {"curve": "linear", "points": [[0, 5.5], [100, 3.5]]},  // pursuit skill -> yd/s at contact
-    "breakdown_decel": 24,    // yd/s^2
-    "breakdown_cos": 0.5,     // "at him": within about 60 degrees of the carrier's heading
-    "leverage": 1.0,          // yd inside of the intercept point (outside for the contain man)
-    "leverage_range": 3.0,    // yd: closer than this, straight at it
-    "squeeze_room": 4.0,      // yd: with the carrier this close to a sideline, no offset (the sideline is his help)
-    "sideline_inside": 1.0,   // yd: predictions stay this far inside the sidelines
-    "top_cushion": 3.0,       // yd: a pursuer this far downfield of the carrier stays on top ...
-    "top_keep": 0.5,          // ... aiming at least this share of his cushion downfield of him
-    "effort_range": 10.0,     // yd: further from the carrier than this ...
-    "effort": {"curve": "linear", "points": [[0, 0.75], [100, 1.0]]}  // ... Work Rate -> share of top speed
-  },
-
-  "fits": {
-    "depth": 1.0,             // yd off the ball a linebacker fills his gap, at the closest ...
-    "step": 1.5,              // ... stepping this far up from his alignment (he scrapes at depth)
-    "flow_share": 0.4,        // the fit point shifts this share toward the carrier's x ...
-    "flow_max": 1.5,          // ... at most this many yd
-    "commit_range": 3.0,      // yd: the carrier this close ends the fit
-    "stay_in_gap": {"curve": "linear", "points": [[0, 0.6], [100, 0.97]]},  // Discipline -> chance he stays home
-    // Linebackers (off-ball gap fits whose pass job is coverage, not a blitz or
-    // rush) wait this long after the snap before fitting or chasing a run.
-    "lb_run_delay": 1.5
-  },
-
-  "tackle": {
-    "skill": {"tackling": 0.5, "strength": 0.15, "hit_power": 0.15, "aggression": 0.1, "agility": 0.1},
-    "resistance": {"break_tackle": 0.4, "balance": 0.25, "strength": 0.2, "elusiveness": 0.15},
-    "edge": 20,               // points added to every tackle score (the tackler's job is to make it)
-    // Contact quality (0-1) = distance factor x angle factor; it adds
-    // points + per_ln x ln(quality) to the tackle score (at least min).
-    "contact": {
-      "points": 25, "per_ln": 43.5, "min": 0.05,
-      // distance: 1 with the bodies touching, falling as (gap / arm)^shape to
-      // far at full arm's length (reach - radius); past it (a dive or a lunge)
-      // on down to far x dive.far at the end of the dive band
-      "shape": 1.5, "far": 0.4,
-      "side": 0.55,               // angle: 1 in front of his heading, this beside him ...
-      "side_drive": 0.4,          // ... and this share of the way to 1 driving into him at chase_speed
-      "behind": 0.15, "chase": 0.4, "chase_speed": 3.0,  // ... behind: chase when closing at chase_speed (yd/s)
-      "touch": 0.05,              // yd: a gap this small, he tries now ...
-      "wait": 0.3, "gain": 0.1    // ... else he waits while he'll be gain yd closer within wait s
+    "pursuit": {
+        "skill": { "pursuit": 0.6, "anticipation": 0.4 },
+        "prediction": {
+            "curve": "linear",
+            "points": [
+                [0, 0.3],
+                [100, 1.0]
+            ]
+        }, // fraction of the planning horizon he searches; carrier speed is not scaled
+        "lag": {
+            "curve": "linear",
+            "points": [
+                [0, 0.35],
+                [100, 0.1]
+            ]
+        }, // s: how late he sees the carrier
+        "upfield": 0.5, // projected heading bends this far toward downfield over the full horizon
+        "horizon": 3.0, // maximum lookahead in s, multiplied by prediction quality
+        "step": 0.05, // fine search resolution (whole ticks); coarse search uses four steps
+        "attack_range": 4.0, // yd: blend interception into close attack over this range ...
+        "attack_lead": 0.4, // ... extra close-attack lead beyond the perceived present position (s)
+        // (the extra lead fades to zero at body contact; seen() already compensates for lag)
+        "close_band": 1.0, // yd past his reach: blend into body-driving inside this band ...
+        "close_min": 1.5, // ... as closing speed drops below this (yd/s)
+        // Breaking down: with the carrier coming at him his speed is capped at
+        // breakdown_speed + breakdown_decel x time to contact. Late and hard (about
+        // 0.2 s out) tackles well: braking much earlier lets the carrier slide past him.
+        "breakdown_speed": {
+            "curve": "linear",
+            "points": [
+                [0, 5.5],
+                [100, 3.5]
+            ]
+        }, // pursuit skill -> yd/s at contact
+        "breakdown_decel": 24, // yd/s^2
+        "breakdown_cos": 0.5, // "at him": within about 60 degrees of the carrier's heading
+        "leverage": 1.0, // yd inside of the intercept point (outside for the contain man)
+        "leverage_range": 3.0, // yd: leverage fades from full here to zero at body contact
+        "squeeze_room": 4.0, // yd: leverage fades toward zero between here and sideline_inside
+        "sideline_inside": 1.0, // yd: prediction boundary (preserve an observed runner already closer)
+        "top_cushion": 3.0, // yd: cushion protection blends in from here to twice this distance ...
+        "top_keep": 0.5, // ... toward retaining this share of cushion, fading with close attack
+        "effort_range": 10.0, // yd: further from the carrier than this ...
+        "effort": {
+            "curve": "linear",
+            "points": [
+                [0, 0.75],
+                [100, 1.0]
+            ]
+        } // ... Work Rate -> share of top speed (blends over attack_range beyond effort_range)
     },
-    "momentum": {"points": 10, "cap": 10, "speed": 2.0},  // points x ln(tackler / carrier lb x (speed + this))
-    "assist": {"points": 10, "seconds": 0.5, "max": 2},
-    // A free defender closing on the carrier lunges: + per_closing yd of reach
-    // per yd/s he's closing, up to max yd, at up to penalty points off the score.
-    "lunge": {"per_closing": 0.12, "max": 0.7, "penalty": 8},
-    // A free defender extra yd past his reach dives once he can't get to his
-    // reach on his feet: the most he could close (his top speed less the
-    // carrier's speed away from him) under closing yd/s, or taking over wait s.
-    "dive": {"extra": 0.8, "closing": 0.5, "wait": 0.3, "far": 0.5, "penalty": 12, "down": [0.8, 1.2]},
-    "arm_base": 0.2,          // an engaged defender's arm tackle: x (base + (1 - base) x shed) ...
-    "arm_min_shed": 0.85,      // ... once his shed progress is this far ...
-    "arm_reach": 0.5,         // ... within this share of his reach
-    "arm_retry": 0.5,         // s before he can try again
-    "block_recover": 0.6,     // s after a block starts or ends before he can try any tackle (or dive)
-    "scale": 20,              // d = (T - C) / scale
-    // Outcome weights: base x exp(slope x d), normalized.
-    "outcomes": {
-      "clean":  {"base": 0.55, "slope": 1.0},
-      "drag":   {"base": 0.33, "slope": 0.3},
-      "broken": {"base": 0.09, "slope": -1.0},
-      "missed": {"base": 0.09, "slope": -1.0}
+
+    "fits": {
+        "depth": 1.0, // yd off the ball a linebacker fills his gap, at the closest ...
+        "step": 1.5, // ... stepping this far up from his alignment (he scrapes at depth)
+        "flow_share": 0.4, // the fit point shifts this share toward the carrier's x ...
+        "flow_max": 1.5, // ... at most this many yd
+        "commit_range": 3.0, // yd: the carrier this close ends the fit
+        "stay_in_gap": {
+            "curve": "linear",
+            "points": [
+                [0, 0.6],
+                [100, 0.97]
+            ]
+        }, // Discipline -> chance he stays home
+        // Linebackers (off-ball gap fits whose pass job is coverage, not a blitz or
+        // rush) wait this long after the snap before fitting or chasing a run.
+        "lb_run_delay": 1.5
     },
-    "drag": {"share": 0.5, "distance": [1.0, 3.5]},      // speed share, yd
-    "broken": {"keep": [0.5, 0.8], "stumble": 0.5, "tackler_down": [0.8, 1.5]},
-    "missed": {"stumble": 0.6, "keep": 0.95},
-    "stumble_speed": 0.6,     // share of top speed while stumbling
-    "fall": {"max": 2.0, "speed": 9.0,   // forward fall: yd at full forward momentum (carrier lb x this yd/s)
-             "slide": 0.75,              // yd the tackled carrier and the pile on him slide after the whistle, at most ...
-             "pile": 1.5}                // ... the pile: everyone this close to him (yd)
-  },
 
-  "fumble": {
-    "chance": {"curve": "linear", "points": [[0, 0.016], [100, 0.002]]},  // Ball Security -> per tackle event
-    "hit_power": 0.5,         // x (1 + this x (Hit Power - 50) / 50)
-    "blind": 1.5,             // hit from behind or his blind side
-    "big_hit": 2.0,
-    "big_hit_momentum": 2.0   // a big hit needs the tackler's momentum this many times the carrier's
-  },
+    "tackle": {
+        "skill": { "tackling": 0.5, "strength": 0.15, "hit_power": 0.15, "aggression": 0.1, "agility": 0.1 },
+        "resistance": { "break_tackle": 0.4, "balance": 0.25, "strength": 0.2, "elusiveness": 0.15 },
+        "edge": 20, // points added to every tackle score (the tackler's job is to make it)
+        // Contact quality (0-1) = distance factor x angle factor; it adds
+        // points + per_ln x ln(quality) to the tackle score (at least min).
+        "contact": {
+            "points": 25,
+            "per_ln": 43.5,
+            "min": 0.05,
+            // distance: 1 with the bodies touching, falling as (gap / arm)^shape to
+            // far at full arm's length (reach - radius); past it (a dive or a lunge)
+            // on down to far x dive.far at the end of the dive band
+            "shape": 1.5,
+            "far": 0.4,
+            "side": 0.55, // angle: 1 in front of his heading, this beside him ...
+            "side_drive": 0.4, // ... and this share of the way to 1 driving into him at chase_speed
+            "behind": 0.15,
+            "chase": 0.4,
+            "chase_speed": 3.0, // ... behind: chase when closing at chase_speed (yd/s)
+            "touch": 0.05, // yd: a gap this small, he tries now ...
+            "wait": 0.3,
+            "gain": 0.1 // ... else he waits while he'll be gain yd closer within wait s
+        },
+        "momentum": { "points": 10, "cap": 10, "speed": 2.0 }, // points x ln(tackler / carrier lb x (speed + this))
+        "assist": { "points": 10, "seconds": 0.5, "max": 2 },
+        // A free defender closing on the carrier lunges: + per_closing yd of reach
+        // per yd/s he's closing, up to max yd, at up to penalty points off the score.
+        "lunge": { "per_closing": 0.12, "max": 0.7, "penalty": 8 },
+        // A free defender extra yd past his reach dives once he can't get to his
+        // reach on his feet: the most he could close (his top speed less the
+        // carrier's speed away from him) under closing yd/s, or taking over wait s.
+        "dive": { "extra": 0.8, "closing": 0.5, "wait": 0.3, "far": 0.5, "penalty": 12, "down": [0.8, 1.2] },
+        "arm_base": 0.2, // an engaged defender's arm tackle: x (base + (1 - base) x shed) ...
+        "arm_min_shed": 0.85, // ... once his shed progress is this far ...
+        "arm_reach": 0.5, // ... within this share of his reach
+        "arm_retry": 0.5, // s before he can try again
+        "block_recover": 0.6, // s after a block starts or ends before he can try any tackle (or dive)
+        "scale": 20, // d = (T - C) / scale
+        // Outcome weights: base x exp(slope x d), normalized.
+        "outcomes": {
+            "clean": { "base": 0.55, "slope": 1.0 },
+            "drag": { "base": 0.33, "slope": 0.3 },
+            "broken": { "base": 0.09, "slope": -1.0 },
+            "missed": { "base": 0.09, "slope": -1.0 }
+        },
+        "drag": { "share": 0.5, "distance": [1.0, 3.5] }, // speed share, yd
+        "broken": { "keep": [0.5, 0.8], "stumble": 0.5, "tackler_down": [0.8, 1.5] },
+        "missed": { "stumble": 0.6, "keep": 0.95 },
+        "stumble_speed": 0.6, // share of top speed while stumbling
+        "fall": {
+            "max": 2.0,
+            "speed": 9.0, // forward fall: yd at full forward momentum (carrier lb x this yd/s)
+            "slide": 0.75, // yd the tackled carrier and the pile on him slide after the whistle, at most ...
+            "pile": 1.5
+        } // ... the pile: everyone this close to him (yd)
+    },
 
-  "loose_ball": {
-    "out_speed": [2.0, 4.0],  // yd/s, random direction, plus half the carrier's velocity
-    "out_up": [1.0, 3.0],     // yd/s up
-    "bounce": {"keep_z": 0.35, "keep_xy": 0.6, "turn_deg": 60},
-    "roll_friction": 4.0,     // yd/s^2
-    "recover_height": 1.0,    // yd: below this it can be recovered
-    "recover_rate": 0.35,     // chance per tick at full skill (x (0.5 + skill / 200))
-    "recover_skill": {"ball_skills": 0.4, "anticipation": 0.3, "bravery": 0.3},
-    "scoop": 0.3,             // x skill / 100: picks it up and runs instead of falling on it
-    "lead": 0.3               // s ahead of the ball players run at
-  }
+    "fumble": {
+        "chance": {
+            "curve": "linear",
+            "points": [
+                [0, 0.016],
+                [100, 0.002]
+            ]
+        }, // Ball Security -> per tackle event
+        "hit_power": 0.5, // x (1 + this x (Hit Power - 50) / 50)
+        "blind": 1.5, // hit from behind or his blind side
+        "big_hit": 2.0,
+        "big_hit_momentum": 2.0 // a big hit needs the tackler's momentum this many times the carrier's
+    },
+
+    "loose_ball": {
+        "out_speed": [2.0, 4.0], // yd/s, random direction, plus half the carrier's velocity
+        "out_up": [1.0, 3.0], // yd/s up
+        "bounce": { "keep_z": 0.35, "keep_xy": 0.6, "turn_deg": 60 },
+        "roll_friction": 4.0, // yd/s^2
+        "recover_height": 1.0, // yd: below this it can be recovered
+        "recover_rate": 0.35, // chance per tick at full skill (x (0.5 + skill / 200))
+        "recover_skill": { "ball_skills": 0.4, "anticipation": 0.3, "bravery": 0.3 },
+        "scoop": 0.3, // x skill / 100: picks it up and runs instead of falling on it
+        "lead": 0.3 // s ahead of the ball players run at
+    }
 }

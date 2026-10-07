@@ -269,10 +269,11 @@ namespace {
 
 // Each tick's play-frame position (depth past the line, lateral from the
 // ball) of the named slots, read back from the tracking file.
-std::map<std::string, std::vector<Vec2>> tracks(const PlayOptions& o, std::initializer_list<const char*> slots) {
+std::map<std::string, std::vector<Vec2>> tracks(const PlayOptions& o, std::initializer_list<const char*> slots,
+                                                const DataSet& d = data()) {
     std::ostringstream out;
     TrackingWriter writer(out);
-    run_play(data(), o, &writer);
+    run_play(d, o, &writer);
     std::istringstream in(out.str());
     std::string line;
     std::vector<std::string> labels;
@@ -366,6 +367,116 @@ TEST(Coverage, DISABLED_WideDeepZonesKeepOutsideLeverage) {
         if (std::abs(w.y) > std::abs(h.y)) ++outside;
     }
     EXPECT_GE(outside, 8);
+}
+
+TEST(Coverage, ADeepZoneCarriesItsReadWhenHeGoesVertical) {
+    // Trips against Cover 4, the QB holding the ball. The FS (the weak
+    // inside quarter) reads #3 strong, Y. On Four Verts Y's post goes
+    // vertical up the strong side, so the FS leaves his quarter and carries
+    // him; without the read he stays in his quarter, across the field.
+    DataSet with_read = data();
+    DataSet without = data();
+    for (DataSet* d : {&with_read, &without}) {
+        for (Play& p : d->playbooks.at("43_base").plays) {
+            if (p.id != "cover_4_quarters") continue;
+            for (const char* safety : {"SS", "FS"}) p.assignments.at(safety).pass->target = "";
+            if (d == &with_read) p.assignments.at("FS").pass->target = "#3_strong";
+        }
+    }
+    // The FS starts 16 yd across from Y, so look at 3 s: with the read he
+    // has closed most of that gap and is over the top; without it he hasn't moved over.
+    const std::size_t at = 60;  // 3 s
+    int carried = 0;
+    for (std::uint64_t seed = 1; seed <= 10; ++seed) {
+        PlayOptions o = matchup("four_verts", "cover_4_quarters", seed);
+        o.hold_ball = true;
+        const auto t = tracks(o, {"Y", "FS"}, with_read);
+        const auto n = tracks(o, {"Y", "FS"}, without);
+        const std::size_t k = std::min({at, t.at("Y").size() - 1, n.at("Y").size() - 1});
+        const double gap = std::abs(t.at("FS")[k].y - t.at("Y")[k].y);
+        const double gap_without = std::abs(n.at("FS")[k].y - n.at("Y")[k].y);
+        if (gap < gap_without - 4.0 && t.at("FS")[k].x > t.at("Y")[k].x) ++carried;
+    }
+    EXPECT_GE(carried, 8);
+
+    // Y's short curl (up 5 yd, then breaking inside to 8) isn't a vertical:
+    // the read can flicker on for a moment at the top of his stem, but the
+    // FS stays within a step or so of where he'd be without it.
+    for (std::uint64_t seed = 1; seed <= 5; ++seed) {
+        PlayOptions o = matchup("trips_all_curl", "cover_4_quarters", seed);
+        o.hold_ball = true;
+        const auto t = tracks(o, {"FS"}, with_read).at("FS");
+        const auto n = tracks(o, {"FS"}, without).at("FS");
+        ASSERT_EQ(t.size(), n.size());
+        double most = 0.0;
+        for (std::size_t k = 0; k < t.size(); ++k) most = std::max(most, (t[k] - n[k]).length());
+        EXPECT_LT(most, 1.5) << "seed " << seed;
+    }
+}
+
+TEST(Coverage, DefendersWhoBeatTheBallStopOnIt) {
+    // Deep throws against Cover 3 and Cover 4. A defender who gets to where the ball
+    // comes down before it does stops there (he used to run at it flat out
+    // and slide 4-5 yd past). For each throw: the ball's spot (where its
+    // flight comes down through chest height, worked out from its first
+    // ticks in the air), and every defender who was within 1 yd of it before
+    // the ball got there (down to chest height, or played) must still be
+    // within 2 yd then.
+    const PassingTuning& pt = data().tuning.passing;
+    int early = 0;
+    for (int run = 0; run < 80; ++run) {
+        const std::uint64_t seed = static_cast<std::uint64_t>(run / 2 + 1);
+        std::ostringstream out;
+        TrackingWriter writer(out);
+        run_play(data(), matchup("four_verts", run % 2 == 0 ? "cover_3_sky" : "cover_4_quarters", seed), &writer);
+        std::istringstream in(out.str());
+        std::string line;
+        std::size_t defense_from = 0;
+        bool thrown = false, played = false, arrived = false;
+        std::vector<Vec3> ball;
+        std::vector<std::vector<Vec2>> defenders;  // after the throw, per tick
+        while (!arrived && std::getline(in, line)) {
+            const Json j = Json::parse(line);
+            if (j["type"] == "header") {
+                const std::string offense = j["details"]["offense"];
+                while (j["players"][defense_from]["team"] == offense) ++defense_from;
+            } else if (j["type"] == "event" && j["event"] == "throw") {
+                thrown = true;
+            } else if (j["type"] == "event" && j["event"] == "ball_play") {
+                played = true;  // this tick's line, next, is where it was played
+            } else if (j["type"] == "tick" && thrown) {
+                const Json& b = j["ball"];
+                ball.push_back({b[0].get<double>(), b[1].get<double>(), b[2].get<double>()});
+                std::vector<Vec2> d;
+                for (std::size_t k = defense_from; k < j["p"].size(); ++k) {
+                    d.push_back({j["p"][k][0].get<double>(), j["p"][k][1].get<double>()});
+                }
+                defenders.push_back(std::move(d));
+                arrived = ball.size() > 2 && (played || ball.back().z <= pt.target_height);
+            }
+        }
+        if (!arrived) continue;
+        // Its flight, fit over up to 10 ticks (positions are rounded to 0.01 yd;
+        // no drag): where it comes down to chest height.
+        const std::size_t n = std::min<std::size_t>(10, ball.size() - 1);
+        const double span = static_cast<double>(n) * kTickSeconds;
+        const Vec3 p = ball[0];
+        Vec3 v = (ball[n] - ball[0]) * (1.0 / span);
+        v.z += 0.5 * pt.gravity * span;  // its vertical speed at ball[0]
+        const double c = p.z - pt.target_height;
+        const double t = (v.z + std::sqrt(v.z * v.z + 2.0 * pt.gravity * c)) / pt.gravity;
+        const Vec2 spot = p.ground() + v.ground() * t;
+        for (std::size_t d = 0; d < defenders.back().size(); ++d) {
+            bool there = false;
+            for (std::size_t k = 0; k + 1 < defenders.size(); ++k) {
+                there = there || (defenders[k][d] - spot).length() < 1.0;
+            }
+            if (!there) continue;
+            ++early;
+            EXPECT_LT((defenders.back()[d] - spot).length(), 2.0) << "seed " << seed << " defender " << d;
+        }
+    }
+    EXPECT_GE(early, 3);  // the test saw some
 }
 
 TEST(Coverage, CapsuleZonesCountReceiversNearTheEdge) {

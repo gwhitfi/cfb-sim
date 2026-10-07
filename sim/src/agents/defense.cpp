@@ -126,10 +126,16 @@ Intent Defender::decide(const PlayState& play, int self, Actions& actions) {
     if (ball.state == Ball::State::InFlight && play.pass && !play.pass->away &&
         play.sees_throw(self)) {
         if (const auto spot = ball_drop_spot(play)) {
+            const auto [where, seconds] = *spot;
+            // If he can beat the ball there, he stops on the spot and
+            // contests it; if he can't, he runs flat out (braking never
+            // helps a man who's behind).
+            const double needed = (where - me.pos).length() / std::max(seconds, kTickSeconds);
             Intent in;
-            in.velocity = steer::seek(me, spot->first, me.move.top_speed);
+            in.velocity = needed < me.move.top_speed ? steer::arrive(me, where, me.move.top_speed, me.move.decel)
+                                                     : steer::seek(me, where, me.move.top_speed);
             const Vec2 to_ball = ball.pos.ground() - me.pos;
-            if (spot->second < 0.3 && to_ball.length() > 0.1) in.face = to_ball.normalized();
+            if (seconds < 0.3 && to_ball.length() > 0.1) in.face = to_ball.normalized();
             return in;
         }
     }
@@ -269,9 +275,32 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
     Vec2 spot = zone_.drop;
     track_ = {};
     if (zone_.deep) {
-        // Carry the deepest threat: deeper than him and on his inside, where
-        // he's going (his position `lead` s ahead), not where he is.
+        // Carry a receiver: deeper than him and on his inside, where he's
+        // going (his position `lead` s ahead), not where he is.
         const double lead = t.deep_lead(skill_);
+        const auto carry = [&](Vec2 going) {
+            // Leverage: a deep zone out wide (a deep third or an outside
+            // quarter) has help inside him, so he stays outside the threat and
+            // keeps outside-breaking routes in front of him; the middle and
+            // the halves have no help inside, so they stay inside.
+            const double center_x = play.offense ? play.offense->center_x : 0.0;
+            const double toward_middle = going.x >= center_x ? -1.0 : 1.0;
+            const bool wide = std::abs(zone_.drop.x - center_x) > t.deep_wide;
+            const double lean = wide ? -toward_middle : toward_middle;
+            return Vec2{going.x + lean, std::max(zone_.drop.y, going.y + t.deep_cushion)};
+        };
+        // His read gone vertical: carry him wherever he goes, out of the
+        // zone if need be (the quarters safety's rule; a poach on #3).
+        if (read_ >= 0) {
+            const Seen s = play.seen(read_, lag_);
+            const Vec2 p = frame.to_play(s.pos);
+            const Vec2 v = frame.dir_to_play(s.vel);
+            if (p.y >= t.read_depth && v.y > t.read_speed) {
+                carrying_ = read_;
+                return carry(p + v * lead);
+            }
+        }
+        // Else the deepest threat in his zone.
         const Threat* deepest = nullptr;
         Vec2 going;
         for (const Threat& th : threats) {
@@ -282,17 +311,7 @@ Vec2 ZoneCoverage::spot(const PlayState& play, int self) {
             }
         }
         carrying_ = deepest ? deepest->player : -1;
-        if (deepest) {
-            // Leverage: a deep zone out wide (a deep third or an outside
-            // quarter) has help inside him, so he stays outside the threat and
-            // keeps outside-breaking routes in front of him; the middle and
-            // the halves have no help inside, so they stay inside.
-            const double center_x = play.offense ? play.offense->center_x : 0.0;
-            const double toward_middle = going.x >= center_x ? -1.0 : 1.0;
-            const bool wide = std::abs(zone_.drop.x - center_x) > t.deep_wide;
-            const double lean = wide ? -toward_middle : toward_middle;
-            spot = {going.x + lean, std::max(zone_.drop.y, going.y + t.deep_cushion)};
-        }
+        if (deepest) spot = carry(going);
     } else if (!threats.empty()) {
         // Play one man: the biggest threat, switching only when another is
         // clearly bigger. A defender can't sit on two receivers at once,
@@ -396,8 +415,10 @@ void ZoneCoverage::draw(const PlayState& play, int self, Json& shapes) const {
                                       color, true));
     }
     shapes.push_back(shapes::text("coverage", f.to_field(spot_), "x", color));
-    if (threat_ >= 0) {
-        Json link = {{"kind", "link"}, {"layer", "coverage"}, {"a", self}, {"b", threat_},
+    // His man: the underneath threat, or the receiver a deep zone carries.
+    const int man = zone_.deep ? carrying_ : threat_;
+    if (man >= 0) {
+        Json link = {{"kind", "link"}, {"layer", "coverage"}, {"a", self}, {"b", man},
                      {"color", color}, {"dash", true}};
         shapes.push_back(std::move(link));
     }

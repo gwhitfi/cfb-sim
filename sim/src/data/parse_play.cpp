@@ -57,6 +57,14 @@ RouteRef parse_route_ref(const Reader& r, const Reader& route_value) {
     return ref;
 }
 
+// A receiver by number and side ("#1_strong" .. "#3_weak") or a back
+// ("back_1"): a man target or a zone's read.
+bool is_receiver_key(const std::string& key) {
+    if (key.starts_with("back_")) return true;
+    return key.size() >= 4 && key[0] == '#' && key[1] >= '1' && key[1] <= '3' &&
+           (key.substr(2) == "_strong" || key.substr(2) == "_weak");
+}
+
 // Parses one job object, e.g. {"route": "curl", "depth": 10} or
 // {"block": {"do": "protect"}}. Does not follow "then".
 Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view context) {
@@ -71,7 +79,7 @@ Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view 
             }
             found = kind;
             found_key = key;
-        } else if (key != "depth" && key != "side" && key != "option" && key != "then") {
+        } else if (key != "depth" && key != "side" && key != "option" && key != "then" && key != "read") {
             r.at(key).fail("unknown field '" + key + "'");
         }
     }
@@ -86,6 +94,9 @@ Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view 
     }
     if (!route_like && job.kind != JobKind::Gap && r.has("side")) {
         r.at("side").fail("'side' doesn't apply to '" + found_key + "'");
+    }
+    if (job.kind != JobKind::Zone && r.has("read")) {
+        r.at("read").fail("'read' only applies to zones");
     }
 
     switch (job.kind) {
@@ -118,8 +129,17 @@ Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view 
             job.side = job_side(r.at("side"));
             break;
         case JobKind::Support:
+            job.ref = value.as_string();
+            break;
         case JobKind::Zone:
             job.ref = value.as_string();
+            // A deep zone's read: the receiver he carries if he goes vertical.
+            if (auto read = r.find("read")) {
+                job.target = read->as_string();
+                if (!is_receiver_key(job.target)) {
+                    read->fail("read must look like #1_strong, #2_weak, or back_1");
+                }
+            }
             break;
         case JobKind::Man:
             // "#1_strong", or {"target": "#1_strong", "leverage": "outside"}.
@@ -133,10 +153,7 @@ Job parse_job(const Reader& r, std::span<const JobKind> kinds, std::string_view 
                     value.at("leverage").fail("leverage must be inside or outside");
                 }
             }
-            if (!job.target.starts_with("back_") &&
-                !(job.target.size() >= 4 && job.target[0] == '#' && job.target[1] >= '1' &&
-                  job.target[1] <= '3' &&
-                  (job.target.substr(2) == "_strong" || job.target.substr(2) == "_weak"))) {
+            if (!is_receiver_key(job.target)) {
                 value.fail("man target must look like #1_strong, #2_weak, or back_1");
             }
             break;

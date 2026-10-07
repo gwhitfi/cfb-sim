@@ -387,6 +387,19 @@ const char* cfbsim_playbook_art(const char* data_dir, const char* team_id) {
     }
 }
 
+const char* cfbsim_defensive_playbook_art(const char* data_dir, const char* team_id) {
+    thread_local std::string out;
+    try {
+        last_error.clear();
+        cfbsim::LoadReport report = cfbsim::load_data_dir(data_dir ? data_dir : "data");
+        if (!report.ok()) return fail("the data folder has errors: " + report.errors.front());
+        out = cfbsim::defensive_playbook_art_json(report.data, team_id ? team_id : "").dump();
+        return out.c_str();
+    } catch (const std::exception& e) {
+        return fail(e.what());
+    }
+}
+
 const char* cfbsim_list_playbooks(const char* data_dir) {
     thread_local std::string out;
     try {

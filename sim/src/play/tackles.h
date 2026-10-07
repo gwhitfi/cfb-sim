@@ -73,8 +73,17 @@ class Tackles {
     // between the bodies.
     double contact_quality_at(int tackler, Vec2 k_pos, Vec2 k_vel, Vec2 c_pos, Vec2 c_vel, double gap,
                               int carrier) const;
+    // White-box: quality at the closest approach within the current tick,
+    // with positions and velocities sampled at the same instant.
+    double contact_quality(int tackler, int carrier) const;
 
   private:
+    struct ContactSample {
+        PlayState::Snapshot tackler;
+        PlayState::Snapshot carrier;
+        double distance() const { return (tackler.pos - carrier.pos).length(); }
+    };
+    ContactSample contact_sample(int tackler, int carrier) const;
     TackleResult attempt(int carrier, int tackler, Rng& rng, bool dive = false);
     // Extra reach a free defender gets lunging at a carrier he's closing on.
     double lunge(int tackler, int carrier) const;
@@ -88,8 +97,6 @@ class Tackles {
     bool can_try(int tackler, int carrier, double extra = 0.0) const;
     // Closest the two came during the last tick (they may cross between ticks).
     double swept_distance(int a, int b) const;
-    // How squarely he gets to the carrier, 0-1: distance x angle.
-    double contact_quality(int tackler, int carrier) const;
     // In reach but still closing to a better contact: he holds his try.
     bool waits(int tackler, int carrier) const;
     const EvasionResult* evasion(int carrier, int tackler) const;

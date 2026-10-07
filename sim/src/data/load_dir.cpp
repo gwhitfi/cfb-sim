@@ -284,9 +284,20 @@ class Validator {
                     }
                 }
                 break;
-            case JobKind::Zone:
-                if (!data_.zones.contains(job.ref)) error(where, "unknown zone '" + job.ref + "'");
+            case JobKind::Zone: {
+                const auto zone = data_.zones.find(job.ref);
+                if (zone == data_.zones.end()) {
+                    error(where, "unknown zone '" + job.ref + "'");
+                    break;
+                }
+                // Only deep zones read (the same test PlaySim::zone_area makes).
+                const Zone& z = zone->second;
+                const bool deep = z.radius <= 0.0 && z.depth_min >= data_.tuning.defense.deep_min_depth;
+                if (!job.target.empty() && !deep) {
+                    error(where, "zone '" + job.ref + "' is not a deep zone, so it can't have a read");
+                }
                 break;
+            }
             case JobKind::Block:
                 if (job.action == "scheme" && !play.run) {
                     error(where, "'scheme' blocks need a run play (use 'protect' on passes)");

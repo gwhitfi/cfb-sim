@@ -118,6 +118,12 @@
     "behind_factor": 0.2,
     "bat_factor": 0.25,       // a lineman at the line has to get his hands up in time
     "line_depth": 2.5,        // yd: defenders this close to the line are at the line
+    // Tight coverage: when the receiver has a play on the ball and no defender
+    // does, the nearest defender within breakup_range of him (from any side)
+    // tries to knock it away: breakup_share x his contest chance x closeness
+    // (1 touching, 0 at breakup_range). Never an interception.
+    "breakup_range": 1.5,     // yd, center to center
+    "breakup_share": 0.8,
     "tip_chance": 0.25,       // a breakup or drop stays live
     "tip_keep": 0.3,          // share of its velocity a tipped ball keeps
     "tip_up": [1.0, 3.0]      // yd/s added upward

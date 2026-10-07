@@ -82,8 +82,8 @@ describe("the defense on the field", () => {
     const lay = layout(sc());
     expect(lay.error).toBe("");
     expect(lay.read!.strong).toBe("right");
-    expect(lay.def.SCB!.x).toBeCloseTo(19.67, 2);
-    expect(lay.def.SDE!.x).toBeCloseTo(3.5);
+    expect(lay.def.SCB!.x).toBeCloseTo(18.67, 2);
+    expect(lay.def.SDE!.x).toBeCloseTo(5.5);
     expect(receiverLabels(lay.read!)).toMatchObject({ Z: "#1s", H: "#2s", Y: "#3s", X: "#1w", RB: "b1" });
   });
   it("uses a play's align over the formation's spot", () => {
@@ -108,5 +108,40 @@ describe("pasting", () => {
     expect(() => readPasted("{ nope")).toThrow(/not valid JSON/);
     expect(() => readPasted('{"side": "special", "plays": []}')).toThrow(/special teams/);
     expect(() => readPasted('{"side": "offense"}')).toThrow(/couldn't tell/);
+  });
+});
+
+
+describe("zone read preservation", () => {
+  it("keeps an authored read through parsing, normalization, and unrelated edits", () => {
+    const f = D.defaultDefenseFormation();
+    const source = (data("playbooks/43_base.json").plays as Obj[]).find((p) => p.id === "cover_4_quarters")!;
+    const { play } = D.parseDefensePlay(source, f);
+    D.normalizeDefense(f, play);
+    play.name = "Edited quarters";
+    const output = D.playJson(f, play) as Obj;
+    expect(output).toEqual({ ...source, name: "Edited quarters" });
+    const job = play.assignments.FS!.pass;
+    expect(job).toMatchObject({ kind: "zone", read: "#3_strong" });
+    if (job.kind !== "zone") throw new Error("expected zone");
+    job.read = "#2_weak";
+    expect(D.passJson(job)).toEqual({ zone: job.ref, read: "#2_weak" });
+    delete job.read;
+    expect(D.passJson(job)).toEqual({ zone: job.ref });
+  });
+  it("rejects invalid reads rather than dropping them", () => {
+    expect(() => D.parsePass({ zone: "deep_middle", read: 7 })).toThrow(/invalid zone read/);
+    expect(() => D.parsePass({ zone: "deep_middle", read: "#4_strong" })).toThrow(/invalid zone read/);
+    expect(() => D.parsePass({ spy: true, read: "#1_strong" })).toThrow(/only applies to zones/);
+    expect(() => D.parsePass({ rush: { lane: "contain" }, read: "#1_strong" })).toThrow(/only applies to zones/);
+    expect(D.parsePass({ zone: "deep_middle", read: "back_1" })).toMatchObject({ read: "back_1" });
+  });
+  it("starts with fresh templates without sharing mutable draft state", () => {
+    const f = D.defaultDefenseFormation(); const p = D.defaultDefensePlay();
+    const offense = O.defaultOffenseFormation();
+    f.slots[0]!.y = 99; p.assignments.FS!.align.y = 99; offense.slots[0]!.y = 99;
+    expect(D.defaultDefenseFormation().slots[0]!.y).not.toBe(99);
+    expect(D.defaultDefensePlay().assignments.FS!.align.y).toBeUndefined();
+    expect(O.defaultOffenseFormation().slots[0]!.y).not.toBe(99);
   });
 });

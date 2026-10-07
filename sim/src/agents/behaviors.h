@@ -311,7 +311,7 @@ Intent run_with_ball(const PlayState& play, int self, LaneRunner& lane, Rng& rng
 class Pursuer final : public Behavior {
   public:
     struct Setup {
-        double quality = 1.0;  // share of the carrier's velocity he projects
+        double quality = 1.0;  // fraction of the pursuit horizon he plans ahead
         double lag = 0.2;      // s: how late he sees the carrier
         bool contain = false;  // keeps outside-in leverage
         Vec2 side{};           // field frame: if set, he stays this side of the carrier instead
@@ -462,9 +462,10 @@ class ManCoverage final : public Behavior {
 // ---------------------------------------------------------------------------
 class ZoneCoverage final : public Behavior {
   public:
-    // `late`: seconds he stands before dropping (a bust).
-    ZoneCoverage(ZoneArea zone, double lag, double skill, double late)
-        : zone_(std::move(zone)), lag_(lag), skill_(skill), late_(late) {}
+    // `late`: seconds he stands before dropping (a bust). `read`: a deep
+    // zone's read, the receiver he carries once he goes vertical (-1: none).
+    ZoneCoverage(ZoneArea zone, double lag, double skill, double late, int read = -1)
+        : zone_(std::move(zone)), lag_(lag), skill_(skill), late_(late), read_(zone_.deep ? read : -1) {}
 
     std::string_view name() const override { return "zone"; }
     Intent decide(const PlayState& play, int self, Actions& actions) override;
@@ -480,6 +481,7 @@ class ZoneCoverage final : public Behavior {
     double lag_;
     double skill_;
     double late_;
+    int read_;         // deep zones: the receiver he reads (-1: none)
     Vec2 spot_;        // play frame, for drawing
     int threat_ = -1;  // the receiver he's playing (underneath zones)
     int carrying_ = -1;  // the deepest threat he's carrying (deep zones; for the record)

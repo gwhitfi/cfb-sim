@@ -298,8 +298,8 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     const Reader k = root.at("contested");
     k.allow_only({"traffic_range", "traffic_penalty", "traffic_bravery_share", "receiver",
                   "defender", "closer_bonus", "skill_scale", "catch_factor", "int_contested", "dive_int_factor",
-                  "int_alone", "touch", "behind_factor", "bat_factor", "line_depth", "tip_chance", "tip_keep",
-                  "tip_up"});
+                  "int_alone", "touch", "behind_factor", "bat_factor", "line_depth", "breakup_range",
+                  "breakup_share", "tip_chance", "tip_keep", "tip_up"});
     t.traffic_range = k.number("traffic_range");
     t.traffic_penalty = parse_curve(k.at("traffic_penalty"));
     t.traffic_bravery_share = k.number("traffic_bravery_share");
@@ -315,6 +315,8 @@ PassingTuning parse_passing_tuning(const Json& json, const std::string& source) 
     t.behind_factor = k.number("behind_factor");
     t.bat_factor = k.number("bat_factor");
     t.line_depth = k.number("line_depth");
+    t.breakup_range = k.number("breakup_range");
+    t.breakup_share = k.number("breakup_share");
     t.tip_chance = k.number("tip_chance");
     t.tip_keep = k.number("tip_keep");
     std::tie(t.tip_up_min, t.tip_up_max) = parse_range(k.at("tip_up"));
@@ -372,7 +374,7 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     const Reader zone = root.at("zone");
     zone.allow_only({"skill", "lag", "face_max_deg", "threat_lookahead", "threat_margin", "eyes_weight",
                      "switch_margin", "deep_min_depth", "deep_cushion", "deep_lookahead", "deep_wide", "deep_lead",
-                     "under_short", "settle_speed", "drive_range", "under_lead", "drift", "margin"});
+                     "read_depth", "read_speed", "under_short", "settle_speed", "drive_range", "under_lead", "drift", "margin"});
     t.zone_skill = parse_blend(zone.at("skill"));
     t.zone_lag = parse_curve(zone.at("lag"));
     t.face_max_deg = zone.number("face_max_deg");
@@ -385,6 +387,8 @@ DefenseTuning parse_defense_tuning(const Json& json, const std::string& source) 
     t.deep_lookahead = zone.number("deep_lookahead");
     t.deep_wide = zone.number("deep_wide");
     t.deep_lead = parse_curve(zone.at("deep_lead"));
+    t.read_depth = zone.number("read_depth");
+    t.read_speed = zone.number("read_speed");
     t.under_short = zone.number("under_short");
     t.settle_speed = zone.number("settle_speed");
     t.drive_range = zone.number("drive_range");

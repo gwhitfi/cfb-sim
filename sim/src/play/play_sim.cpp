@@ -198,7 +198,7 @@ class PlaySim {
     void roll_coverage_bust(int i);
     std::unique_ptr<Behavior> defense_behavior(int i);
     std::unique_ptr<Behavior> defense_job(int i, const Job& job, const Job* pass_job);
-    std::unique_ptr<Behavior> zone_behavior(int i, const std::string& zone_id, double late);
+    std::unique_ptr<Behavior> zone_behavior(int i, const std::string& zone_id, double late, int read = -1);
     ZoneArea zone_area(const std::string& zone_id) const;
     Side own_side(int i) const;
     double outward(Side side) const { return side == Side::Left ? -1.0 : 1.0; }
@@ -1432,10 +1432,10 @@ std::unique_ptr<Behavior> PlaySim::defense_behavior(int i) {
                                       pursuit(i, contain), disciplined, run_hold);
 }
 
-std::unique_ptr<Behavior> PlaySim::zone_behavior(int i, const std::string& zone_id, double late) {
+std::unique_ptr<Behavior> PlaySim::zone_behavior(int i, const std::string& zone_id, double late, int read) {
     const DefenseTuning& t = defense();
     const double skill = t.zone_skill(state_.agent(i).ratings);
-    return std::make_unique<ZoneCoverage>(zone_area(zone_id), t.zone_lag(skill), skill, late);
+    return std::make_unique<ZoneCoverage>(zone_area(zone_id), t.zone_lag(skill), skill, late, read);
 }
 
 std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job* pass_job) {
@@ -1453,7 +1453,9 @@ std::unique_ptr<Behavior> PlaySim::defense_job(int i, const Job& job, const Job*
         // --- pass jobs
         case JobKind::Zone: {
             if (bust && bust->kind == Bust::Kind::WrongZone) return zone_behavior(i, bust->zone, 0.0);
-            return zone_behavior(i, job.ref, bust ? bust->delay : 0.0);
+            // His read, if the call gives him one and that receiver is there.
+            const int read = job.target.empty() ? -1 : o.player(job.target).value_or(-1);
+            return zone_behavior(i, job.ref, bust ? bust->delay : 0.0, read);
         }
         case JobKind::Man: {
             std::optional<int> target = o.player(job.target);
@@ -1906,9 +1908,26 @@ void PlaySim::play_the_ball(Vec3 before) {
         if (state_.is_offense(tr.player) && !off) off = &tr;
         if (!state_.is_offense(tr.player) && !def) def = &tr;
     }
-    if (off && off->player == state_.pass->target) fouls_.arrival(off->player, def != nullptr);
+    // Tight coverage: with the receiver at the ball and no defender with a
+    // play on it himself, the nearest defender on him (from any side) tries
+    // to knock it away as it gets there.
+    int hands = -1;
+    if (off && !def) {
+        const Vec2 at = state_.agent(off->player).pos;
+        double best = t.breakup_range;
+        for (int d = state_.offense_count; d < state_.count(); ++d) {
+            if (!can_play_ball(d) || state_.knocked_down(d) || state_.engaged(d)) continue;
+            const double dist = (state_.agent(d).pos - at).length();
+            if (dist <= best) {
+                best = dist;
+                hands = d;
+            }
+        }
+    }
+    if (off && off->player == state_.pass->target) fouls_.arrival(off->player, def != nullptr || hands >= 0);
     if (off) tried_[static_cast<std::size_t>(off->player)] = true;
     if (def) tried_[static_cast<std::size_t>(def->player)] = true;
+    if (hands >= 0) tried_[static_cast<std::size_t>(hands)] = true;
 
     // How well he can play it: reaching (stretch_factor), and for a defender
     // whether he can see it coming (receivers track it over the shoulder).
@@ -1921,8 +1940,8 @@ void PlaySim::play_the_ball(Vec3 before) {
     // Who gets it. A lambda so each outcome can just return. It records what
     // happened to each side and the odds they had, for the debug tags and the
     // ball_play events.
-    std::string off_result, def_result;
-    double off_odds = -1.0, def_odds = -1.0, pick_odds = -1.0;
+    std::string off_result, def_result, hands_result;
+    double off_odds = -1.0, def_odds = -1.0, pick_odds = -1.0, hands_odds = -1.0;
     [&] {
         if (off && def) {
             // Contested: who wins the ball?
@@ -1968,6 +1987,25 @@ void PlaySim::play_the_ball(Vec3 before) {
         }
         if (off) {
             const Agent& o = state_.agent(off->player);
+            if (hands >= 0) {
+                // His chance: his contest odds at even footing, by how close
+                // he is (1 with the bodies touching, 0 at breakup_range).
+                const Agent& d = state_.agent(hands);
+                const double touching = o.body.radius + d.body.radius;
+                const double gap = (d.pos - o.pos).length() - touching;
+                const double room = t.breakup_range - touching;
+                const double close = room > 0.0 ? std::clamp(1.0 - gap / room, 0.0, 1.0) : 1.0;
+                const double skill = contest_probability(t.contest_defender(d.ratings),
+                                                         t.contest_receiver(o.ratings), t.contest_skill_scale);
+                hands_odds = t.breakup_share * skill * close;
+                if (rng.chance(hands_odds)) {
+                    hands_result = "breakup";
+                    off_result = "broken up";
+                    after_touch(hands, off->c.at, true, "breakup");
+                    return;
+                }
+                hands_result = "missed";
+            }
             double p = catch_chance(o, off->reach, ball.vel.length(), t);
             // Traffic: a defender right on him as the ball arrives.
             for (int d = state_.offense_count; d < state_.count(); ++d) {
@@ -2054,6 +2092,18 @@ void PlaySim::play_the_ball(Vec3 before) {
     if (def) {
         ++result_.defender_plays;
         report(*def, def_result, def_odds);
+    }
+    if (hands >= 0) {
+        // Through the receiver's hands: no try at the ball himself, so no
+        // stretch or contest to report.
+        ++result_.defender_plays;
+        event("ball_play", {{"player", state_.slot_name(hands)}, {"result", hands_result},
+                            {"through_hands", true}, {"hand_odds", hands_odds}});
+        char buf[96];
+        std::snprintf(buf, sizeof buf, "breakup try | %.0f%% -> %s", 100.0 * hands_odds, hands_result.c_str());
+        const auto idx = static_cast<std::size_t>(hands);
+        note_[idx] = buf;
+        note_until_[idx] = state_.since_snap() + kNoteSeconds;
     }
 
     // A dive puts him on the ground. Going to the ground with the ball, he's
